@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sky Blaster Icon">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#162744"/>
+      <stop offset="60%" stop-color="#0a1120"/>
+      <stop offset="100%" stop-color="#070b14"/>
+    </radialGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#dbf8ff"/>
+      <stop offset="100%" stop-color="#8be8ff"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)" rx="108"/>
+  <circle cx="256" cy="256" r="138" fill="url(#core)"/>
+  <path d="M320 256L206 304L206 208Z" fill="#ffffff"/>
+</svg>
