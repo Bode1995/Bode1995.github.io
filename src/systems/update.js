@@ -27,11 +27,12 @@ export function updateState(state, viewport, onGameOver, dt) {
 
   const av = state.touch.aimVec;
   const aLen = Math.hypot(av.x, av.y);
-  const isAiming = state.touch.aimId !== null && aLen > 0;
-  const sx = isAiming ? av.x / aLen : 0;
-  const sy = isAiming ? av.y / aLen : 0;
+  const isAiming = state.touch.aimId !== null;
+  const hasAimDirection = aLen > 0;
+  const sx = hasAimDirection ? av.x / aLen : Math.cos(p.angle);
+  const sy = hasAimDirection ? av.y / aLen : Math.sin(p.angle);
 
-  if (isAiming) {
+  if (hasAimDirection) {
     p.angle = Math.atan2(sy, sx);
   }
 
