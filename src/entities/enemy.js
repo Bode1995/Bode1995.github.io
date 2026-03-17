@@ -1,3 +1,4 @@
+import { ENTITY_SPEED_MULTIPLIER } from '../core/config.js';
 import { rand } from '../core/utils.js';
 
 const ARCHETYPES = [
@@ -83,7 +84,7 @@ export function createEnemy(width, height, wave) {
     y,
     r,
     hp: rand(a.hp[0], a.hp[1]) + wave * (a.kind === 'brute' ? 5 : 3),
-    speed: rand(a.speed[0], a.speed[1]) + wave * 2,
+    speed: (rand(a.speed[0], a.speed[1]) + wave * 2) * ENTITY_SPEED_MULTIPLIER,
     damage: a.damage,
     color: a.color,
     accent: a.accent,

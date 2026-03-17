@@ -1,9 +1,11 @@
+import { CAMERA_ZOOM } from '../core/config.js';
+
 const TILE = 120;
 
 export function createRenderer(ctx, state, viewport) {
   function project(x, y, z = 0) {
-    const sx = x - state.cam.x + viewport.width() / 2;
-    const sy = (y - state.cam.y) * 0.58 + viewport.height() * 0.26 - z;
+    const sx = (x - state.cam.x) * CAMERA_ZOOM + viewport.width() / 2;
+    const sy = (y - state.cam.y) * 0.58 * CAMERA_ZOOM + viewport.height() * 0.26 - z;
     return { sx, sy };
   }
 
