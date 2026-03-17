@@ -299,6 +299,174 @@ const state = {
   yaw: 0,
 };
 
+const ENEMY_TYPES = {
+  runner: { role: 'field', hp: 2, speed: 4.9, damage: 22, radius: 0.72, score: 11 },
+  tank: { role: 'field', hp: 8, speed: 1.6, damage: 34, radius: 1.2, score: 16 },
+  shooter: { role: 'field', hp: 4, speed: 2.4, damage: 18, radius: 0.92, score: 14, range: 13.5, keepDistance: 8.5, fireRate: 1.4 },
+  swarm: { role: 'field', hp: 1, speed: 5.6, damage: 12, radius: 0.42, score: 7 },
+  charger: { role: 'field', hp: 5, speed: 2.5, damage: 26, radius: 0.95, score: 15, chargeSpeed: 9.8, chargeCooldown: 2.2, chargeDuration: 0.45 },
+  splitter: { role: 'field', hp: 5, speed: 2.3, damage: 20, radius: 0.95, score: 15, splitCount: 3 },
+  bossHeavy: { role: 'boss', hp: 48, speed: 1.15, damage: 52, radius: 1.95, score: 110 },
+  bossAgile: { role: 'boss', hp: 36, speed: 3.25, damage: 38, radius: 1.65, score: 125, chargeSpeed: 10.5, chargeCooldown: 1.65, chargeDuration: 0.35 },
+};
+
+const ENEMY_MATERIALS = {
+  shell: new THREE.MeshStandardMaterial({ color: 0xc94661, roughness: 0.52, metalness: 0.2 }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x3e1020, roughness: 0.72, metalness: 0.08 }),
+  mech: new THREE.MeshStandardMaterial({ color: 0x647088, roughness: 0.42, metalness: 0.5 }),
+  glow: new THREE.MeshStandardMaterial({ color: 0x6ce6ff, emissive: 0x1f94a8, roughness: 0.35, metalness: 0.35 }),
+  bone: new THREE.MeshStandardMaterial({ color: 0xf2d3bb, roughness: 0.6, metalness: 0.06 }),
+};
+
+function createEnemyModel(type) {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const anim = { body, legs: [], extras: [] };
+
+  const add = (geo, mat, pos, rot = [0, 0, 0], scale = [1, 1, 1], parent = body) => addMesh(parent, geo, mat, pos, rot, scale);
+
+  if (type === 'runner') {
+    body.rotation.x = -0.22;
+    add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 0.95, 0], [0, 0, 0], [0.92, 0.58, 1.55]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 1.02, 0.65], [0.15, 0, 0], [0.5, 0.2, 0.45]);
+    const l = new THREE.Group(); const r = new THREE.Group();
+    l.position.set(-0.3, 0.7, 0.08); r.position.set(0.3, 0.7, 0.08); body.add(l, r);
+    add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.45, 0], [0.35, 0, 0], [0.58, 1.25, 0.58], l);
+    add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.45, 0], [0.35, 0, 0], [0.58, 1.25, 0.58], r);
+    anim.legs.push(l, r);
+  } else if (type === 'tank') {
+    add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 1.2, 0], [0, 0, 0], [1.8, 1.15, 1.55]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 1.95, -0.08], [0.12, 0, 0], [1.35, 0.45, 1.2]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 1.45, 0.75], [0, 0, 0], [0.58, 0.25, 0.35]);
+    for (const side of [-1, 1]) {
+      const leg = new THREE.Group();
+      leg.position.set(side * 0.82, 0.72, 0);
+      body.add(leg);
+      add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.52, 0], [0.05, 0, 0], [1.2, 1, 1.2], leg);
+      anim.legs.push(leg);
+    }
+  } else if (type === 'shooter') {
+    add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 1.05, 0], [0, 0.1, 0], [1.05, 0.86, 1.05]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 1.62, -0.12], [0.18, 0, 0], [0.82, 0.35, 0.8]);
+    const gun = new THREE.Group();
+    gun.position.set(0, 1.2, 0.92);
+    body.add(gun);
+    add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 0, 0], [0, 0, 0], [0.3, 0.25, 1.35], gun);
+    add(sharedGeometries.weaponBarrel, ENEMY_MATERIALS.glow, [0, -0.03, 0.84], [Math.PI / 2, 0, 0], [1, 1, 0.88], gun);
+    anim.extras.push(gun);
+    for (const side of [-1, 1]) {
+      const leg = new THREE.Group();
+      leg.position.set(side * 0.36, 0.64, 0);
+      body.add(leg);
+      add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.45, 0], [0, 0, 0], [0.65, 1, 0.65], leg);
+      anim.legs.push(leg);
+    }
+  } else if (type === 'swarm') {
+    add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 0.5, 0], [0, 0.5, 0], [0.48, 0.42, 0.62]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 0.55, 0.25], [0.2, 0, 0], [0.3, 0.14, 0.2]);
+    for (const side of [-1, 1]) {
+      const leg = new THREE.Group();
+      leg.position.set(side * 0.16, 0.33, 0);
+      body.add(leg);
+      add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.18, 0], [0.45, 0, 0], [0.24, 0.7, 0.24], leg);
+      anim.legs.push(leg);
+    }
+  } else if (type === 'charger') {
+    body.rotation.x = -0.1;
+    add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 1.05, 0], [0.1, 0, 0], [1.08, 0.7, 1.48]);
+    add(sharedGeometries.cone, ENEMY_MATERIALS.bone, [0, 1.18, 0.92], [Math.PI / 2, 0, 0], [0.62, 0.75, 0.62]);
+    for (const side of [-1, 1]) {
+      add(sharedGeometries.cone, ENEMY_MATERIALS.dark, [side * 0.62, 1.05, 0.66], [Math.PI / 2, side * 0.3, 0], [0.38, 0.55, 0.38]);
+      const leg = new THREE.Group();
+      leg.position.set(side * 0.4, 0.66, 0.1);
+      body.add(leg);
+      add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.4, 0], [0.18, 0, 0], [0.7, 1.05, 0.7], leg);
+      anim.legs.push(leg);
+    }
+  } else if (type === 'splitter') {
+    add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 1.02, 0], [0, 0.25, 0], [0.84, 0.76, 1.15]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 1.02, 0], [0, -0.2, 0], [0.82, 0.2, 1.25]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 1.15, 0.72], [0, 0, 0], [0.34, 0.2, 0.26]);
+    for (const side of [-1, 1]) {
+      const segment = new THREE.Group();
+      segment.position.set(side * 0.5, 0.84, 0);
+      body.add(segment);
+      add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 0, 0], [0, side * 0.35, 0], [0.34, 0.68, 0.5], segment);
+      anim.extras.push(segment);
+    }
+  } else if (type === 'bossHeavy') {
+    add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 1.85, 0], [0, 0, 0], [2.85, 1.8, 2.25]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 3.1, -0.2], [0.18, 0, 0], [2.25, 0.65, 1.85]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 2.45, 1.32], [0.2, 0, 0], [1.2, 0.95, 0.8]);
+    for (const side of [-1, 1]) {
+      const tower = new THREE.Group();
+      tower.position.set(side * 1.35, 2.62, 0.2);
+      body.add(tower);
+      add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 0, 0], [0, 0, 0], [0.62, 1.15, 0.62], tower);
+      add(sharedGeometries.visor, ENEMY_MATERIALS.glow, [0, 0.38, 0.24], [0, 0, 0], [1.2, 1, 1.3], tower);
+      anim.extras.push(tower);
+    }
+  } else if (type === 'bossAgile') {
+    add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 1.6, 0], [0.08, 0, 0], [1.8, 1.2, 1.7]);
+    add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 2.4, -0.2], [0.18, 0, 0], [1.05, 0.55, 1.18]);
+    for (const side of [-1, 1]) {
+      const limb = new THREE.Group();
+      limb.position.set(side * 1.05, 1.5, 0.1);
+      body.add(limb);
+      add(sharedGeometries.arm, ENEMY_MATERIALS.dark, [0, -0.35, 0], [0.2, 0, side * 0.25], [0.9, 1.4, 0.9], limb);
+      add(sharedGeometries.cone, ENEMY_MATERIALS.bone, [0, -1, 0.25], [Math.PI, 0, 0], [0.34, 0.55, 0.34], limb);
+      anim.legs.push(limb);
+    }
+    const rotor = new THREE.Group();
+    rotor.position.set(0, 2.95, 0);
+    body.add(rotor);
+    add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 0, 0], [0, 0, 0], [1.85, 0.1, 0.2], rotor);
+    add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 0, 0], [0, Math.PI / 2, 0], [1.85, 0.1, 0.2], rotor);
+    anim.extras.push(rotor);
+  }
+
+  return { root, anim };
+}
+
+function pickEnemyType(wave, indexInWave) {
+  if (wave >= 5 && indexInWave === 0) return wave % 2 === 0 ? 'bossAgile' : 'bossHeavy';
+  const pool = ['runner', 'runner', 'swarm', 'tank', 'shooter', 'charger', 'splitter'];
+  if (wave < 2) return 'runner';
+  if (wave < 3) return pool[Math.floor(Math.random() * 3)];
+  if (wave < 5) return pool[Math.floor(Math.random() * 5)];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function spawnEnemy(type, angle, dist, waveScale) {
+  const model = createEnemyModel(type);
+  const cfg = ENEMY_TYPES[type];
+  const enemy = model.root;
+  enemy.position.set(Math.cos(angle) * dist, cfg.role === 'boss' ? 0.7 : 0.45, Math.sin(angle) * dist);
+  enemy.castShadow = true;
+  enemy.userData = {
+    type,
+    hp: Math.ceil(cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)),
+    speed: (cfg.speed + waveScale * (cfg.role === 'boss' ? 0.05 : 0.08)) * (0.94 + Math.random() * 0.12),
+    damage: cfg.damage,
+    radius: cfg.radius,
+    score: cfg.score,
+    range: cfg.range || 0,
+    keepDistance: cfg.keepDistance || 0,
+    fireRate: cfg.fireRate || 0,
+    fireCooldown: Math.random(),
+    chargeSpeed: cfg.chargeSpeed || 0,
+    chargeCooldown: cfg.chargeCooldown || 0,
+    chargeTimer: 0,
+    chargeDuration: cfg.chargeDuration || 0,
+    splitCount: cfg.splitCount || 0,
+    anim: model.anim,
+    spawnTick: Math.random() * Math.PI * 2,
+  };
+  scene.add(enemy);
+  enemies.push(enemy);
+}
+
 const input = {
   move: new THREE.Vector2(),
   shooting: false,
@@ -315,18 +483,18 @@ function updateHUD() {
 function spawnWave() {
   state.spawnLeft = 4 + state.wave * 2;
   for (let i = 0; i < state.spawnLeft; i++) {
+    const type = pickEnemyType(state.wave, i);
     const angle = Math.random() * Math.PI * 2;
     const dist = 18 + Math.random() * 18;
-    const enemy = new THREE.Mesh(
-      new THREE.SphereGeometry(0.8 + Math.random() * 0.25, 18, 16),
-      new THREE.MeshStandardMaterial({ color: 0xff6a8d, emissive: 0x381021, roughness: 0.35 })
-    );
-    enemy.position.set(Math.cos(angle) * dist, 0.85, Math.sin(angle) * dist);
-    enemy.castShadow = true;
-    enemy.userData.speed = 2.2 + Math.random() * 0.8 + state.wave * 0.12;
-    enemy.userData.hp = 1 + Math.floor(state.wave / 3);
-    scene.add(enemy);
-    enemies.push(enemy);
+    spawnEnemy(type, angle, dist, state.wave);
+    if (type === 'swarm' && i < state.spawnLeft - 2) {
+      for (let g = 0; g < 2; g++) {
+        const offsetA = angle + (Math.random() - 0.5) * 0.25;
+        const offsetD = dist + (Math.random() - 0.5) * 2;
+        spawnEnemy('swarm', offsetA, offsetD, state.wave);
+      }
+      i += 2;
+    }
   }
 }
 
@@ -348,7 +516,15 @@ function shoot() {
 function destroyEnemy(enemy, index) {
   scene.remove(enemy);
   enemies.splice(index, 1);
-  state.score += 10;
+  if (enemy.userData.type === 'splitter') {
+    for (let i = 0; i < enemy.userData.splitCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 0.9 + Math.random() * 1.4;
+      spawnEnemy('swarm', angle, dist, Math.max(1, state.wave * 0.5));
+      enemies[enemies.length - 1].position.add(enemy.position);
+    }
+  }
+  state.score += enemy.userData.score || 10;
 }
 
 function gameOver() {
@@ -563,23 +739,58 @@ function animate() {
 
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
+      const data = e.userData;
       const toPlayer = playerRigHolder.position.clone().sub(e.position);
       const dist = toPlayer.length();
       toPlayer.normalize();
-      e.position.addScaledVector(toPlayer, e.userData.speed * dt);
-      e.position.y = 0.85 + Math.sin(performance.now() * 0.005 + i) * 0.05;
+      const side = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x);
+      let moveDir = toPlayer.clone();
+      let moveSpeed = data.speed;
 
-      if (dist < 1.4) {
-        state.hp -= 28 * dt;
+      if (data.type === 'shooter') {
+        if (dist < data.keepDistance) {
+          moveDir = toPlayer.clone().multiplyScalar(-0.65).addScaledVector(side, Math.sin(elapsed + i) * 0.7).normalize();
+        } else if (dist < data.range) {
+          moveDir = side.clone().multiplyScalar(Math.sin(elapsed * 0.8 + i) > 0 ? 1 : -1);
+        }
+        data.fireCooldown -= dt;
+        if (dist < data.range && data.fireCooldown <= 0) {
+          state.hp -= data.damage * 0.18;
+          data.fireCooldown = data.fireRate;
+        }
+      }
+
+      if (data.chargeCooldown > 0) {
+        data.chargeTimer -= dt;
+        if (data.chargeTimer <= -data.chargeCooldown) data.chargeTimer = data.chargeDuration;
+        if (data.chargeTimer > 0) moveSpeed = data.chargeSpeed;
+      }
+
+      e.position.addScaledVector(moveDir, moveSpeed * dt);
+      e.lookAt(playerRigHolder.position.x, e.position.y, playerRigHolder.position.z);
+
+      const step = elapsed * (2.8 + moveSpeed * 0.9) + data.spawnTick;
+      const bobAmp = data.type.includes('boss') ? 0.12 : data.type === 'swarm' ? 0.06 : 0.08;
+      e.position.y = (data.type.includes('boss') ? 0.75 : 0.45) + Math.sin(step) * bobAmp;
+      if (data.anim?.body) data.anim.body.rotation.z = Math.sin(step * 0.5) * 0.04;
+      for (let legIdx = 0; legIdx < data.anim.legs.length; legIdx++) {
+        data.anim.legs[legIdx].rotation.x = Math.sin(step * 1.7 + legIdx * Math.PI) * 0.45;
+      }
+      for (let extraIdx = 0; extraIdx < data.anim.extras.length; extraIdx++) {
+        data.anim.extras[extraIdx].rotation.y = Math.sin(step + extraIdx) * 0.28;
+      }
+
+      if (dist < data.radius + 0.7) {
+        state.hp -= data.damage * dt;
         if (state.hp <= 0) gameOver();
       }
 
       for (let j = bullets.length - 1; j >= 0; j--) {
-        if (e.position.distanceTo(bullets[j].position) < 1) {
-          e.userData.hp -= 1;
+        if (e.position.distanceTo(bullets[j].position) < data.radius) {
+          data.hp -= 1;
           scene.remove(bullets[j]);
           bullets.splice(j, 1);
-          if (e.userData.hp <= 0) {
+          if (data.hp <= 0) {
             destroyEnemy(e, i);
             break;
           }
