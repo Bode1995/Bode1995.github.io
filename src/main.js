@@ -200,6 +200,11 @@ const RUN_BASE = {
   projectileCount: 1,
 };
 
+const SAFETY_LIMITS = {
+  maxProjectileCount: 128,
+  maxActiveBullets: 900,
+};
+
 const runPowers = {
   stacks: {
     fire: 0,
@@ -910,11 +915,17 @@ function applyRunPower(type) {
   if (type === 'movementSpeed') {
     state.moveSpeedMultiplier = RUN_BASE.moveSpeedMultiplier + runPowers.stacks.movementSpeed * 0.05;
   } else if (type === 'doubler') {
-    state.projectileCount = RUN_BASE.projectileCount * Math.pow(2, runPowers.stacks.doubler);
+    const rawProjectileCount = RUN_BASE.projectileCount * Math.pow(2, runPowers.stacks.doubler);
+    state.projectileCount = sanitizeProjectileCount(rawProjectileCount);
   } else if (type === 'shield') {
     runPowers.shieldHp += 26;
   }
   showPickupNotice(type);
+}
+
+function sanitizeProjectileCount(value) {
+  if (!Number.isFinite(value) || value <= 0) return RUN_BASE.projectileCount;
+  return Math.min(SAFETY_LIMITS.maxProjectileCount, Math.floor(value));
 }
 
 function resetRunPowerUps() {
@@ -1048,10 +1059,18 @@ function applyProjectilePower(enemy, bullet) {
 function shoot() {
   if (state.fireCooldown > 0) return;
   state.fireCooldown = 0.18;
-  const count = Math.max(1, state.projectileCount);
+  const count = sanitizeProjectileCount(state.projectileCount);
   const baseYaw = state.yaw;
   const spread = Math.min(0.75, 0.11 * Math.log2(count));
   const fx = getProjectileEffects();
+
+  if (bullets.length > SAFETY_LIMITS.maxActiveBullets) {
+    const overflow = bullets.length - SAFETY_LIMITS.maxActiveBullets;
+    for (let i = 0; i < overflow; i++) {
+      const old = bullets.shift();
+      if (old) scene.remove(old);
+    }
+  }
 
   for (let shot = 0; shot < count; shot++) {
     const t = count === 1 ? 0 : shot / (count - 1);
