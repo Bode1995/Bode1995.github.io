@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Lane Dodger</title>
+<style>body{margin:0;overflow:hidden;background:#0a0c18;color:#fff;font-family:system-ui}#ui{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;z-index:2}.box{padding:8px 12px;background:rgba(5,8,20,.7);border:1px solid #5670c7;border-radius:10px}a{color:#beddff}</style>
+</head><body>
+<div id="ui"><div class="box">Zeit: <b id="time">0.0</b>s</div><div class="box"><a href="index.html">⬅ Menü</a> · A/D</div></div>
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
+const scene=new THREE.Scene();const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,80);camera.position.set(0,5,10);camera.lookAt(0,0,-10);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xa0b8ff,0x112244,1.2));
+const lanes=[-2,0,2];let lane=1;let gameOver=false;let start=performance.now();
+const player=new THREE.Mesh(new THREE.BoxGeometry(.9,.9,.9),new THREE.MeshStandardMaterial({color:0x5df0ff}));player.position.set(0,.5,2);scene.add(player);
+const road=new THREE.Mesh(new THREE.BoxGeometry(7,.2,50),new THREE.MeshStandardMaterial({color:0x1a2238}));road.position.z=-15;scene.add(road);
+const obstacles=[];
+for(let i=0;i<16;i++){const o=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0xff6f8b}));o.position.set(lanes[Math.floor(Math.random()*3)],.5,-i*4);scene.add(o);obstacles.push(o);}
+addEventListener('keydown',e=>{if(e.key.toLowerCase()==='a')lane=Math.max(0,lane-1);if(e.key.toLowerCase()==='d')lane=Math.min(2,lane+1);});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+function loop(){
+  if(!gameOver){
+    player.position.x+=(lanes[lane]-player.position.x)*0.2;
+    for(const o of obstacles){
+      o.position.z+=0.18;
+      if(o.position.z>4){o.position.z=-55-Math.random()*18;o.position.x=lanes[Math.floor(Math.random()*3)];}
+      if(Math.abs(o.position.z-player.position.z)<.85 && Math.abs(o.position.x-player.position.x)<.8){gameOver=true;document.getElementById('time').textContent='Crash!';}
+    }
+    document.getElementById('time').textContent=((performance.now()-start)/1000).toFixed(1);
+  }
+  renderer.render(scene,camera);requestAnimationFrame(loop);
+}
+loop();
+</script></body></html>
