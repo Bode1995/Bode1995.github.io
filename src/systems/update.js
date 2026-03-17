@@ -23,11 +23,22 @@ export function updateState(state, viewport, onGameOver, dt) {
 
   if (movePower > 0) {
     p.angle = Math.atan2(ny, nx);
-    if (state.fireCooldown <= 0) {
-      state.bullets.push(createBullet(p, nx, ny));
-      spawnShootParticles(state, nx, ny);
-      state.fireCooldown = 0.24 - movePower * 0.16;
-    }
+  }
+
+  const av = state.touch.aimVec;
+  const aLen = Math.hypot(av.x, av.y);
+  const isAiming = state.touch.aimId !== null && aLen > 0.08;
+  const sx = isAiming ? av.x / aLen : 0;
+  const sy = isAiming ? av.y / aLen : 0;
+
+  if (isAiming) {
+    p.angle = Math.atan2(sy, sx);
+  }
+
+  if (isAiming && state.fireCooldown <= 0) {
+    state.bullets.push(createBullet(p, sx, sy));
+    spawnShootParticles(state, sx, sy);
+    state.fireCooldown = 0.12;
   }
 
   if (state.spawnLeft > 0) {

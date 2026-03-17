@@ -60,8 +60,6 @@ export function wireInput(state, ui) {
       }
       if (t.identifier === state.touch.aimId) {
         setStick(ui.aimKnob, state.touch.aimBase, t.clientX, t.clientY, state.touch.aimVec);
-        state.touch.moveVec.x = state.touch.aimVec.x;
-        state.touch.moveVec.y = state.touch.aimVec.y;
       }
     }
   }
@@ -78,8 +76,6 @@ export function wireInput(state, ui) {
         state.touch.aimId = null;
         state.touch.aimVec.x = 0;
         state.touch.aimVec.y = 0;
-        state.touch.moveVec.x = 0;
-        state.touch.moveVec.y = 0;
         resetStickVisual(ui.aimStick, ui.aimKnob);
       }
     }
