@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sky Blaster Maskable Icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#162744"/>
+      <stop offset="100%" stop-color="#070b14"/>
+    </linearGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#dbf8ff"/>
+      <stop offset="100%" stop-color="#8be8ff"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="112" fill="url(#core)"/>
+  <path d="M304 256L218 292L218 220Z" fill="#ffffff"/>
+</svg>
