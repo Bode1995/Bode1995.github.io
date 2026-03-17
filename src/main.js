@@ -356,6 +356,11 @@ function randomArenaPoint(padding = 4) {
   );
 }
 
+function isOutsideArenaBounds(position, padding = 0) {
+  const half = gameplayConfig.arena.size * 0.5 - gameplayConfig.arena.padding + padding;
+  return Math.abs(position.x) > half || Math.abs(position.z) > half;
+}
+
 function isPointValidForPickup(point, radius = 1.1) {
   for (let i = 0; i < worldColliders.length; i++) {
     const c = worldColliders[i];
@@ -1396,6 +1401,11 @@ function animate() {
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
       b.position.addScaledVector(b.userData.vel, dt);
+      if (isOutsideArenaBounds(b.position, b.geometry?.parameters?.radius ?? 0)) {
+        scene.remove(b);
+        bullets.splice(i, 1);
+        continue;
+      }
       b.userData.trailTick -= dt;
       if (b.userData.trailTick <= 0) {
         b.userData.trailTick = 0.032;
