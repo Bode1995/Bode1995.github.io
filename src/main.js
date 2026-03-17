@@ -189,6 +189,7 @@ function zoneTouch(zone) {
     e.preventDefault();
     zone.setPointerCapture(e.pointerId);
     input.moveTouch = { id: e.pointerId, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0 };
+    input.shooting = true;
   });
 
   zone.addEventListener('pointermove', (e) => {
@@ -198,7 +199,7 @@ function zoneTouch(zone) {
     const dy = THREE.MathUtils.clamp(e.clientY - touch.startY, -42, 42);
     touch.dx = dx;
     touch.dy = dy;
-    input.move.set(-(dx / 42), -(dy / 42));
+    input.move.set(dx / 42, dy / 42);
   });
 
   const clear = (e) => {
@@ -206,6 +207,7 @@ function zoneTouch(zone) {
     if (!touch || touch.id !== e.pointerId) return;
     input.moveTouch = null;
     input.move.set(0, 0);
+    input.shooting = false;
   };
 
   zone.addEventListener('pointerup', clear);
@@ -224,21 +226,22 @@ function animate() {
     );
     if (keyboardMove.lengthSq() > 0) keyboardMove.normalize();
     const finalMove = input.move.lengthSq() > 0 ? input.move.clone() : keyboardMove;
-    if (finalMove.lengthSq() > 0) {
+    const deadZone = 0.18;
+    const moveStrength = finalMove.length();
+    const moveActive = moveStrength > deadZone;
+
+    if (moveActive) {
+      finalMove.normalize();
       state.yaw = Math.atan2(finalMove.x, finalMove.y);
     }
 
-    const forward = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
-    const right = new THREE.Vector3(forward.z, 0, -forward.x);
-    const velocity = new THREE.Vector3();
-    velocity.addScaledVector(right, finalMove.x * 11 * dt);
-    velocity.addScaledVector(forward, finalMove.y * 11 * dt);
+    const velocity = new THREE.Vector3(finalMove.x * 11 * dt, 0, finalMove.y * 11 * dt);
     player.position.add(velocity);
     player.position.x = THREE.MathUtils.clamp(player.position.x, -42, 42);
     player.position.z = THREE.MathUtils.clamp(player.position.z, -42, 42);
 
     state.fireCooldown -= dt;
-    if (input.shooting || finalMove.lengthSq() > 0) shoot();
+    if (input.shooting) shoot();
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
@@ -290,7 +293,7 @@ function animate() {
 
   updateStick(ui.moveStick, ui.moveKnob, input.moveTouch);
 
-  const camOffset = new THREE.Vector3(0, 16, -1.2);
+  const camOffset = new THREE.Vector3(0, 22, 0.001);
   camera.position.copy(player.position).add(camOffset);
   camera.lookAt(player.position.x, player.position.y, player.position.z);
 
