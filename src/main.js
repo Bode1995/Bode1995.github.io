@@ -203,6 +203,18 @@ const RUN_BASE = {
 const SAFETY_LIMITS = {
   maxProjectileCount: 128,
   maxActiveBullets: 900,
+  maxChainBeams: 140,
+  maxDamageNumbers: 80,
+  maxLightningChainsPerHit: 10,
+  maxLightningChainsPerFrame: 44,
+  maxVfxSpawnPerFrame: 180,
+  maxDamageNumbersPerFrame: 20,
+};
+
+const frameBudgets = {
+  lightningChains: 0,
+  vfxSpawns: 0,
+  damageNumbers: 0,
 };
 
 const runPowers = {
@@ -646,6 +658,8 @@ function getProjectileEffects() {
 }
 
 function spawnVfxParticle(position, velocity, color, life = 0.35, scale = 1) {
+  if (frameBudgets.vfxSpawns >= SAFETY_LIMITS.maxVfxSpawnPerFrame) return;
+  frameBudgets.vfxSpawns += 1;
   if (vfxParticles.length > VFX.maxParticles) {
     const oldest = vfxParticles.shift();
     if (oldest) scene.remove(oldest.mesh);
@@ -678,6 +692,15 @@ function spawnImpactEffects(position, effects) {
 }
 
 function createChainBeam(from, to) {
+  if (frameBudgets.lightningChains >= SAFETY_LIMITS.maxLightningChainsPerFrame) return false;
+  frameBudgets.lightningChains += 1;
+  if (chainBeams.length >= SAFETY_LIMITS.maxChainBeams) {
+    const oldest = chainBeams.shift();
+    if (oldest) {
+      scene.remove(oldest.mesh);
+      oldest.mesh.material.dispose();
+    }
+  }
   const beam = new THREE.Mesh(
     new THREE.CylinderGeometry(0.07, 0.07, 1, 6),
     new THREE.MeshBasicMaterial({ color: 0xc7ccff, transparent: true, opacity: 0.95, depthWrite: false })
@@ -690,6 +713,7 @@ function createChainBeam(from, to) {
   beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirVec.normalize());
   scene.add(beam);
   chainBeams.push({ mesh: beam, life: 0.12, maxLife: 0.12 });
+  return true;
 }
 
 function createEnemyModel(type) {
@@ -857,6 +881,16 @@ function spawnEnemy(type, angle, dist, waveScale) {
 }
 
 function spawnDamageNumber(enemy, amount) {
+  if (frameBudgets.damageNumbers >= SAFETY_LIMITS.maxDamageNumbersPerFrame) return;
+  if (damageNumbers.length >= SAFETY_LIMITS.maxDamageNumbers) {
+    const oldest = damageNumbers.shift();
+    if (oldest) {
+      scene.remove(oldest.sprite);
+      oldest.sprite.material.map?.dispose();
+      oldest.sprite.material.dispose();
+    }
+  }
+  frameBudgets.damageNumbers += 1;
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 128;
@@ -1000,23 +1034,24 @@ function damageEnemy(enemy, amount, fromChain = false) {
     if (idx >= 0) destroyEnemy(enemy, idx);
   }
   if (!fromChain && runPowers.stacks.lightning > 0) {
-    let chains = runPowers.stacks.lightning;
+    let chains = Math.min(runPowers.stacks.lightning, SAFETY_LIMITS.maxLightningChainsPerHit);
     let source = enemy;
     const visited = new Set([enemy]);
     while (chains > 0) {
+      if (frameBudgets.lightningChains >= SAFETY_LIMITS.maxLightningChainsPerFrame) break;
       let nearest = null;
-      let nearestDist = 6.5;
+      let nearestDistSq = 6.5 * 6.5;
       for (const candidate of enemies) {
         if (candidate.userData.dead || visited.has(candidate)) continue;
-        const d = source.position.distanceTo(candidate.position);
-        if (d < nearestDist) {
-          nearestDist = d;
+        const dSq = source.position.distanceToSquared(candidate.position);
+        if (dSq < nearestDistSq) {
+          nearestDistSq = dSq;
           nearest = candidate;
         }
       }
       if (!nearest) break;
       visited.add(nearest);
-      createChainBeam(source.position, nearest.position);
+      if (!createChainBeam(source.position, nearest.position)) break;
       const chainDamage = Math.max(1, Math.round(0.7 + runPowers.stacks.lightning * 0.8));
       damageEnemy(nearest, chainDamage, true);
       source = nearest;
@@ -1322,6 +1357,10 @@ refreshCharacterSelection();
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.033);
   const elapsed = clock.elapsedTime;
+
+  frameBudgets.lightningChains = 0;
+  frameBudgets.vfxSpawns = 0;
+  frameBudgets.damageNumbers = 0;
 
   let moveBlend = 0;
   if (state.running) {
