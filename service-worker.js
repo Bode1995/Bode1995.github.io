@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sky-blaster-v2';
+const CACHE_NAME = 'sky-blaster-3d-v1';
 const ASSETS = [
   './',
   './index.html',
@@ -7,19 +7,7 @@ const ASSETS = [
   './assets/icons/icon.svg',
   './assets/icons/icon-maskable.svg',
   './assets/icons/apple-touch-icon.svg',
-  './src/main.js',
-  './src/core/config.js',
-  './src/core/state.js',
-  './src/core/utils.js',
-  './src/entities/player.js',
-  './src/entities/enemy.js',
-  './src/entities/bullet.js',
-  './src/systems/input.js',
-  './src/systems/particles.js',
-  './src/systems/render.js',
-  './src/systems/update.js',
-  './src/ui/dom.js',
-  './src/pwa/register-sw.js'
+  './src/main.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -42,6 +30,7 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
       return fetch(event.request)
         .then((response) => {
+          if (!event.request.url.startsWith('http')) return response;
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
