@@ -81,6 +81,9 @@ const ui = {
   wave: document.getElementById('wave'),
   score: document.getElementById('score'),
   hpBar: document.getElementById('hpBar'),
+  shieldValue: document.getElementById('shieldValue'),
+  powerSummary: document.getElementById('powerSummary'),
+  pickupFeed: document.getElementById('pickupFeed'),
   finalWave: document.getElementById('finalWave'),
   finalScore: document.getElementById('finalScore'),
   moveZone: document.getElementById('moveZone'),
@@ -175,6 +178,41 @@ const mapRoot = new THREE.Group();
 scene.add(mapRoot);
 const worldColliders = [];
 const PLAYER_COLLISION_RADIUS = 0.72;
+
+const POWER_UP_DEFS = {
+  fire: { kind: 'projectile', label: 'Fire', color: 0xff7f4d, icon: '🔥' },
+  ice: { kind: 'projectile', label: 'Ice', color: 0x8de0ff, icon: '❄️' },
+  lightning: { kind: 'projectile', label: 'Lightning', color: 0x95a8ff, icon: '⚡' },
+  poison: { kind: 'projectile', label: 'Poison', color: 0x7bdf64, icon: '☠️' },
+  rockets: { kind: 'projectile', label: 'Rockets', color: 0xffa34a, icon: '🚀' },
+  doubler: { kind: 'projectile', label: 'Doubler', color: 0xfff38c, icon: '✖️' },
+  health: { kind: 'player', label: 'Health', color: 0xff8faf, icon: '❤️' },
+  movementSpeed: { kind: 'player', label: 'Move Speed', color: 0x66ffd8, icon: '🏃' },
+  shield: { kind: 'player', label: 'Shield', color: 0x79d7ff, icon: '🛡️' },
+};
+
+const POWER_UP_KEYS = Object.keys(POWER_UP_DEFS);
+const powerPickups = [];
+const pickupNotices = [];
+
+const RUN_BASE = {
+  moveSpeedMultiplier: 1,
+  projectileCount: 1,
+};
+
+const runPowers = {
+  stacks: {
+    fire: 0,
+    ice: 0,
+    lightning: 0,
+    poison: 0,
+    rockets: 0,
+    doubler: 0,
+    movementSpeed: 0,
+    shield: 0,
+  },
+  shieldHp: 0,
+};
 
 function addCollider(x, z, radius) {
   worldColliders.push({ x, z, radius });
@@ -304,7 +342,67 @@ function createWorldMap() {
 
 createWorldMap();
 
+function randomArenaPoint(padding = 4) {
+  const half = gameplayConfig.arena.size * 0.5 - gameplayConfig.arena.padding - padding;
+  return new THREE.Vector3(
+    THREE.MathUtils.randFloatSpread(half * 2),
+    0,
+    THREE.MathUtils.randFloatSpread(half * 2)
+  );
+}
+
+function isPointValidForPickup(point, radius = 1.1) {
+  for (let i = 0; i < worldColliders.length; i++) {
+    const c = worldColliders[i];
+    if (Math.hypot(point.x - c.x, point.z - c.z) < c.radius + radius) return false;
+  }
+  if (Math.hypot(point.x - playerRigHolder.position.x, point.z - playerRigHolder.position.z) < 5) return false;
+  return true;
+}
+
+function createPickupMesh(type) {
+  const def = POWER_UP_DEFS[type];
+  const root = new THREE.Group();
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.52, 0.09, 10, 26),
+    new THREE.MeshStandardMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 0.45, roughness: 0.35, metalness: 0.25 })
+  );
+  ring.rotation.x = Math.PI / 2;
+  const core = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.28, 0),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: def.color, emissiveIntensity: 0.55, roughness: 0.22, metalness: 0.35 })
+  );
+  root.add(ring, core);
+  root.userData.ring = ring;
+  root.userData.core = core;
+  return root;
+}
+
+function spawnPowerPickup(type = POWER_UP_KEYS[Math.floor(Math.random() * POWER_UP_KEYS.length)]) {
+  let position = null;
+  for (let tries = 0; tries < 24; tries++) {
+    const p = randomArenaPoint();
+    if (isPointValidForPickup(p)) {
+      position = p;
+      break;
+    }
+  }
+  if (!position) return;
+  const mesh = createPickupMesh(type);
+  mesh.position.copy(position).setY(0.9);
+  scene.add(mesh);
+  powerPickups.push({ mesh, type, pulse: Math.random() * Math.PI * 2, radius: 0.95 });
+}
+
+function removeAllPickups() {
+  for (const pickup of powerPickups) {
+    scene.remove(pickup.mesh);
+  }
+  powerPickups.length = 0;
+}
+
 const sharedGeometries = {
+
   box: new THREE.BoxGeometry(1, 1, 1),
   arm: new THREE.BoxGeometry(0.28, 1.05, 0.28),
   leg: new THREE.BoxGeometry(0.32, 1.1, 0.32),
@@ -486,6 +584,10 @@ const state = {
   yaw: 0,
   totalKills: 0,
   waveKills: 0,
+  pickupSpawnTimer: 5,
+  pickupSpawnInterval: 10,
+  moveSpeedMultiplier: 1,
+  projectileCount: 1,
 };
 
 const ENEMY_TYPES = {
@@ -661,6 +763,9 @@ function spawnEnemy(type, angle, dist, waveScale) {
     hitboxRadius: cfg.radius * (type === 'swarm' ? 1.25 : 1.05),
     hitboxHalfHeight: Math.max(0.45, cfg.radius * (cfg.role === 'boss' ? 1.2 : 0.95)),
     hitboxCenterOffsetY: cfg.role === 'boss' ? 1.05 : type === 'swarm' ? 0.5 : 0.88,
+    fireDot: 0,
+    poisonDot: 0,
+    iceSlowTimer: 0,
   };
   scene.add(enemy);
   enemies.push(enemy);
@@ -705,10 +810,72 @@ const input = {
   moveTouch: null,
 };
 
+function getPowerSummaryText() {
+  const active = [];
+  for (const key of Object.keys(runPowers.stacks)) {
+    const count = runPowers.stacks[key];
+    if (count > 0) active.push(`${POWER_UP_DEFS[key].label} x${count}`);
+  }
+  return active.length ? active.join(' · ') : 'none';
+}
+
+function showPickupNotice(type) {
+  const def = POWER_UP_DEFS[type];
+  pickupNotices.push({ text: `${def.icon} ${def.label} +1`, life: 1.4, maxLife: 1.4 });
+}
+
+function applyRunPower(type) {
+  if (type === 'health') {
+    state.hp = Math.min(100, state.hp + 20);
+    showPickupNotice(type);
+    return;
+  }
+
+  runPowers.stacks[type] = (runPowers.stacks[type] || 0) + 1;
+  if (type === 'movementSpeed') {
+    state.moveSpeedMultiplier = RUN_BASE.moveSpeedMultiplier + runPowers.stacks.movementSpeed * 0.05;
+  } else if (type === 'doubler') {
+    state.projectileCount = RUN_BASE.projectileCount * Math.pow(2, runPowers.stacks.doubler);
+  } else if (type === 'shield') {
+    runPowers.shieldHp += 26;
+  }
+  showPickupNotice(type);
+}
+
+function resetRunPowerUps() {
+  for (const key of Object.keys(runPowers.stacks)) runPowers.stacks[key] = 0;
+  runPowers.shieldHp = 0;
+  state.moveSpeedMultiplier = RUN_BASE.moveSpeedMultiplier;
+  state.projectileCount = RUN_BASE.projectileCount;
+}
+
+function damagePlayer(amount) {
+  if (runPowers.shieldHp > 0) {
+    const absorbed = Math.min(runPowers.shieldHp, amount);
+    runPowers.shieldHp -= absorbed;
+    amount -= absorbed;
+  }
+  if (amount > 0) state.hp -= amount;
+  if (state.hp <= 0) gameOver();
+}
+
 function updateHUD() {
   ui.wave.textContent = String(state.wave);
   ui.score.textContent = String(state.score);
   ui.hpBar.style.width = `${Math.max(0, state.hp)}%`;
+  ui.shieldValue.textContent = `${Math.max(0, Math.round(runPowers.shieldHp))}`;
+  ui.powerSummary.textContent = `Power-ups: ${getPowerSummaryText()}`;
+
+  while (ui.pickupFeed.firstChild) {
+    ui.pickupFeed.removeChild(ui.pickupFeed.firstChild);
+  }
+  for (const notice of pickupNotices) {
+    const el = document.createElement('div');
+    el.className = 'pickup-line';
+    el.style.opacity = `${Math.max(0, notice.life / notice.maxLife)}`;
+    el.textContent = notice.text;
+    ui.pickupFeed.appendChild(el);
+  }
 }
 
 function spawnWave() {
@@ -729,20 +896,83 @@ function spawnWave() {
   }
 }
 
+function damageEnemy(enemy, amount, fromChain = false) {
+  if (enemy.userData.dead) return;
+  enemy.userData.hp -= amount;
+  spawnDamageNumber(enemy, amount);
+  if (enemy.userData.hp <= 0) {
+    const idx = enemies.indexOf(enemy);
+    if (idx >= 0) destroyEnemy(enemy, idx);
+  }
+  if (!fromChain && runPowers.stacks.lightning > 0) {
+    let chains = runPowers.stacks.lightning;
+    let source = enemy;
+    const visited = new Set([enemy]);
+    while (chains > 0) {
+      let nearest = null;
+      let nearestDist = 6.5;
+      for (const candidate of enemies) {
+        if (candidate.userData.dead || visited.has(candidate)) continue;
+        const d = source.position.distanceTo(candidate.position);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = candidate;
+        }
+      }
+      if (!nearest) break;
+      visited.add(nearest);
+      const chainDamage = Math.max(1, Math.round(0.7 + runPowers.stacks.lightning * 0.8));
+      damageEnemy(nearest, chainDamage, true);
+      source = nearest;
+      chains -= 1;
+    }
+  }
+}
+
+function applyProjectilePower(enemy, bullet) {
+  if (runPowers.stacks.fire > 0) {
+    enemy.userData.fireDot += runPowers.stacks.fire * 0.7;
+  }
+  if (runPowers.stacks.poison > 0) {
+    enemy.userData.poisonDot += runPowers.stacks.poison * 0.9;
+  }
+  if (runPowers.stacks.ice > 0) {
+    enemy.userData.iceSlowTimer = Math.max(enemy.userData.iceSlowTimer, 1.2 + runPowers.stacks.ice * 0.2);
+  }
+  if (runPowers.stacks.rockets > 0) {
+    const radius = 1.8 + runPowers.stacks.rockets * 0.6;
+    const splash = Math.max(1, Math.round(0.5 + runPowers.stacks.rockets * 0.8));
+    for (const other of enemies) {
+      if (other.userData.dead) continue;
+      if (other.position.distanceTo(bullet.position) <= radius) {
+        damageEnemy(other, splash, true);
+      }
+    }
+  }
+}
+
 function shoot() {
   if (state.fireCooldown > 0) return;
   state.fireCooldown = 0.18;
-  const bullet = new THREE.Mesh(
-    new THREE.SphereGeometry(0.18, 10, 10),
-    new THREE.MeshStandardMaterial({ color: 0x9df9ff, emissive: 0x2d8ea0 })
-  );
-  const dirVec = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw)).normalize();
-  bullet.position.copy(playerRigHolder.position).addScaledVector(dirVec, 1.3).setY(1.35);
-  bullet.userData.vel = dirVec.multiplyScalar(30);
-  bullet.userData.life = 1.3;
-  bullet.userData.damage = 1;
-  scene.add(bullet);
-  bullets.push(bullet);
+  const count = Math.max(1, state.projectileCount);
+  const baseYaw = state.yaw;
+  const spread = Math.min(0.75, 0.11 * Math.log2(count));
+
+  for (let shot = 0; shot < count; shot++) {
+    const t = count === 1 ? 0 : shot / (count - 1);
+    const yaw = baseYaw + THREE.MathUtils.lerp(-spread, spread, t);
+    const bullet = new THREE.Mesh(
+      new THREE.SphereGeometry(runPowers.stacks.rockets > 0 ? 0.22 : 0.18, 10, 10),
+      new THREE.MeshStandardMaterial({ color: runPowers.stacks.fire > 0 ? 0xffc98c : 0x9df9ff, emissive: runPowers.stacks.rockets > 0 ? 0xe86f2f : 0x2d8ea0 })
+    );
+    const dirVec = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
+    bullet.position.copy(playerRigHolder.position).addScaledVector(dirVec, 1.3).setY(1.35);
+    bullet.userData.vel = dirVec.multiplyScalar(30);
+    bullet.userData.life = 1.3;
+    bullet.userData.damage = 1;
+    scene.add(bullet);
+    bullets.push(bullet);
+  }
 }
 
 function destroyEnemy(enemy, index) {
@@ -765,6 +995,9 @@ function destroyEnemy(enemy, index) {
 
 function gameOver() {
   state.running = false;
+  resetRunPowerUps();
+  removeAllPickups();
+  pickupNotices.length = 0;
   ui.controls.classList.add('hidden');
   ui.hud.classList.add('hidden');
   ui.gameOver.classList.remove('hidden');
@@ -781,6 +1014,7 @@ function startGame() {
   state.wavePause = 0;
   state.totalKills = 0;
   state.waveKills = 0;
+  state.pickupSpawnTimer = 3.5;
   playerRigHolder.position.set(0, 0.2, 0);
   enemies.forEach((e) => scene.remove(e));
   bullets.forEach((b) => scene.remove(b));
@@ -792,6 +1026,9 @@ function startGame() {
   enemies.length = 0;
   bullets.length = 0;
   damageNumbers.length = 0;
+  removeAllPickups();
+  pickupNotices.length = 0;
+  resetRunPowerUps();
   spawnWave();
   updateHUD();
   ui.menu.classList.add('hidden');
@@ -972,7 +1209,7 @@ function animate() {
       const moveRange = Math.max(0.001, 1 - gameplayConfig.controls.moveStartRadius);
       const normalized = THREE.MathUtils.clamp((moveStrength - gameplayConfig.controls.moveStartRadius) / moveRange, 0, 1);
       const curved = Math.pow(normalized, gameplayConfig.controls.speedExponent);
-      moveSpeed = THREE.MathUtils.lerp(gameplayConfig.controls.minMoveSpeed, gameplayConfig.controls.maxMoveSpeed, curved);
+      moveSpeed = THREE.MathUtils.lerp(gameplayConfig.controls.minMoveSpeed, gameplayConfig.controls.maxMoveSpeed, curved) * state.moveSpeedMultiplier;
 
       if (inputZone === 'rotation' || normalized <= 0) {
         moveSpeed = 0;
@@ -988,7 +1225,7 @@ function animate() {
       }
     } else {
       const keyMoving = keyboardMove.lengthSq() > 0;
-      moveSpeed = keyMoving ? gameplayConfig.controls.maxMoveSpeed * 0.88 : 0;
+      moveSpeed = keyMoving ? gameplayConfig.controls.maxMoveSpeed * 0.88 * state.moveSpeedMultiplier : 0;
       moveBlend = keyMoving ? 0.9 : 0;
     }
 
@@ -1005,6 +1242,26 @@ function animate() {
 
     state.fireCooldown -= dt;
     if (input.shooting) shoot();
+
+    state.pickupSpawnTimer -= dt;
+    if (state.pickupSpawnTimer <= 0 && powerPickups.length < 4) {
+      spawnPowerPickup();
+      state.pickupSpawnTimer = state.pickupSpawnInterval * (0.75 + Math.random() * 0.45);
+    }
+
+    for (let i = powerPickups.length - 1; i >= 0; i--) {
+      const pickup = powerPickups[i];
+      pickup.pulse += dt * 2.4;
+      pickup.mesh.position.y = 0.86 + Math.sin(pickup.pulse) * 0.12;
+      pickup.mesh.rotation.y += dt * 1.8;
+      const ring = pickup.mesh.userData.ring;
+      if (ring) ring.scale.setScalar(1 + Math.sin(pickup.pulse * 1.2) * 0.08);
+      if (pickup.mesh.position.distanceTo(playerRigHolder.position) <= pickup.radius) {
+        applyRunPower(pickup.type);
+        scene.remove(pickup.mesh);
+        powerPickups.splice(i, 1);
+      }
+    }
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
@@ -1040,6 +1297,24 @@ function animate() {
       let moveDir = toPlayer.clone();
       let moveSpeed = data.speed;
 
+      if (data.iceSlowTimer > 0) {
+        data.iceSlowTimer -= dt;
+        const slowPct = Math.min(0.72, runPowers.stacks.ice * 0.12);
+        moveSpeed *= (1 - slowPct);
+      }
+
+      if (data.fireDot > 0) {
+        const burnTick = Math.min(data.fireDot, dt * data.fireDot);
+        data.fireDot = Math.max(0, data.fireDot - dt * (0.55 + runPowers.stacks.fire * 0.07));
+        if (burnTick > 0) damageEnemy(e, Math.max(1, Math.round(burnTick * 1.4)), true);
+      }
+
+      if (data.poisonDot > 0) {
+        const poisonTick = Math.min(data.poisonDot, dt * data.poisonDot * 0.9);
+        data.poisonDot = Math.max(0, data.poisonDot - dt * (0.45 + runPowers.stacks.poison * 0.05));
+        if (poisonTick > 0) damageEnemy(e, Math.max(1, Math.round(poisonTick * 1.1)), true);
+      }
+
       if (data.type === 'shooter') {
         if (dist < data.keepDistance) {
           moveDir = toPlayer.clone().multiplyScalar(-0.65).addScaledVector(side, Math.sin(elapsed + i) * 0.7).normalize();
@@ -1048,7 +1323,7 @@ function animate() {
         }
         data.fireCooldown -= dt;
         if (dist < data.range && data.fireCooldown <= 0) {
-          state.hp -= data.damage * 0.18;
+          damagePlayer(data.damage * 0.18);
           data.fireCooldown = data.fireRate;
         }
       }
@@ -1078,8 +1353,7 @@ function animate() {
       }
 
       if (dist < data.radius + 0.7) {
-        state.hp -= data.damage * dt;
-        if (state.hp <= 0) gameOver();
+        damagePlayer(data.damage * dt);
       }
 
       for (let j = bullets.length - 1; j >= 0; j--) {
@@ -1089,16 +1363,18 @@ function animate() {
         const withinHeight = Math.abs(bullet.position.y - yCenter) <= data.hitboxHalfHeight;
         if (horizontalDist <= data.hitboxRadius && withinHeight) {
           const damage = bullet.userData.damage;
-          data.hp -= damage;
-          spawnDamageNumber(e, damage);
+          damageEnemy(e, damage);
+          applyProjectilePower(e, bullet);
           scene.remove(bullet);
           bullets.splice(j, 1);
-          if (data.hp <= 0) {
-            destroyEnemy(e, i);
-            break;
-          }
+          if (e.userData.dead) break;
         }
       }
+    }
+
+    for (let i = pickupNotices.length - 1; i >= 0; i--) {
+      pickupNotices[i].life -= dt;
+      if (pickupNotices[i].life <= 0) pickupNotices.splice(i, 1);
     }
 
     if (enemies.length === 0) {
