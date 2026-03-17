@@ -149,8 +149,11 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.45; }
   pointer-events: auto;
 }
 
-#moveZone { left: max(6px, env(safe-area-inset-left)); }
-#aimZone { right: max(6px, env(safe-area-inset-right)); }
+#moveZone {
+  left: max(6px, env(safe-area-inset-left));
+  right: max(6px, env(safe-area-inset-right));
+  width: auto;
+}
 
 .stick {
   position: absolute;
