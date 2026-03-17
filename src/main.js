@@ -4,12 +4,15 @@ import { enemiesForWave } from './entities/enemy.js';
 import { wireInput, resetTouch } from './systems/input.js';
 import { updateState } from './systems/update.js';
 import { createRenderer } from './systems/render.js';
+import { createWorld } from './systems/world.js';
+import { createAudio } from './systems/audio.js';
 import { getUI, showGameOverUI, showInGameUI, syncHUD } from './ui/dom.js';
 import { registerServiceWorker } from './pwa/register-sw.js';
 
 const ui = getUI();
 const ctx = ui.canvas.getContext('2d');
 const state = createInitialState();
+const audio = createAudio();
 
 const viewport = {
   width: () => window.innerWidth,
@@ -33,8 +36,12 @@ wireInput(state, ui);
 registerServiceWorker();
 
 function startGame() {
+  audio.unlock();
   state.running = true;
   state.player = createPlayer(viewport.width(), viewport.height());
+  state.world = createWorld(viewport.width(), viewport.height());
+  state.cam.x = state.player.x;
+  state.cam.y = state.player.y;
   state.bullets = [];
   state.enemies = [];
   state.particles = [];
@@ -45,21 +52,35 @@ function startGame() {
   state.flash = 0;
   resetTouch(state, ui);
   showInGameUI(ui);
-  state.last = performance.now();
-  requestAnimationFrame(loop);
 }
 
 function loop(ts) {
-  if (!state.running) return;
-  const dt = Math.min(0.033, (ts - state.last) / 1000);
+  const dt = Math.min(0.033, (ts - (state.last || ts)) / 1000);
   state.last = ts;
-  updateState(state, viewport, () => showGameOverUI(ui, state), dt);
-  syncHUD(ui, state);
-  render();
-  if (state.running) requestAnimationFrame(loop);
+  if (state.running) {
+    updateState(
+      state,
+      viewport,
+      {
+        onGameOver: () => {
+          audio.gameOver();
+          showGameOverUI(ui, state);
+        },
+        onShoot: () => audio.shoot(),
+        onEnemyHit: () => audio.hit(),
+        onEnemyDown: () => audio.kill(),
+        onPlayerHit: () => audio.hurt(),
+        onWave: () => audio.wave(),
+      },
+      dt,
+    );
+    syncHUD(ui, state);
+  }
+  render(dt);
+  requestAnimationFrame(loop);
 }
 
 ui.startBtn.addEventListener('click', startGame);
 ui.restartBtn.addEventListener('click', startGame);
 
-render();
+requestAnimationFrame(loop);
