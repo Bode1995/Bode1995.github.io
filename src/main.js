@@ -97,11 +97,11 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const gameplayConfig = {
   controls: {
-    rotationDeadZone: 0.14,
-    moveStartRadius: 0.18,
+    rotationDeadZone: 0.2,
+    moveStartRadius: 0.23,
     fineMoveRadius: 0.4,
     highSpeedRadius: 0.8,
-    maxInputRadius: 56,
+    maxInputRadius: 64,
     speedExponent: 1.9,
     minMoveSpeed: 1.4,
     maxMoveSpeed: 10.8,
