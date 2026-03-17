@@ -107,7 +107,7 @@ const gameplayConfig = {
   },
   camera: {
     fov: 64,
-    height: 26,
+    height: 39,
     forwardOffset: 0.001,
     lookAtHeight: 0.2,
   },
