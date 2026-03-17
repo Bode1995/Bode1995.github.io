@@ -329,6 +329,7 @@ setPlayerCharacter(selectedCharacterId);
 
 const enemies = [];
 const bullets = [];
+const damageNumbers = [];
 const clock = new THREE.Clock();
 
 const state = {
@@ -340,6 +341,8 @@ const state = {
   fireCooldown: 0,
   wavePause: 1,
   yaw: 0,
+  totalKills: 0,
+  waveKills: 0,
 };
 
 const ENEMY_TYPES = {
@@ -511,9 +514,45 @@ function spawnEnemy(type, angle, dist, waveScale) {
     splitCount: cfg.splitCount || 0,
     anim: model.anim,
     spawnTick: Math.random() * Math.PI * 2,
+    dead: false,
+    hitboxRadius: cfg.radius * (type === 'swarm' ? 1.25 : 1.05),
+    hitboxHalfHeight: Math.max(0.45, cfg.radius * (cfg.role === 'boss' ? 1.2 : 0.95)),
+    hitboxCenterOffsetY: cfg.role === 'boss' ? 1.05 : type === 'swarm' ? 0.5 : 0.88,
   };
   scene.add(enemy);
   enemies.push(enemy);
+}
+
+function spawnDamageNumber(enemy, amount) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '700 64px Inter, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = 'rgba(20, 30, 46, 0.9)';
+  ctx.strokeText(String(amount), canvas.width / 2, canvas.height / 2);
+  ctx.fillStyle = '#ffe28b';
+  ctx.fillText(String(amount), canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(1.4, 0.7, 1);
+  sprite.position.copy(enemy.position);
+  sprite.position.y += enemy.userData.hitboxCenterOffsetY + enemy.userData.hitboxHalfHeight + 0.3;
+  scene.add(sprite);
+  damageNumbers.push({
+    sprite,
+    life: 0.3,
+    maxLife: 0.3,
+    riseSpeed: 0.9,
+  });
 }
 
 const input = {
@@ -558,11 +597,14 @@ function shoot() {
   bullet.position.copy(playerRigHolder.position).addScaledVector(dirVec, 1.3).setY(1.35);
   bullet.userData.vel = dirVec.multiplyScalar(30);
   bullet.userData.life = 1.3;
+  bullet.userData.damage = 1;
   scene.add(bullet);
   bullets.push(bullet);
 }
 
 function destroyEnemy(enemy, index) {
+  if (enemy.userData.dead) return;
+  enemy.userData.dead = true;
   scene.remove(enemy);
   enemies.splice(index, 1);
   if (enemy.userData.type === 'splitter') {
@@ -573,6 +615,8 @@ function destroyEnemy(enemy, index) {
       enemies[enemies.length - 1].position.add(enemy.position);
     }
   }
+  state.totalKills += 1;
+  state.waveKills += 1;
   state.score += enemy.userData.score || 10;
 }
 
@@ -592,11 +636,19 @@ function startGame() {
   state.wave = 1;
   state.fireCooldown = 0;
   state.wavePause = 0;
+  state.totalKills = 0;
+  state.waveKills = 0;
   playerRigHolder.position.set(0, 0.2, 0);
   enemies.forEach((e) => scene.remove(e));
   bullets.forEach((b) => scene.remove(b));
+  damageNumbers.forEach((dmg) => {
+    scene.remove(dmg.sprite);
+    dmg.sprite.material.map?.dispose();
+    dmg.sprite.material.dispose();
+  });
   enemies.length = 0;
   bullets.length = 0;
+  damageNumbers.length = 0;
   spawnWave();
   updateHUD();
   ui.menu.classList.add('hidden');
@@ -820,9 +872,23 @@ function animate() {
       }
     }
 
+    for (let i = damageNumbers.length - 1; i >= 0; i--) {
+      const hitFx = damageNumbers[i];
+      hitFx.life -= dt;
+      hitFx.sprite.position.y += hitFx.riseSpeed * dt;
+      hitFx.sprite.material.opacity = Math.max(0, hitFx.life / hitFx.maxLife);
+      if (hitFx.life <= 0) {
+        scene.remove(hitFx.sprite);
+        hitFx.sprite.material.map?.dispose();
+        hitFx.sprite.material.dispose();
+        damageNumbers.splice(i, 1);
+      }
+    }
+
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
       const data = e.userData;
+      if (data.dead) continue;
       const toPlayer = playerRigHolder.position.clone().sub(e.position);
       const dist = toPlayer.length();
       toPlayer.normalize();
@@ -869,9 +935,15 @@ function animate() {
       }
 
       for (let j = bullets.length - 1; j >= 0; j--) {
-        if (e.position.distanceTo(bullets[j].position) < data.radius) {
-          data.hp -= 1;
-          scene.remove(bullets[j]);
+        const bullet = bullets[j];
+        const horizontalDist = Math.hypot(e.position.x - bullet.position.x, e.position.z - bullet.position.z);
+        const yCenter = e.position.y + data.hitboxCenterOffsetY;
+        const withinHeight = Math.abs(bullet.position.y - yCenter) <= data.hitboxHalfHeight;
+        if (horizontalDist <= data.hitboxRadius && withinHeight) {
+          const damage = bullet.userData.damage;
+          data.hp -= damage;
+          spawnDamageNumber(e, damage);
+          scene.remove(bullet);
           bullets.splice(j, 1);
           if (data.hp <= 0) {
             destroyEnemy(e, i);
