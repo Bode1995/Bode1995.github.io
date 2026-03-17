@@ -263,3 +263,30 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.45; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+
+.power-chip {
+  max-width: min(44vw, 380px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pickup-feed {
+  position: fixed;
+  top: max(52px, calc(env(safe-area-inset-top) + 44px));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.pickup-line {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(9, 26, 44, 0.8);
+  border: 1px solid rgba(126, 202, 255, 0.5);
+}
