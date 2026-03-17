@@ -11,6 +11,9 @@ export function createInitialState() {
     fireCooldown: 0,
     flash: 0,
     last: 0,
+    cam: { x: 0, y: 0 },
+    menuTime: 0,
+    world: null,
     touch: {
       moveId: null,
       aimId: null,

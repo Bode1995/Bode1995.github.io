@@ -18,7 +18,7 @@
     <div class="chip">Welle: <span id="wave">1</span></div>
     <div class="chip">Punkte: <span id="score">0</span></div>
     <div class="chip">Munition: ∞</div>
-    <div class="chip health-wrap">Leben
+    <div class="chip health-wrap">Schild
       <div class="bar"><div id="hpBar"></div></div>
     </div>
   </div>
@@ -32,20 +32,24 @@
 
   <div class="overlay" id="menu">
     <div class="panel">
-      <h1>🕊️ Sky Blaster</h1>
-      <p>2D-Wellen-Shooter aus der Vogelperspektive für iPhone Touch-Steuerung.</p>
-      <p>Bewege dich mit dem Stick – je weiter dein Daumen vom Startpunkt weg ist, desto schneller läufst und schießt du.</p>
-      <button class="btn" id="startBtn">Spiel starten</button>
-      <div class="hint">Tipp: Es gibt keine Magazine – Dauerfeuer läuft automatisch.</div>
+      <div class="eyebrow">NEON FRONTIER // SURVIVAL PROTOCOL</div>
+      <h1>Sky Blaster: Outpost Siege</h1>
+      <p>Ein 3D-Arena-Shooter mit Touch-Dualstick. Linke Zone bewegt, rechte Zone zielt und feuert dauerhaft.</p>
+      <div class="enemy-row">
+        <span>Scout</span><span>Brute</span><span>Spitter</span>
+      </div>
+      <button class="btn" id="startBtn">Mission starten</button>
+      <div class="hint">Halte beide Daumen aktiv, um kiten + Dauerfeuer präzise zu kombinieren.</div>
     </div>
   </div>
 
   <div class="overlay hidden" id="gameOver">
     <div class="panel">
-      <h2>Game Over</h2>
+      <div class="eyebrow">EINSATZ BEENDET</div>
+      <h2>Outpost verloren</h2>
       <p>Erreichte Welle: <strong id="finalWave">1</strong></p>
       <p>Punkte: <strong id="finalScore">0</strong></p>
-      <button class="btn" id="restartBtn">Nochmal spielen</button>
+      <button class="btn" id="restartBtn">Neu deployen</button>
     </div>
   </div>
 

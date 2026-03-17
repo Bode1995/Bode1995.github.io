@@ -1,10 +1,10 @@
 :root {
-  --bg: #0b1220;
-  --panel: rgba(7, 14, 29, 0.82);
-  --accent: #59f3ff;
-  --danger: #ff5f7a;
-  --text: #e9f2ff;
-  --muted: #9ab0cb;
+  --bg: #07101b;
+  --panel: rgba(7, 16, 30, 0.76);
+  --accent: #74f1ff;
+  --danger: #ff718b;
+  --text: #ebf4ff;
+  --muted: #9eb4cc;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -16,7 +16,7 @@ html, body {
   touch-action: none;
   background: radial-gradient(circle at 50% 20%, #162744 0%, #0a1120 60%, #070b14 100%);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
 }
 
 #game {
@@ -34,36 +34,61 @@ html, body {
   justify-content: center;
   align-items: center;
   padding: 24px;
-  background: rgba(3, 8, 17, 0.5);
-  backdrop-filter: blur(6px);
+  background: radial-gradient(circle at 50% 5%, rgba(58, 93, 140, 0.26), rgba(4, 10, 18, 0.55));
+  backdrop-filter: blur(4px);
   z-index: 30;
 }
 
 .hidden { display: none !important; }
 
 .panel {
-  width: min(560px, 92vw);
+  width: min(640px, 94vw);
   background: var(--panel);
-  border: 1px solid rgba(130, 171, 223, 0.25);
-  border-radius: 20px;
-  padding: 22px;
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(130, 171, 223, 0.3);
+  border-radius: 24px;
+  padding: 26px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.56);
   text-align: center;
 }
 
+.eyebrow {
+  color: #9ae4ff;
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  margin-bottom: 10px;
+  font-weight: 800;
+}
+
 h1, h2 { margin: 0 0 12px; font-weight: 800; letter-spacing: 0.4px; }
+h1 { font-size: clamp(28px, 5vw, 42px); }
 p { margin: 10px 0; color: var(--muted); line-height: 1.45; }
+
+.enemy-row {
+  margin: 14px auto 2px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.enemy-row span {
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 6px 11px;
+  background: rgba(135, 184, 228, 0.12);
+  border: 1px solid rgba(145, 196, 247, 0.26);
+}
 
 .btn {
   border: 0;
   border-radius: 14px;
-  background: linear-gradient(160deg, #6bdeff 0%, #39b8ff 100%);
+  background: linear-gradient(160deg, #76efff 0%, #3fbeff 100%);
   color: #021325;
   font-weight: 800;
   font-size: 18px;
   padding: 13px 24px;
   min-height: 50px;
-  min-width: 180px;
+  min-width: 190px;
   margin-top: 14px;
   touch-action: manipulation;
 }
@@ -81,7 +106,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.45; }
 }
 
 .chip {
-  background: rgba(6, 15, 30, 0.7);
+  background: rgba(6, 15, 30, 0.72);
   border: 1px solid rgba(133, 173, 223, 0.35);
   border-radius: 10px;
   padding: 7px 10px;

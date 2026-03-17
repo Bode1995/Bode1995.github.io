@@ -3,7 +3,7 @@ import { createBullet } from '../entities/bullet.js';
 import { createEnemy, enemiesForWave } from '../entities/enemy.js';
 import { burst, spawnShootParticles } from './particles.js';
 
-export function updateState(state, viewport, onGameOver, dt) {
+export function updateState(state, viewport, hooks, dt) {
   const p = state.player;
   if (!p) return;
 
@@ -39,18 +39,20 @@ export function updateState(state, viewport, onGameOver, dt) {
   if (isAiming && state.fireCooldown <= 0) {
     state.bullets.push(createBullet(p, sx, sy));
     spawnShootParticles(state, sx, sy);
+    hooks.onShoot?.();
     state.fireCooldown = 0.12;
   }
 
   if (state.spawnLeft > 0) {
-    const maxEnemies = Math.min(4 + state.wave, 18);
-    if (state.enemies.length < maxEnemies && Math.random() < dt * (2.2 + state.wave * 0.16)) {
+    const maxEnemies = Math.min(4 + state.wave, 20);
+    if (state.enemies.length < maxEnemies && Math.random() < dt * (2.1 + state.wave * 0.17)) {
       state.enemies.push(createEnemy(viewport.width(), viewport.height(), state.wave));
       state.spawnLeft--;
     }
   } else if (state.enemies.length === 0) {
     state.wave++;
     state.spawnLeft = enemiesForWave(state.wave);
+    hooks.onWave?.();
   }
 
   for (let i = state.bullets.length - 1; i >= 0; i--) {
@@ -65,21 +67,37 @@ export function updateState(state, viewport, onGameOver, dt) {
 
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const e = state.enemies[i];
-    const dx = p.x - e.x;
-    const dy = p.y - e.y;
-    const d = Math.hypot(dx, dy) || 1;
-    e.x += (dx / d) * e.speed * dt;
-    e.y += (dy / d) * e.speed * dt;
+    e.t += dt;
 
-    if (d < e.r + p.r) {
+    let dx = p.x - e.x;
+    let dy = p.y - e.y;
+    const d = Math.hypot(dx, dy) || 1;
+
+    if (e.kind === 'spitter') {
+      const orbitX = -dy / d;
+      const orbitY = dx / d;
+      dx += orbitX * Math.sin(e.t * 3.2) * 55;
+      dy += orbitY * Math.sin(e.t * 3.2) * 55;
+    } else if (e.kind === 'scout') {
+      dx += Math.sin(e.t * 5) * 35;
+      dy += Math.cos(e.t * 5) * 35;
+    }
+
+    const moveDir = Math.hypot(dx, dy) || 1;
+    e.x += (dx / moveDir) * e.speed * dt;
+    e.y += (dy / moveDir) * e.speed * dt;
+
+    const hitDistance = Math.hypot(p.x - e.x, p.y - e.y);
+    if (hitDistance < e.r + p.r) {
       if (p.inv <= 0) {
         p.hp -= e.damage;
         p.inv = 0.35;
         state.flash = 0.18;
+        hooks.onPlayerHit?.();
         if (p.hp <= 0) {
           p.hp = 0;
           state.running = false;
-          onGameOver();
+          hooks.onGameOver?.();
         }
       }
       state.enemies.splice(i, 1);
@@ -92,10 +110,12 @@ export function updateState(state, viewport, onGameOver, dt) {
       if (bd < e.r + b.r) {
         e.hp -= 24;
         state.bullets.splice(j, 1);
-        burst(state, e.x, e.y, 8, '#ff9ab0');
+        hooks.onEnemyHit?.();
+        burst(state, e.x, e.y, 8, '#ffb4cb');
         if (e.hp <= 0) {
-          state.score += 10;
+          state.score += e.kind === 'brute' ? 18 : e.kind === 'spitter' ? 14 : 10;
           burst(state, e.x, e.y, 14, e.color);
+          hooks.onEnemyDown?.();
           state.enemies.splice(i, 1);
         }
         break;
