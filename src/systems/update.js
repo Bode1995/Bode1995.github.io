@@ -27,7 +27,7 @@ export function updateState(state, viewport, onGameOver, dt) {
 
   const av = state.touch.aimVec;
   const aLen = Math.hypot(av.x, av.y);
-  const isAiming = state.touch.aimId !== null && aLen > 0.08;
+  const isAiming = state.touch.aimId !== null && aLen > 0;
   const sx = isAiming ? av.x / aLen : 0;
   const sy = isAiming ? av.y / aLen : 0;
 
