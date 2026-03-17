@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kristall-Klicker</title>
+  <style>
+    body{margin:0;overflow:hidden;background:#070b16;color:#fff;font-family:system-ui}
+    #ui{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;z-index:2}
+    .box{padding:8px 12px;background:rgba(5,8,20,.7);border:1px solid #5670c7;border-radius:10px}
+    a{color:#beddff}
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div class="box">Score: <b id="score">0</b></div>
+    <div class="box"><a href="index.html">⬅ Menü</a></div>
+  </div>
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x070b16);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,100);camera.position.set(0,2,8);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0x88aaff,0x222244,1.2));
+const light=new THREE.PointLight(0xffffff,1.2);light.position.set(2,4,3);scene.add(light);
+const raycaster=new THREE.Raycaster();const mouse=new THREE.Vector2();
+let score=0;const scoreEl=document.getElementById('score');
+const targets=[];
+for(let i=0;i<10;i++){
+  const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,1),new THREE.MeshStandardMaterial({color:0x6cf2ff,emissive:0x2050aa,metalness:.2,roughness:.25}));
+  m.position.set((Math.random()-.5)*8,Math.random()*4-1,(Math.random()-.5)*6);
+  scene.add(m);targets.push(m);
+}
+addEventListener('pointerdown',(e)=>{
+  mouse.x=(e.clientX/innerWidth)*2-1;mouse.y=-(e.clientY/innerHeight)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  const hit=raycaster.intersectObjects(targets)[0];
+  if(hit){
+    score++;scoreEl.textContent=score;
+    hit.object.position.set((Math.random()-.5)*8,Math.random()*4-1,(Math.random()-.5)*6);
+  }
+});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+function animate(t){
+  targets.forEach((m,i)=>{m.rotation.x+=0.01+i*0.0002;m.rotation.y+=0.012;m.position.y+=Math.sin(t*0.001+i)*0.0025;});
+  renderer.render(scene,camera);requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body>
+</html>
