@@ -94,11 +94,54 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 
+const gameplayConfig = {
+  controls: {
+    rotationDeadZone: 0.14,
+    moveStartRadius: 0.18,
+    fineMoveRadius: 0.4,
+    highSpeedRadius: 0.8,
+    maxInputRadius: 56,
+    speedExponent: 1.9,
+    minMoveSpeed: 1.4,
+    maxMoveSpeed: 10.8,
+  },
+  camera: {
+    fov: 64,
+    height: 26,
+    forwardOffset: 0.001,
+    lookAtHeight: 0.2,
+  },
+  arena: {
+    size: 112,
+    gridDivisions: 36,
+    padding: 3,
+    spawnMinDistance: 24,
+    spawnMaxDistance: 46,
+  },
+  enemies: {
+    waveSpeedScale: {
+      field: 0.06,
+      boss: 0.04,
+    },
+    randomVariance: 0.08,
+    baseSpeedMultiplier: {
+      runner: 1,
+      tank: 1,
+      shooter: 1,
+      swarm: 0.95,
+      charger: 1,
+      splitter: 1,
+      bossHeavy: 1,
+      bossAgile: 1,
+    },
+  },
+};
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x08121f);
-scene.fog = new THREE.Fog(0x08121f, 20, 95);
+scene.fog = new THREE.Fog(0x08121f, 24, 126);
 
-const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 180);
+const camera = new THREE.PerspectiveCamera(gameplayConfig.camera.fov, window.innerWidth / window.innerHeight, 0.1, 220);
 
 const hemi = new THREE.HemisphereLight(0x9fd9ff, 0x1b273b, 0.75);
 scene.add(hemi);
@@ -108,13 +151,13 @@ dir.castShadow = true;
 scene.add(dir);
 
 const arena = new THREE.Mesh(
-  new THREE.PlaneGeometry(90, 90, 20, 20),
+  new THREE.PlaneGeometry(gameplayConfig.arena.size, gameplayConfig.arena.size, 24, 24),
   new THREE.MeshStandardMaterial({ color: 0x153047, metalness: 0.1, roughness: 0.9, wireframe: false })
 );
 arena.rotation.x = -Math.PI / 2;
 scene.add(arena);
 
-const grid = new THREE.GridHelper(90, 28, 0x4fd4ff, 0x244965);
+const grid = new THREE.GridHelper(gameplayConfig.arena.size, gameplayConfig.arena.gridDivisions, 0x4fd4ff, 0x244965);
 grid.position.y = 0.02;
 scene.add(grid);
 
@@ -300,14 +343,14 @@ const state = {
 };
 
 const ENEMY_TYPES = {
-  runner: { role: 'field', hp: 2, speed: 4.9, damage: 22, radius: 0.72, score: 11 },
-  tank: { role: 'field', hp: 8, speed: 1.6, damage: 34, radius: 1.2, score: 16 },
-  shooter: { role: 'field', hp: 4, speed: 2.4, damage: 18, radius: 0.92, score: 14, range: 13.5, keepDistance: 8.5, fireRate: 1.4 },
-  swarm: { role: 'field', hp: 1, speed: 5.6, damage: 12, radius: 0.42, score: 7 },
-  charger: { role: 'field', hp: 5, speed: 2.5, damage: 26, radius: 0.95, score: 15, chargeSpeed: 9.8, chargeCooldown: 2.2, chargeDuration: 0.45 },
-  splitter: { role: 'field', hp: 5, speed: 2.3, damage: 20, radius: 0.95, score: 15, splitCount: 3 },
-  bossHeavy: { role: 'boss', hp: 48, speed: 1.15, damage: 52, radius: 1.95, score: 110 },
-  bossAgile: { role: 'boss', hp: 36, speed: 3.25, damage: 38, radius: 1.65, score: 125, chargeSpeed: 10.5, chargeCooldown: 1.65, chargeDuration: 0.35 },
+  runner: { role: 'field', hp: 2, speed: 4.6, damage: 22, radius: 0.72, score: 11 },
+  tank: { role: 'field', hp: 8, speed: 1.75, damage: 34, radius: 1.2, score: 16 },
+  shooter: { role: 'field', hp: 4, speed: 2.55, damage: 18, radius: 0.92, score: 14, range: 13.5, keepDistance: 8.5, fireRate: 1.4 },
+  swarm: { role: 'field', hp: 1, speed: 5.1, damage: 12, radius: 0.42, score: 7 },
+  charger: { role: 'field', hp: 5, speed: 2.6, damage: 26, radius: 0.95, score: 15, chargeSpeed: 9.2, chargeCooldown: 2.2, chargeDuration: 0.45 },
+  splitter: { role: 'field', hp: 5, speed: 2.35, damage: 20, radius: 0.95, score: 15, splitCount: 3 },
+  bossHeavy: { role: 'boss', hp: 48, speed: 1.25, damage: 52, radius: 1.95, score: 110 },
+  bossAgile: { role: 'boss', hp: 36, speed: 2.95, damage: 38, radius: 1.65, score: 125, chargeSpeed: 9.7, chargeCooldown: 1.65, chargeDuration: 0.35 },
 };
 
 const ENEMY_MATERIALS = {
@@ -447,7 +490,13 @@ function spawnEnemy(type, angle, dist, waveScale) {
   enemy.userData = {
     type,
     hp: Math.ceil(cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)),
-    speed: (cfg.speed + waveScale * (cfg.role === 'boss' ? 0.05 : 0.08)) * (0.94 + Math.random() * 0.12),
+    speed:
+      (cfg.speed * gameplayConfig.enemies.baseSpeedMultiplier[type] +
+        waveScale *
+          (cfg.role === 'boss'
+            ? gameplayConfig.enemies.waveSpeedScale.boss
+            : gameplayConfig.enemies.waveSpeedScale.field)) *
+      (1 - gameplayConfig.enemies.randomVariance + Math.random() * gameplayConfig.enemies.randomVariance * 2),
     damage: cfg.damage,
     radius: cfg.radius,
     score: cfg.score,
@@ -485,7 +534,7 @@ function spawnWave() {
   for (let i = 0; i < state.spawnLeft; i++) {
     const type = pickEnemyType(state.wave, i);
     const angle = Math.random() * Math.PI * 2;
-    const dist = 18 + Math.random() * 18;
+    const dist = gameplayConfig.arena.spawnMinDistance + Math.random() * (gameplayConfig.arena.spawnMaxDistance - gameplayConfig.arena.spawnMinDistance);
     spawnEnemy(type, angle, dist, state.wave);
     if (type === 'swarm' && i < state.spawnLeft - 2) {
       for (let g = 0; g < 2; g++) {
@@ -602,11 +651,11 @@ function zoneTouch(zone) {
   zone.addEventListener('pointermove', (e) => {
     const touch = input.moveTouch;
     if (!touch || touch.id !== e.pointerId) return;
-    const dx = THREE.MathUtils.clamp(e.clientX - touch.startX, -42, 42);
-    const dy = THREE.MathUtils.clamp(e.clientY - touch.startY, -42, 42);
+    const dx = THREE.MathUtils.clamp(e.clientX - touch.startX, -gameplayConfig.controls.maxInputRadius, gameplayConfig.controls.maxInputRadius);
+    const dy = THREE.MathUtils.clamp(e.clientY - touch.startY, -gameplayConfig.controls.maxInputRadius, gameplayConfig.controls.maxInputRadius);
     touch.dx = dx;
     touch.dy = dy;
-    input.move.set(dx / 42, dy / 42);
+    input.move.set(dx / gameplayConfig.controls.maxInputRadius, dy / gameplayConfig.controls.maxInputRadius);
   });
 
   const clear = (e) => {
@@ -622,6 +671,14 @@ function zoneTouch(zone) {
 }
 
 zoneTouch(ui.moveZone);
+
+
+function classifyInputZone(strength) {
+  if (strength <= gameplayConfig.controls.rotationDeadZone) return 'rotation';
+  if (strength <= gameplayConfig.controls.fineMoveRadius) return 'fine';
+  if (strength <= gameplayConfig.controls.highSpeedRadius) return 'standard';
+  return 'high';
+}
 
 const previewCards = [];
 
@@ -706,22 +763,48 @@ function animate() {
       (input.keys.has('KeyS') ? 1 : 0) - (input.keys.has('KeyW') ? 1 : 0)
     );
     if (keyboardMove.lengthSq() > 0) keyboardMove.normalize();
-    const finalMove = input.move.lengthSq() > 0 ? input.move.clone() : keyboardMove;
-    const deadZone = 0.18;
-    const moveStrength = finalMove.length();
-    const moveActive = moveStrength > deadZone;
+    const usingTouchMove = input.move.lengthSq() > 0;
+    const finalMove = usingTouchMove ? input.move.clone() : keyboardMove;
+    const moveStrength = THREE.MathUtils.clamp(finalMove.length(), 0, 1);
+    const inputZone = classifyInputZone(moveStrength);
 
-    if (moveActive) {
-      finalMove.normalize();
+    if (moveStrength > gameplayConfig.controls.rotationDeadZone) {
       state.yaw = Math.atan2(finalMove.x, finalMove.y);
     }
 
-    moveBlend = moveActive ? THREE.MathUtils.clamp(moveStrength, 0, 1) : 0;
+    let moveSpeed = 0;
+    if (usingTouchMove) {
+      const moveRange = Math.max(0.001, 1 - gameplayConfig.controls.moveStartRadius);
+      const normalized = THREE.MathUtils.clamp((moveStrength - gameplayConfig.controls.moveStartRadius) / moveRange, 0, 1);
+      const curved = Math.pow(normalized, gameplayConfig.controls.speedExponent);
+      moveSpeed = THREE.MathUtils.lerp(gameplayConfig.controls.minMoveSpeed, gameplayConfig.controls.maxMoveSpeed, curved);
 
-    const velocity = new THREE.Vector3(finalMove.x * 11 * dt, 0, finalMove.y * 11 * dt);
-    playerRigHolder.position.add(velocity);
-    playerRigHolder.position.x = THREE.MathUtils.clamp(playerRigHolder.position.x, -42, 42);
-    playerRigHolder.position.z = THREE.MathUtils.clamp(playerRigHolder.position.z, -42, 42);
+      if (inputZone === 'rotation' || normalized <= 0) {
+        moveSpeed = 0;
+        moveBlend = 0;
+      } else if (inputZone === 'fine') {
+        moveSpeed *= 0.7;
+        moveBlend = THREE.MathUtils.clamp(curved * 0.8, 0.08, 0.45);
+      } else if (inputZone === 'standard') {
+        moveBlend = THREE.MathUtils.clamp(curved * 1.05, 0.35, 0.8);
+      } else {
+        moveSpeed *= 1.06;
+        moveBlend = THREE.MathUtils.clamp(curved * 1.2, 0.72, 1);
+      }
+    } else {
+      const keyMoving = keyboardMove.lengthSq() > 0;
+      moveSpeed = keyMoving ? gameplayConfig.controls.maxMoveSpeed * 0.88 : 0;
+      moveBlend = keyMoving ? 0.9 : 0;
+    }
+
+    if (moveSpeed > 0 && moveStrength > 0) {
+      finalMove.normalize();
+      playerRigHolder.position.addScaledVector(new THREE.Vector3(finalMove.x, 0, finalMove.y), moveSpeed * dt);
+    }
+
+    const halfArena = gameplayConfig.arena.size * 0.5 - gameplayConfig.arena.padding;
+    playerRigHolder.position.x = THREE.MathUtils.clamp(playerRigHolder.position.x, -halfArena, halfArena);
+    playerRigHolder.position.z = THREE.MathUtils.clamp(playerRigHolder.position.z, -halfArena, halfArena);
     playerRigHolder.rotation.y = state.yaw;
 
     state.fireCooldown -= dt;
@@ -820,9 +903,9 @@ function animate() {
 
   updateStick(ui.moveStick, ui.moveKnob, input.moveTouch);
 
-  const camOffset = new THREE.Vector3(0, 22, 0.001);
+  const camOffset = new THREE.Vector3(0, gameplayConfig.camera.height, gameplayConfig.camera.forwardOffset);
   camera.position.copy(playerRigHolder.position).add(camOffset);
-  camera.lookAt(playerRigHolder.position.x, playerRigHolder.position.y, playerRigHolder.position.z);
+  camera.lookAt(playerRigHolder.position.x, playerRigHolder.position.y + gameplayConfig.camera.lookAtHeight, playerRigHolder.position.z);
 
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
