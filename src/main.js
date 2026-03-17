@@ -571,6 +571,8 @@ setPlayerCharacter(selectedCharacterId);
 const enemies = [];
 const bullets = [];
 const damageNumbers = [];
+const vfxParticles = [];
+const chainBeams = [];
 const clock = new THREE.Clock();
 
 const state = {
@@ -608,6 +610,77 @@ const ENEMY_MATERIALS = {
   glow: new THREE.MeshStandardMaterial({ color: 0x6ce6ff, emissive: 0x1f94a8, roughness: 0.35, metalness: 0.35 }),
   bone: new THREE.MeshStandardMaterial({ color: 0xf2d3bb, roughness: 0.6, metalness: 0.06 }),
 };
+
+const VFX = {
+  maxParticles: 340,
+  particleGeometry: new THREE.SphereGeometry(0.085, 6, 6),
+  ringGeometry: new THREE.TorusGeometry(0.92, 0.08, 8, 20),
+};
+
+const EFFECT_COLORS = {
+  fire: 0xff8a4f,
+  ice: 0x97e8ff,
+  lightning: 0xb3b7ff,
+  poison: 0x88ff73,
+  rockets: 0xffb067,
+};
+
+function getProjectileEffects() {
+  return {
+    fire: runPowers.stacks.fire > 0,
+    ice: runPowers.stacks.ice > 0,
+    lightning: runPowers.stacks.lightning > 0,
+    poison: runPowers.stacks.poison > 0,
+    rockets: runPowers.stacks.rockets > 0,
+  };
+}
+
+function spawnVfxParticle(position, velocity, color, life = 0.35, scale = 1) {
+  if (vfxParticles.length > VFX.maxParticles) {
+    const oldest = vfxParticles.shift();
+    if (oldest) scene.remove(oldest.mesh);
+  }
+  const mesh = new THREE.Mesh(
+    VFX.particleGeometry,
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false })
+  );
+  mesh.position.copy(position);
+  mesh.scale.setScalar(scale);
+  scene.add(mesh);
+  vfxParticles.push({ mesh, vel: velocity, life, maxLife: life, drag: 0.9 + Math.random() * 0.08 });
+}
+
+function spawnBurst(position, color, count, speed, life = 0.3, scale = 1) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const up = (Math.random() - 0.5) * 0.5;
+    const vel = new THREE.Vector3(Math.cos(angle), up, Math.sin(angle)).multiplyScalar(speed * (0.35 + Math.random() * 0.85));
+    spawnVfxParticle(position, vel, color, life * (0.8 + Math.random() * 0.5), scale * (0.65 + Math.random() * 0.65));
+  }
+}
+
+function spawnImpactEffects(position, effects) {
+  if (effects.fire) spawnBurst(position, EFFECT_COLORS.fire, 9, 4.4, 0.45, 1.05);
+  if (effects.ice) spawnBurst(position, EFFECT_COLORS.ice, 8, 3.7, 0.42, 0.95);
+  if (effects.poison) spawnBurst(position, 0x94ff73, 8, 2.9, 0.5, 1.15);
+  if (effects.lightning) spawnBurst(position, EFFECT_COLORS.lightning, 7, 5.2, 0.3, 0.85);
+  if (effects.rockets) spawnBurst(position, EFFECT_COLORS.rockets, 15, 5.8, 0.5, 1.25);
+}
+
+function createChainBeam(from, to) {
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.07, 1, 6),
+    new THREE.MeshBasicMaterial({ color: 0xc7ccff, transparent: true, opacity: 0.95, depthWrite: false })
+  );
+  beam.position.copy(from).lerp(to, 0.5);
+  beam.position.y += 1.2;
+  const dirVec = new THREE.Vector3().subVectors(to, from);
+  const len = Math.max(0.5, dirVec.length());
+  beam.scale.set(1, len, 1);
+  beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirVec.normalize());
+  scene.add(beam);
+  chainBeams.push({ mesh: beam, life: 0.12, maxLife: 0.12 });
+}
 
 function createEnemyModel(type) {
   const root = new THREE.Group();
@@ -766,6 +839,8 @@ function spawnEnemy(type, angle, dist, waveScale) {
     fireDot: 0,
     poisonDot: 0,
     iceSlowTimer: 0,
+    shockTimer: 0,
+    statusPulse: Math.random() * Math.PI * 2,
   };
   scene.add(enemy);
   enemies.push(enemy);
@@ -900,6 +975,10 @@ function damageEnemy(enemy, amount, fromChain = false) {
   if (enemy.userData.dead) return;
   enemy.userData.hp -= amount;
   spawnDamageNumber(enemy, amount);
+  if (runPowers.stacks.lightning > 0 || fromChain) {
+    enemy.userData.shockTimer = Math.max(enemy.userData.shockTimer, 0.22 + runPowers.stacks.lightning * 0.04);
+    spawnBurst(enemy.position.clone().setY(enemy.position.y + 1.1), EFFECT_COLORS.lightning, 3, 2.2, 0.2, 0.7);
+  }
   if (enemy.userData.hp <= 0) {
     const idx = enemies.indexOf(enemy);
     if (idx >= 0) destroyEnemy(enemy, idx);
@@ -921,6 +1000,7 @@ function damageEnemy(enemy, amount, fromChain = false) {
       }
       if (!nearest) break;
       visited.add(nearest);
+      createChainBeam(source.position, nearest.position);
       const chainDamage = Math.max(1, Math.round(0.7 + runPowers.stacks.lightning * 0.8));
       damageEnemy(nearest, chainDamage, true);
       source = nearest;
@@ -930,18 +1010,32 @@ function damageEnemy(enemy, amount, fromChain = false) {
 }
 
 function applyProjectilePower(enemy, bullet) {
+  const hitPos = bullet.position.clone();
+  spawnImpactEffects(hitPos, bullet.userData.effects || getProjectileEffects());
   if (runPowers.stacks.fire > 0) {
     enemy.userData.fireDot += runPowers.stacks.fire * 0.7;
+    spawnBurst(hitPos, EFFECT_COLORS.fire, 3, 1.9, 0.28, 0.8);
   }
   if (runPowers.stacks.poison > 0) {
     enemy.userData.poisonDot += runPowers.stacks.poison * 0.9;
+    spawnBurst(hitPos, 0x7dff74, 3, 1.4, 0.36, 0.95);
   }
   if (runPowers.stacks.ice > 0) {
     enemy.userData.iceSlowTimer = Math.max(enemy.userData.iceSlowTimer, 1.2 + runPowers.stacks.ice * 0.2);
+    spawnBurst(hitPos, EFFECT_COLORS.ice, 3, 1.5, 0.28, 0.8);
   }
   if (runPowers.stacks.rockets > 0) {
     const radius = 1.8 + runPowers.stacks.rockets * 0.6;
     const splash = Math.max(1, Math.round(0.5 + runPowers.stacks.rockets * 0.8));
+    const blastRing = new THREE.Mesh(
+      VFX.ringGeometry,
+      new THREE.MeshBasicMaterial({ color: 0xff9d5f, transparent: true, opacity: 0.75, depthWrite: false })
+    );
+    blastRing.position.copy(hitPos).setY(0.25);
+    blastRing.rotation.x = Math.PI / 2;
+    blastRing.scale.setScalar(Math.max(0.8, radius * 0.45));
+    scene.add(blastRing);
+    chainBeams.push({ mesh: blastRing, life: 0.18, maxLife: 0.18, ring: true });
     for (const other of enemies) {
       if (other.userData.dead) continue;
       if (other.position.distanceTo(bullet.position) <= radius) {
@@ -957,19 +1051,32 @@ function shoot() {
   const count = Math.max(1, state.projectileCount);
   const baseYaw = state.yaw;
   const spread = Math.min(0.75, 0.11 * Math.log2(count));
+  const fx = getProjectileEffects();
 
   for (let shot = 0; shot < count; shot++) {
     const t = count === 1 ? 0 : shot / (count - 1);
     const yaw = baseYaw + THREE.MathUtils.lerp(-spread, spread, t);
+    const bulletColor = new THREE.Color(0x9df9ff);
+    if (fx.fire) bulletColor.lerp(new THREE.Color(EFFECT_COLORS.fire), 0.5);
+    if (fx.ice) bulletColor.lerp(new THREE.Color(EFFECT_COLORS.ice), 0.42);
+    if (fx.poison) bulletColor.lerp(new THREE.Color(0x86f46a), 0.38);
+    if (fx.lightning) bulletColor.lerp(new THREE.Color(EFFECT_COLORS.lightning), 0.35);
+    if (fx.rockets) bulletColor.lerp(new THREE.Color(EFFECT_COLORS.rockets), 0.45);
     const bullet = new THREE.Mesh(
-      new THREE.SphereGeometry(runPowers.stacks.rockets > 0 ? 0.22 : 0.18, 10, 10),
-      new THREE.MeshStandardMaterial({ color: runPowers.stacks.fire > 0 ? 0xffc98c : 0x9df9ff, emissive: runPowers.stacks.rockets > 0 ? 0xe86f2f : 0x2d8ea0 })
+      fx.rockets ? new THREE.ConeGeometry(0.18, 0.52, 8) : new THREE.SphereGeometry(0.18, 10, 10),
+      new THREE.MeshStandardMaterial({ color: bulletColor, emissive: bulletColor, emissiveIntensity: fx.rockets ? 0.9 : 0.55, metalness: fx.rockets ? 0.35 : 0.1, roughness: 0.35 })
     );
     const dirVec = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
     bullet.position.copy(playerRigHolder.position).addScaledVector(dirVec, 1.3).setY(1.35);
+    if (fx.rockets) {
+      bullet.rotation.x = Math.PI / 2;
+      bullet.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirVec.clone());
+    }
     bullet.userData.vel = dirVec.multiplyScalar(30);
     bullet.userData.life = 1.3;
     bullet.userData.damage = 1;
+    bullet.userData.effects = fx;
+    bullet.userData.trailTick = 0;
     scene.add(bullet);
     bullets.push(bullet);
   }
@@ -1018,6 +1125,8 @@ function startGame() {
   playerRigHolder.position.set(0, 0.2, 0);
   enemies.forEach((e) => scene.remove(e));
   bullets.forEach((b) => scene.remove(b));
+  vfxParticles.forEach((fx) => scene.remove(fx.mesh));
+  chainBeams.forEach((beam) => scene.remove(beam.mesh));
   damageNumbers.forEach((dmg) => {
     scene.remove(dmg.sprite);
     dmg.sprite.material.map?.dispose();
@@ -1025,6 +1134,8 @@ function startGame() {
   });
   enemies.length = 0;
   bullets.length = 0;
+  vfxParticles.length = 0;
+  chainBeams.length = 0;
   damageNumbers.length = 0;
   removeAllPickups();
   pickupNotices.length = 0;
@@ -1266,6 +1377,24 @@ function animate() {
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
       b.position.addScaledVector(b.userData.vel, dt);
+      b.userData.trailTick -= dt;
+      if (b.userData.trailTick <= 0) {
+        b.userData.trailTick = 0.032;
+        const fx = b.userData.effects || getProjectileEffects();
+        const pos = b.position.clone();
+        if (fx.fire) spawnVfxParticle(pos, new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.45 + Math.random() * 0.5, (Math.random() - 0.5) * 0.4), EFFECT_COLORS.fire, 0.35, 0.9);
+        if (fx.ice) spawnVfxParticle(pos, new THREE.Vector3((Math.random() - 0.5) * 0.35, 0.2 + Math.random() * 0.3, (Math.random() - 0.5) * 0.35), EFFECT_COLORS.ice, 0.38, 0.8);
+        if (fx.lightning) spawnVfxParticle(pos, new THREE.Vector3((Math.random() - 0.5) * 1.4, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 1.4), EFFECT_COLORS.lightning, 0.18, 0.55);
+        if (fx.poison) {
+          const poisonColor = Math.random() > 0.5 ? 0x74ff5f : 0x8a4cd8;
+          spawnVfxParticle(pos, new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.18 + Math.random() * 0.3, (Math.random() - 0.5) * 0.4), poisonColor, 0.45, 0.95);
+        }
+        if (fx.rockets) spawnVfxParticle(pos, new THREE.Vector3((Math.random() - 0.5) * 0.25, 0.65 + Math.random() * 0.45, (Math.random() - 0.5) * 0.25), 0xc7cdd6, 0.48, 1.15);
+      }
+      if (b.userData.effects?.lightning) {
+        const pulse = 0.75 + Math.sin(elapsed * 38 + i) * 0.25;
+        b.scale.setScalar(pulse);
+      }
       b.userData.life -= dt;
       if (b.userData.life <= 0) {
         scene.remove(b);
@@ -1286,6 +1415,32 @@ function animate() {
       }
     }
 
+    for (let i = vfxParticles.length - 1; i >= 0; i--) {
+      const fx = vfxParticles[i];
+      fx.life -= dt;
+      fx.vel.multiplyScalar(fx.drag);
+      fx.mesh.position.addScaledVector(fx.vel, dt);
+      fx.mesh.material.opacity = Math.max(0, fx.life / fx.maxLife);
+      if (fx.life <= 0) {
+        scene.remove(fx.mesh);
+        fx.mesh.material.dispose();
+        vfxParticles.splice(i, 1);
+      }
+    }
+
+    for (let i = chainBeams.length - 1; i >= 0; i--) {
+      const beam = chainBeams[i];
+      beam.life -= dt;
+      const alpha = Math.max(0, beam.life / beam.maxLife);
+      beam.mesh.material.opacity = alpha;
+      if (beam.ring) beam.mesh.scale.multiplyScalar(1 + dt * 3.3);
+      if (beam.life <= 0) {
+        scene.remove(beam.mesh);
+        beam.mesh.material.dispose();
+        chainBeams.splice(i, 1);
+      }
+    }
+
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
       const data = e.userData;
@@ -1302,6 +1457,25 @@ function animate() {
         const slowPct = Math.min(0.72, runPowers.stacks.ice * 0.12);
         moveSpeed *= (1 - slowPct);
       }
+      data.statusPulse += dt * 5.2;
+      const body = data.anim?.body;
+      if (body) {
+        body.scale.setScalar(1);
+        if (data.fireDot > 0) {
+          body.scale.x *= 1.01;
+          spawnVfxParticle(e.position.clone().setY(e.position.y + 0.95), new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.4 + Math.random() * 0.25, (Math.random() - 0.5) * 0.2), EFFECT_COLORS.fire, 0.25, 0.7);
+        }
+        if (data.poisonDot > 0) {
+          spawnVfxParticle(e.position.clone().setY(e.position.y + 0.8), new THREE.Vector3((Math.random() - 0.5) * 0.15, 0.16, (Math.random() - 0.5) * 0.15), 0x7dff69, 0.35, 0.65);
+        }
+        if (data.iceSlowTimer > 0) {
+          const pulse = 0.94 + Math.sin(data.statusPulse) * 0.02;
+          body.scale.set(pulse, pulse, pulse);
+        }
+        if (data.shockTimer > 0) {
+          spawnVfxParticle(e.position.clone().setY(e.position.y + 1.15), new THREE.Vector3((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.8), EFFECT_COLORS.lightning, 0.16, 0.55);
+        }
+      }
 
       if (data.fireDot > 0) {
         const burnTick = Math.min(data.fireDot, dt * data.fireDot);
@@ -1313,6 +1487,9 @@ function animate() {
         const poisonTick = Math.min(data.poisonDot, dt * data.poisonDot * 0.9);
         data.poisonDot = Math.max(0, data.poisonDot - dt * (0.45 + runPowers.stacks.poison * 0.05));
         if (poisonTick > 0) damageEnemy(e, Math.max(1, Math.round(poisonTick * 1.1)), true);
+      }
+      if (data.shockTimer > 0) {
+        data.shockTimer -= dt;
       }
 
       if (data.type === 'shooter') {
