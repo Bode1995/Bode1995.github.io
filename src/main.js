@@ -14,11 +14,8 @@ const ui = {
   finalWave: document.getElementById('finalWave'),
   finalScore: document.getElementById('finalScore'),
   moveZone: document.getElementById('moveZone'),
-  aimZone: document.getElementById('aimZone'),
   moveStick: document.getElementById('moveStick'),
-  aimStick: document.getElementById('aimStick'),
   moveKnob: document.getElementById('moveKnob'),
-  aimKnob: document.getElementById('aimKnob'),
 };
 
 const renderer = new THREE.WebGLRenderer({ canvas: ui.canvas, antialias: true });
@@ -71,16 +68,13 @@ const state = {
   fireCooldown: 0,
   wavePause: 1,
   yaw: 0,
-  pitch: 0.55,
 };
 
 const input = {
   move: new THREE.Vector2(),
-  look: new THREE.Vector2(),
   shooting: false,
   keys: new Set(),
   moveTouch: null,
-  aimTouch: null,
 };
 
 function updateHUD() {
@@ -178,16 +172,6 @@ window.addEventListener('pointerdown', (e) => {
 });
 window.addEventListener('pointerup', () => { input.shooting = false; });
 
-let dragging = false;
-window.addEventListener('contextmenu', (e) => e.preventDefault());
-window.addEventListener('mousedown', (e) => { if (e.button === 2) dragging = true; });
-window.addEventListener('mouseup', () => { dragging = false; });
-window.addEventListener('mousemove', (e) => {
-  if (!dragging) return;
-  state.yaw -= e.movementX * 0.004;
-  state.pitch = THREE.MathUtils.clamp(state.pitch + e.movementY * 0.003, 0.2, 1.1);
-});
-
 function updateStick(stick, knob, touchData) {
   if (!touchData) {
     stick.style.opacity = '0';
@@ -200,58 +184,49 @@ function updateStick(stick, knob, touchData) {
   knob.style.transform = `translate(${touchData.dx}px, ${touchData.dy}px)`;
 }
 
-function zoneTouch(zone, kind) {
+function zoneTouch(zone) {
   zone.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     zone.setPointerCapture(e.pointerId);
-    input[`${kind}Touch`] = { id: e.pointerId, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0 };
-    if (kind === 'aim') input.shooting = true;
+    input.moveTouch = { id: e.pointerId, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0 };
   });
 
   zone.addEventListener('pointermove', (e) => {
-    const touch = input[`${kind}Touch`];
+    const touch = input.moveTouch;
     if (!touch || touch.id !== e.pointerId) return;
     const dx = THREE.MathUtils.clamp(e.clientX - touch.startX, -42, 42);
     const dy = THREE.MathUtils.clamp(e.clientY - touch.startY, -42, 42);
     touch.dx = dx;
     touch.dy = dy;
-    if (kind === 'move') {
-      input.move.set(dx / 42, dy / 42);
-    } else {
-      input.look.set(dx / 42, dy / 42);
-      state.yaw -= input.look.x * 0.06;
-      state.pitch = THREE.MathUtils.clamp(state.pitch + input.look.y * 0.035, 0.2, 1.1);
-    }
+    input.move.set(-(dx / 42), -(dy / 42));
   });
 
   const clear = (e) => {
-    const touch = input[`${kind}Touch`];
+    const touch = input.moveTouch;
     if (!touch || touch.id !== e.pointerId) return;
-    input[`${kind}Touch`] = null;
-    if (kind === 'move') input.move.set(0, 0);
-    if (kind === 'aim') {
-      input.look.set(0, 0);
-      input.shooting = false;
-    }
+    input.moveTouch = null;
+    input.move.set(0, 0);
   };
 
   zone.addEventListener('pointerup', clear);
   zone.addEventListener('pointercancel', clear);
 }
 
-zoneTouch(ui.moveZone, 'move');
-zoneTouch(ui.aimZone, 'aim');
+zoneTouch(ui.moveZone);
 
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.033);
 
   if (state.running) {
     const keyboardMove = new THREE.Vector2(
-      (input.keys.has('KeyD') ? 1 : 0) - (input.keys.has('KeyA') ? 1 : 0),
-      (input.keys.has('KeyW') ? 1 : 0) - (input.keys.has('KeyS') ? 1 : 0)
+      (input.keys.has('KeyA') ? 1 : 0) - (input.keys.has('KeyD') ? 1 : 0),
+      (input.keys.has('KeyS') ? 1 : 0) - (input.keys.has('KeyW') ? 1 : 0)
     );
     if (keyboardMove.lengthSq() > 0) keyboardMove.normalize();
     const finalMove = input.move.lengthSq() > 0 ? input.move.clone() : keyboardMove;
+    if (finalMove.lengthSq() > 0) {
+      state.yaw = Math.atan2(finalMove.x, finalMove.y);
+    }
 
     const forward = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
     const right = new THREE.Vector3(forward.z, 0, -forward.x);
@@ -263,7 +238,7 @@ function animate() {
     player.position.z = THREE.MathUtils.clamp(player.position.z, -42, 42);
 
     state.fireCooldown -= dt;
-    if (input.shooting) shoot();
+    if (input.shooting || finalMove.lengthSq() > 0) shoot();
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
@@ -314,15 +289,10 @@ function animate() {
   }
 
   updateStick(ui.moveStick, ui.moveKnob, input.moveTouch);
-  updateStick(ui.aimStick, ui.aimKnob, input.aimTouch);
 
-  const camOffset = new THREE.Vector3(
-    Math.sin(state.yaw) * -9,
-    7 + state.pitch * 4,
-    Math.cos(state.yaw) * -9,
-  );
+  const camOffset = new THREE.Vector3(0, 16, -1.2);
   camera.position.copy(player.position).add(camOffset);
-  camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+  camera.lookAt(player.position.x, player.position.y, player.position.z);
 
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
