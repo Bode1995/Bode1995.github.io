@@ -4,6 +4,7 @@ export function createEnemySystem({
   state,
   gameplayConfig,
   ENEMY_TYPES,
+  SAFETY_LIMITS,
   performance,
   collision,
   vfx,

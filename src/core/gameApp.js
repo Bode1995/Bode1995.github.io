@@ -29,6 +29,45 @@ import { registerServiceWorker } from '../pwa/register-sw.js';
 
 export function startGameApp() {
   const ui = getUI();
+  const REQUIRED_UI_KEYS = [
+    'canvas', 'hud', 'controls', 'menu', 'gameOver', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
+    'restartBtn', 'menuBtn', 'nextLevelBtn', 'wave', 'score', 'hpBar', 'shieldValue', 'powerSummary',
+    'pickupFeed', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
+    'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
+    'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
+    'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
+  ];
+  const missingUi = REQUIRED_UI_KEYS.filter((key) => !ui[key]);
+  const startErrorEl = document.createElement('div');
+  startErrorEl.id = 'runtimeErrorBanner';
+  startErrorEl.className = 'hidden';
+  startErrorEl.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:60;padding:12px 14px;border:1px solid rgba(255,122,122,0.55);border-radius:12px;background:rgba(42,10,16,0.94);color:#ffe6e6;font:13px/1.45 Inter,Arial,sans-serif;white-space:pre-wrap;box-shadow:0 10px 30px rgba(0,0,0,0.28)';
+  document.body.appendChild(startErrorEl);
+
+  function formatErrorDetails(err) {
+    if (!err) return 'Unknown error';
+    if (err instanceof Error) return err.stack || `${err.name}: ${err.message}`;
+    return typeof err === 'string' ? err : JSON.stringify(err, null, 2);
+  }
+
+  function reportRuntimeError(context, err, extra = null) {
+    const detailText = extra ? `\nContext: ${extra}` : '';
+    const formatted = `[Sky Blaster] ${context}${detailText}\n${formatErrorDetails(err)}`;
+    console.error(formatted);
+    startErrorEl.textContent = `Start-/Laufzeitfehler: ${context}\n${err instanceof Error ? err.message : String(err)}${extra ? `\n${extra}` : ''}`;
+    startErrorEl.classList.remove('hidden');
+  }
+
+  function clearRuntimeError() {
+    startErrorEl.textContent = '';
+    startErrorEl.classList.add('hidden');
+  }
+
+  if (missingUi.length) {
+    reportRuntimeError('UI initialisation', new Error(`Missing DOM nodes: ${missingUi.join(', ')}`));
+    throw new Error(`Missing required UI nodes: ${missingUi.join(', ')}`);
+  }
+
   const profile = loadProfile();
   const profileApi = createProfileApi(profile);
   const characterModule = createCharacterModule(THREE, CHARACTER_DEFS);
@@ -154,6 +193,7 @@ export function startGameApp() {
     state,
     gameplayConfig,
     ENEMY_TYPES,
+    SAFETY_LIMITS,
     performance,
     collision,
     vfx,
@@ -195,12 +235,17 @@ export function startGameApp() {
   }
 
   function setPlayerCharacter(characterId) {
-    state.selection.characterId = characterId;
-    saveSelectedCharacterId(characterId);
+    const characterDef = getCharacterDef(characterId);
+    if (!characterDef) {
+      reportRuntimeError('Character selection', new Error(`Unknown character: ${characterId}`));
+      return;
+    }
+    state.selection.characterId = characterDef.id;
+    saveSelectedCharacterId(characterDef.id);
     if (playerRig) playerRigHolder.remove(playerRig.root);
-    playerRig = characterModule.createCharacterRig(getCharacterDef(characterId));
+    playerRig = characterModule.createCharacterRig(characterDef);
     playerRigHolder.add(playerRig.root);
-    ui.selectedCharacterLabel.textContent = getCharacterDef(characterId).name;
+    ui.selectedCharacterLabel.textContent = characterDef.name;
   }
 
   const characterSelection = setupCharacterSelection({
@@ -380,38 +425,83 @@ export function startGameApp() {
     ui.gameOver.classList.remove('hidden');
   };
 
-  function startGame(world = profile.progression.selectedWorld, level = profile.progression.selectedLevel) {
-    if (!profileApi.isLevelUnlocked(world, level)) return;
-    profileApi.selectMission(world, level);
-    profile.stats.totalRuns += 1;
-    profileApi.save();
+  function resetTransientInputState() {
+    state.input.shooting = false;
+    state.input.moveTouch = null;
+    if (state.input.move) state.input.move.set(0, 0);
+    if (state.input.keys) state.input.keys.clear();
+  }
 
-    state.running = true;
-    state.worldIndex = world;
-    state.levelIndex = level;
-    state.hp = getPlayerMaxHp();
-    state.score = 0;
-    state.waveInLevel = 1;
-    state.wave = getDifficultyIndex(world, level, 1);
-    state.fireCooldown = 0;
-    state.wavePause = 0;
-    state.totalKills = 0;
-    state.waveKills = 0;
-    state.pickupSpawnTimer = 3.5;
-    state.runCredits = 0;
-    state.damageDealt = 0;
-    state.elapsedRunTime = 0;
-    state.savedRunTime = 0;
-    state.lastProfileSaveAt = 0;
-    playerRigHolder.position.set(0, 0.2, 0);
-    clearRunObjects();
-    combat.resetRunPowerUps();
-    spawnWave();
-    updateHUD();
-    ui.menu.classList.add('hidden');
+  function validateMission(world, level) {
+    if (!Number.isInteger(world) || !Number.isInteger(level)) {
+      throw new Error(`Invalid mission selection: world=${world}, level=${level}`);
+    }
+    if (world < 1 || world > WORLDS_COUNT || level < 1 || level > LEVELS_PER_WORLD) {
+      throw new Error(`Mission out of range: world=${world}, level=${level}`);
+    }
+    if (!profileApi.isLevelUnlocked(world, level)) {
+      throw new Error(`Mission is locked: world=${world}, level=${level}`);
+    }
+  }
+
+  function handleRunCrash(context, err, extra = null) {
+    state.running = false;
+    resetTransientInputState();
+    ui.controls.classList.add('hidden');
+    ui.hud.classList.add('hidden');
     ui.gameOver.classList.add('hidden');
-    ui.controls.classList.remove('hidden');
-    ui.hud.classList.remove('hidden');
+    ui.menu.classList.remove('hidden');
+    menuController.setMenuScreen('home');
+    menuController.renderMenu();
+    reportRuntimeError(context, err, extra);
+  }
+
+  function startGame(world = profile.progression.selectedWorld, level = profile.progression.selectedLevel) {
+    try {
+      clearRuntimeError();
+      validateMission(world, level);
+      const characterDef = getCharacterDef(state.selection.characterId);
+      if (!characterDef) throw new Error('No character definition available for run start.');
+      if (!playerRig) setPlayerCharacter(characterDef.id);
+      if (!playerRig) throw new Error('Player rig could not be created.');
+
+      profileApi.selectMission(world, level);
+      profile.stats.totalRuns += 1;
+      profileApi.save();
+
+      state.running = true;
+      state.worldIndex = world;
+      state.levelIndex = level;
+      state.hp = getPlayerMaxHp();
+      state.score = 0;
+      state.waveInLevel = 1;
+      state.wave = getDifficultyIndex(world, level, 1);
+      state.spawnLeft = 0;
+      state.fireCooldown = 0;
+      state.wavePause = 0;
+      state.totalKills = 0;
+      state.waveKills = 0;
+      state.pickupSpawnTimer = 3.5;
+      state.runCredits = 0;
+      state.damageDealt = 0;
+      state.elapsedRunTime = 0;
+      state.savedRunTime = 0;
+      state.lastProfileSaveAt = 0;
+      state.pendingResult = null;
+      playerRigHolder.position.set(0, 0.2, 0);
+      resetTransientInputState();
+      clearRunObjects();
+      combat.resetRunPowerUps();
+      spawnWave();
+      if (state.entities.enemies.length === 0) throw new Error('Wave spawn returned no enemies.');
+      updateHUD();
+      ui.menu.classList.add('hidden');
+      ui.gameOver.classList.add('hidden');
+      ui.controls.classList.remove('hidden');
+      ui.hud.classList.remove('hidden');
+    } catch (err) {
+      handleRunCrash('Run start failed', err, `world=${world}, level=${level}, character=${state.selection.characterId}`);
+    }
   }
 
   function resize() {
@@ -532,35 +622,39 @@ export function startGameApp() {
     performance.resetFrameBudgets();
 
     if (state.running) {
-      updatePlayer(dt);
-      state.elapsedRunTime += dt;
-      state.lastProfileSaveAt += dt;
-      state.fireCooldown -= dt;
-      if (state.input.shooting) projectileSystem.shoot();
-      updatePickups(dt);
-      enemySystem.update(dt, elapsed, state.runPowers);
-      projectileSystem.update(dt, { damageEnemy: combat.damageEnemy, applyProjectilePower: combat.applyProjectilePower });
+      try {
+        updatePlayer(dt);
+        state.elapsedRunTime += dt;
+        state.lastProfileSaveAt += dt;
+        state.fireCooldown -= dt;
+        if (state.input.shooting) projectileSystem.shoot();
+        updatePickups(dt);
+        enemySystem.update(dt, elapsed, state.runPowers);
+        projectileSystem.update(dt, { damageEnemy: combat.damageEnemy, applyProjectilePower: combat.applyProjectilePower });
 
-      if (state.entities.enemies.length === 0) {
-        state.wavePause -= dt;
-        if (state.wavePause <= 0) {
-          if (state.waveInLevel >= WAVES_PER_LEVEL) finishRun(true);
-          else {
-            state.waveInLevel += 1;
-            state.wavePause = 1;
-            spawnWave();
+        if (state.entities.enemies.length === 0) {
+          state.wavePause -= dt;
+          if (state.wavePause <= 0) {
+            if (state.waveInLevel >= WAVES_PER_LEVEL) finishRun(true);
+            else {
+              state.waveInLevel += 1;
+              state.wavePause = 1;
+              spawnWave();
+            }
           }
         }
-      }
 
-      if (state.lastProfileSaveAt >= 2) {
-        profile.stats.timePlayed += state.lastProfileSaveAt;
-        state.savedRunTime += state.lastProfileSaveAt;
-        state.lastProfileSaveAt = 0;
-        profileApi.save();
-      }
+        if (state.lastProfileSaveAt >= 2) {
+          profile.stats.timePlayed += state.lastProfileSaveAt;
+          state.savedRunTime += state.lastProfileSaveAt;
+          state.lastProfileSaveAt = 0;
+          profileApi.save();
+        }
 
-      updateHUD();
+        updateHUD();
+      } catch (err) {
+        handleRunCrash('Game loop failed', err, `wave=${state.wave}, enemies=${state.entities.enemies.length}, bullets=${state.entities.bullets.length}`);
+      }
     } else if (playerRig) {
       characterModule.animateCharacterRig(playerRig, 0, elapsed);
     }
@@ -615,7 +709,9 @@ export function startGameApp() {
     };
   }
 
-  window.addEventListener('load', () => registerServiceWorker());
+  const registerSwOnReady = () => registerServiceWorker().catch((err) => reportRuntimeError('Service worker registration', err));
+  if (document.readyState === 'complete') registerSwOnReady();
+  else window.addEventListener('load', registerSwOnReady, { once: true });
   ui.menuTabs.forEach((tab) => tab.addEventListener('click', () => menuController.setMenuScreen(tab.dataset.screen)));
   ui.startBtn.addEventListener('click', () => startGame());
   ui.quickWorldsBtn.addEventListener('click', () => menuController.openMenu('worlds'));
