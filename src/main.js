@@ -1,6 +1,10 @@
 import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
 
 const CHARACTER_STORAGE_KEY = 'skyBlaster.selectedCharacterId';
+const PROFILE_STORAGE_KEY = 'skyBlaster.profile.v2';
+const WORLDS_COUNT = 4;
+const LEVELS_PER_WORLD = 5;
+const WAVES_PER_LEVEL = 10;
 
 const CHARACTER_DEFS = [
   {
@@ -77,20 +81,129 @@ const ui = {
   menu: document.getElementById('menu'),
   gameOver: document.getElementById('gameOver'),
   startBtn: document.getElementById('startBtn'),
+  quickWorldsBtn: document.getElementById('quickWorldsBtn'),
+  startSelectedLevelBtn: document.getElementById('startSelectedLevelBtn'),
   restartBtn: document.getElementById('restartBtn'),
+  menuBtn: document.getElementById('menuBtn'),
+  nextLevelBtn: document.getElementById('nextLevelBtn'),
   wave: document.getElementById('wave'),
   score: document.getElementById('score'),
   hpBar: document.getElementById('hpBar'),
   shieldValue: document.getElementById('shieldValue'),
   powerSummary: document.getElementById('powerSummary'),
   pickupFeed: document.getElementById('pickupFeed'),
+  missionLabel: document.getElementById('missionLabel'),
+  creditsValue: document.getElementById('creditsValue'),
+  menuCredits: document.getElementById('menuCredits'),
+  menuHighestWave: document.getElementById('menuHighestWave'),
+  selectedMissionLabel: document.getElementById('selectedMissionLabel'),
+  selectedMissionStatus: document.getElementById('selectedMissionStatus'),
+  selectedCharacterLabel: document.getElementById('selectedCharacterLabel'),
+  unlockedSummary: document.getElementById('unlockedSummary'),
+  worldGrid: document.getElementById('worldGrid'),
+  levelGrid: document.getElementById('levelGrid'),
+  upgradeGroups: document.getElementById('upgradeGroups'),
+  upgradeCredits: document.getElementById('upgradeCredits'),
+  statsGrid: document.getElementById('statsGrid'),
+  menuTabs: Array.from(document.querySelectorAll('.menu-tab')),
+  menuScreens: Array.from(document.querySelectorAll('.menu-screen')),
   finalWave: document.getElementById('finalWave'),
   finalScore: document.getElementById('finalScore'),
+  finalCredits: document.getElementById('finalCredits'),
+  resultEyebrow: document.getElementById('resultEyebrow'),
+  resultTitle: document.getElementById('resultTitle'),
+  resultSummary: document.getElementById('resultSummary'),
   moveZone: document.getElementById('moveZone'),
   moveStick: document.getElementById('moveStick'),
   moveKnob: document.getElementById('moveKnob'),
   characterGrid: document.getElementById('characterGrid'),
 };
+
+const UPGRADE_DEFS = [
+  { id: 'baseDamage', group: 'Pilot Upgrades', label: 'Base Damage', description: 'Erhöht den Schaden jeder Kugel.', baseCost: 60, costStep: 35, maxLevel: 12, format: (lvl) => `${(1 + lvl * 0.22).toFixed(2)}x` },
+  { id: 'attackSpeed', group: 'Pilot Upgrades', label: 'Attack Speed', description: 'Senkt das Feuerintervall deines Blasters.', baseCost: 70, costStep: 40, maxLevel: 10, format: (lvl) => `${Math.max(0.07, 0.18 * Math.pow(0.94, lvl)).toFixed(2)}s` },
+  { id: 'maxHealth', group: 'Pilot Upgrades', label: 'Max Health', description: 'Mehr Lebenspunkte pro Run.', baseCost: 80, costStep: 45, maxLevel: 12, format: (lvl) => `${100 + lvl * 14} HP` },
+  { id: 'movementSpeed', group: 'Pilot Upgrades', label: 'Movement Speed', description: 'Schnelleres Traversieren der Arena.', baseCost: 55, costStep: 30, maxLevel: 12, format: (lvl) => `${(1 + lvl * 0.05).toFixed(2)}x` },
+  { id: 'burnDamage', group: 'Power-up Upgrades', label: 'Burn Damage', description: 'Verstärkt Feuer-DOT.', baseCost: 65, costStep: 36, maxLevel: 10, format: (lvl) => `${(1 + lvl * 0.18).toFixed(2)}x` },
+  { id: 'poisonDamage', group: 'Power-up Upgrades', label: 'Poison Damage', description: 'Verstärkt Gift-DOT.', baseCost: 65, costStep: 36, maxLevel: 10, format: (lvl) => `${(1 + lvl * 0.18).toFixed(2)}x` },
+  { id: 'slowDuration', group: 'Power-up Upgrades', label: 'Slow Duration', description: 'Verlängert die Wirkzeit von Ice.', baseCost: 60, costStep: 34, maxLevel: 10, format: (lvl) => `${(1.2 + lvl * 0.16).toFixed(1)}s` },
+  { id: 'lightningRange', group: 'Power-up Upgrades', label: 'Lightning Range', description: 'Längere Kettenreichweite für Blitz-Treffer.', baseCost: 72, costStep: 42, maxLevel: 10, format: (lvl) => `${(6.5 + lvl * 0.45).toFixed(1)}m` },
+  { id: 'rocketRadius', group: 'Power-up Upgrades', label: 'Rocket Radius', description: 'Größere Explosionsradien.', baseCost: 72, costStep: 42, maxLevel: 10, format: (lvl) => `${(1.8 + lvl * 0.18).toFixed(1)}m` },
+  { id: 'shieldCapacity', group: 'Power-up Upgrades', label: 'Shield Capacity', description: 'Shields absorbieren mehr Schaden.', baseCost: 68, costStep: 38, maxLevel: 10, format: (lvl) => `${26 + lvl * 6} HP` },
+];
+
+const STAT_DEFS = [
+  { id: 'totalKills', label: 'Total kills', format: (v) => String(v) },
+  { id: 'totalRuns', label: 'Total runs', format: (v) => String(v) },
+  { id: 'highestWaveReached', label: 'Highest wave reached', format: (v) => String(v) },
+  { id: 'damageDealt', label: 'Damage dealt', format: (v) => String(Math.round(v)) },
+  { id: 'timePlayed', label: 'Time played', format: (v) => formatDuration(v) },
+  { id: 'powerUpsCollected', label: 'Power-ups collected', format: (v) => String(v) },
+  { id: 'bossesDefeated', label: 'Bosses defeated', format: (v) => String(v) },
+];
+
+function createDefaultProfile() {
+  const unlockedLevels = {};
+  for (let world = 1; world <= WORLDS_COUNT; world++) unlockedLevels[world] = world === 1 ? 1 : 0;
+  return {
+    version: 2,
+    credits: 0,
+    upgrades: Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, 0])),
+    stats: {
+      totalKills: 0,
+      totalRuns: 0,
+      highestWaveReached: 1,
+      damageDealt: 0,
+      timePlayed: 0,
+      powerUpsCollected: 0,
+      bossesDefeated: 0,
+    },
+    progression: {
+      selectedWorld: 1,
+      selectedLevel: 1,
+      unlockedLevels,
+      completedLevels: {},
+    },
+  };
+}
+
+function loadProfile() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || 'null');
+    const base = createDefaultProfile();
+    if (!raw || typeof raw !== 'object') return base;
+    return {
+      ...base,
+      ...raw,
+      upgrades: { ...base.upgrades, ...(raw.upgrades || {}) },
+      stats: { ...base.stats, ...(raw.stats || {}) },
+      progression: {
+        ...base.progression,
+        ...(raw.progression || {}),
+        unlockedLevels: { ...base.progression.unlockedLevels, ...((raw.progression || {}).unlockedLevels || {}) },
+        completedLevels: { ...base.progression.completedLevels, ...((raw.progression || {}).completedLevels || {}) },
+      },
+    };
+  } catch {
+    return createDefaultProfile();
+  }
+}
+
+function saveProfile() {
+  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+}
+
+function formatDuration(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+const profile = loadProfile();
+let activeMenuScreen = 'home';
 
 const renderer = new THREE.WebGLRenderer({ canvas: ui.canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -577,15 +690,108 @@ scene.add(playerRigHolder);
 let selectedCharacterId = loadSelectedCharacterId();
 let playerRig = null;
 
+function getCharacterDef(characterId = selectedCharacterId) {
+  return CHARACTER_DEFS.find((character) => character.id === characterId) || CHARACTER_DEFS[0];
+}
+
+function getSelectedMission() {
+  const { selectedWorld, selectedLevel } = profile.progression;
+  return { world: selectedWorld, level: selectedLevel };
+}
+
+function getUnlockedLevelCount() {
+  return Object.values(profile.progression.unlockedLevels).reduce((sum, count) => sum + Math.max(0, count), 0);
+}
+
+function isLevelUnlocked(world, level) {
+  return level <= (profile.progression.unlockedLevels[world] || 0);
+}
+
+function selectMission(world, level) {
+  if (!isLevelUnlocked(world, level)) return;
+  profile.progression.selectedWorld = world;
+  profile.progression.selectedLevel = level;
+  saveProfile();
+  renderMenu();
+}
+
 function setPlayerCharacter(characterId) {
   selectedCharacterId = resolveCharacterId(characterId);
   saveSelectedCharacterId(selectedCharacterId);
   if (playerRig) {
     playerRigHolder.remove(playerRig.root);
   }
-  const def = CHARACTER_DEFS.find((character) => character.id === selectedCharacterId) || CHARACTER_DEFS[0];
+  const def = getCharacterDef(selectedCharacterId);
   playerRig = createCharacterRig(def);
   playerRigHolder.add(playerRig.root);
+  if (ui.selectedCharacterLabel) ui.selectedCharacterLabel.textContent = def.name;
+}
+
+function getUpgradeLevel(id) {
+  return profile.upgrades[id] || 0;
+}
+
+function getUpgradeCost(id) {
+  const def = UPGRADE_DEFS.find((entry) => entry.id === id);
+  const level = getUpgradeLevel(id);
+  if (!def || level >= def.maxLevel) return null;
+  return def.baseCost + level * def.costStep;
+}
+
+function getPlayerMaxHp() {
+  return 100 + getUpgradeLevel('maxHealth') * 14;
+}
+
+function getBaseDamage() {
+  return 1 + getUpgradeLevel('baseDamage') * 0.22;
+}
+
+function getAttackCooldown() {
+  return Math.max(0.07, 0.18 * Math.pow(0.94, getUpgradeLevel('attackSpeed')));
+}
+
+function getBaseMoveSpeedMultiplier() {
+  return 1 + getUpgradeLevel('movementSpeed') * 0.05;
+}
+
+function getShieldPickupCapacity() {
+  return 26 + getUpgradeLevel('shieldCapacity') * 6;
+}
+
+function getDifficultyIndex(world = state.worldIndex, level = state.levelIndex, waveInLevel = state.waveInLevel) {
+  return ((world - 1) * LEVELS_PER_WORLD + (level - 1)) * WAVES_PER_LEVEL + waveInLevel;
+}
+
+function getMissionLabel(world = state.worldIndex, level = state.levelIndex) {
+  return `W${world} · L${level}`;
+}
+
+function getLevelKey(world, level) {
+  return `${world}-${level}`;
+}
+
+function unlockNextMission(world, level) {
+  profile.progression.completedLevels[getLevelKey(world, level)] = true;
+  if (level < LEVELS_PER_WORLD) {
+    profile.progression.unlockedLevels[world] = Math.max(profile.progression.unlockedLevels[world] || 0, level + 1);
+  } else if (world < WORLDS_COUNT) {
+    profile.progression.unlockedLevels[world + 1] = Math.max(profile.progression.unlockedLevels[world + 1] || 0, 1);
+  }
+  saveProfile();
+}
+
+function getNextMission(world, level) {
+  if (level < LEVELS_PER_WORLD) return { world, level: level + 1 };
+  if (world < WORLDS_COUNT) return { world: world + 1, level: 1 };
+  return null;
+}
+
+function addCredits(amount) {
+  profile.credits += amount;
+}
+
+function trackStat(id, amount) {
+  profile.stats[id] = (profile.stats[id] || 0) + amount;
 }
 
 setPlayerCharacter(selectedCharacterId);
@@ -599,9 +805,12 @@ const clock = new THREE.Clock();
 
 const state = {
   running: false,
-  hp: 100,
+  hp: getPlayerMaxHp(),
   score: 0,
   wave: 1,
+  waveInLevel: 1,
+  worldIndex: profile.progression.selectedWorld,
+  levelIndex: profile.progression.selectedLevel,
   spawnLeft: 0,
   fireCooldown: 0,
   wavePause: 1,
@@ -610,8 +819,14 @@ const state = {
   waveKills: 0,
   pickupSpawnTimer: 5,
   pickupSpawnInterval: 10,
-  moveSpeedMultiplier: 1,
+  moveSpeedMultiplier: getBaseMoveSpeedMultiplier(),
   projectileCount: 1,
+  runCredits: 0,
+  damageDealt: 0,
+  elapsedRunTime: 0,
+  savedRunTime: 0,
+  lastProfileSaveAt: 0,
+  pendingResult: null,
 };
 
 const ENEMY_TYPES = {
@@ -844,7 +1059,8 @@ function spawnEnemy(type, angle, dist, waveScale) {
   enemy.castShadow = true;
   enemy.userData = {
     type,
-    hp: Math.ceil(cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)),
+    role: cfg.role,
+    hp: Math.ceil((cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)) * (1 + state.worldIndex * 0.04 + state.levelIndex * 0.03)),
     speed:
       (cfg.speed * gameplayConfig.enemies.baseSpeedMultiplier[type] +
         waveScale *
@@ -852,7 +1068,7 @@ function spawnEnemy(type, angle, dist, waveScale) {
             ? gameplayConfig.enemies.waveSpeedScale.boss
             : gameplayConfig.enemies.waveSpeedScale.field)) *
       (1 - gameplayConfig.enemies.randomVariance + Math.random() * gameplayConfig.enemies.randomVariance * 2),
-    damage: cfg.damage,
+    damage: cfg.damage * (1 + state.worldIndex * 0.05 + state.levelIndex * 0.035 + state.waveInLevel * 0.02),
     radius: cfg.radius,
     score: cfg.score,
     range: cfg.range || 0,
@@ -944,20 +1160,21 @@ function showPickupNotice(type) {
 }
 
 function applyRunPower(type) {
+  profile.stats.powerUpsCollected += 1;
   if (type === 'health') {
-    state.hp = Math.min(100, state.hp + 20);
+    state.hp = Math.min(getPlayerMaxHp(), state.hp + 20);
     showPickupNotice(type);
     return;
   }
 
   runPowers.stacks[type] = (runPowers.stacks[type] || 0) + 1;
   if (type === 'movementSpeed') {
-    state.moveSpeedMultiplier = RUN_BASE.moveSpeedMultiplier + runPowers.stacks.movementSpeed * 0.05;
+    state.moveSpeedMultiplier = getBaseMoveSpeedMultiplier() + runPowers.stacks.movementSpeed * 0.05;
   } else if (type === 'doubler') {
     const rawProjectileCount = RUN_BASE.projectileCount * Math.pow(2, runPowers.stacks.doubler);
     state.projectileCount = sanitizeProjectileCount(rawProjectileCount);
   } else if (type === 'shield') {
-    runPowers.shieldHp += 26;
+    runPowers.shieldHp += getShieldPickupCapacity();
   }
   showPickupNotice(type);
 }
@@ -970,7 +1187,7 @@ function sanitizeProjectileCount(value) {
 function resetRunPowerUps() {
   for (const key of Object.keys(runPowers.stacks)) runPowers.stacks[key] = 0;
   runPowers.shieldHp = 0;
-  state.moveSpeedMultiplier = RUN_BASE.moveSpeedMultiplier;
+  state.moveSpeedMultiplier = getBaseMoveSpeedMultiplier();
   state.projectileCount = RUN_BASE.projectileCount;
 }
 
@@ -981,15 +1198,17 @@ function damagePlayer(amount) {
     amount -= absorbed;
   }
   if (amount > 0) state.hp -= amount;
-  if (state.hp <= 0) gameOver();
+  if (state.hp <= 0) finishRun(false);
 }
 
 function updateHUD() {
-  ui.wave.textContent = String(state.wave);
+  ui.wave.textContent = `${state.waveInLevel} / ${WAVES_PER_LEVEL}`;
   ui.score.textContent = String(state.score);
-  ui.hpBar.style.width = `${Math.max(0, state.hp)}%`;
+  ui.hpBar.style.width = `${THREE.MathUtils.clamp((Math.max(0, state.hp) / getPlayerMaxHp()) * 100, 0, 100)}%`;
   ui.shieldValue.textContent = `${Math.max(0, Math.round(runPowers.shieldHp))}`;
   ui.powerSummary.textContent = `Power-ups: ${getPowerSummaryText()}`;
+  ui.missionLabel.textContent = getMissionLabel();
+  ui.creditsValue.textContent = String(profile.credits + state.runCredits);
 
   while (ui.pickupFeed.firstChild) {
     ui.pickupFeed.removeChild(ui.pickupFeed.firstChild);
@@ -1003,8 +1222,13 @@ function updateHUD() {
   }
 }
 
+function getSpawnBudget() {
+  return Math.round(5 + state.waveInLevel * 1.5 + state.levelIndex * 1.2 + state.worldIndex * 1.8);
+}
+
 function spawnWave() {
-  state.spawnLeft = 4 + state.wave * 2;
+  state.wave = getDifficultyIndex();
+  state.spawnLeft = getSpawnBudget();
   for (let i = 0; i < state.spawnLeft; i++) {
     const type = pickEnemyType(state.wave, i);
     const angle = Math.random() * Math.PI * 2;
@@ -1019,11 +1243,14 @@ function spawnWave() {
       i += 2;
     }
   }
+  profile.stats.highestWaveReached = Math.max(profile.stats.highestWaveReached, state.wave);
 }
 
 function damageEnemy(enemy, amount, fromChain = false) {
   if (enemy.userData.dead) return;
   enemy.userData.hp -= amount;
+  state.damageDealt += amount;
+  profile.stats.damageDealt += amount;
   spawnDamageNumber(enemy, amount);
   if (runPowers.stacks.lightning > 0 || fromChain) {
     enemy.userData.shockTimer = Math.max(enemy.userData.shockTimer, 0.22 + runPowers.stacks.lightning * 0.04);
@@ -1040,7 +1267,8 @@ function damageEnemy(enemy, amount, fromChain = false) {
     while (chains > 0) {
       if (frameBudgets.lightningChains >= SAFETY_LIMITS.maxLightningChainsPerFrame) break;
       let nearest = null;
-      let nearestDistSq = 6.5 * 6.5;
+      const lightningRange = 6.5 + getUpgradeLevel('lightningRange') * 0.45;
+      let nearestDistSq = lightningRange * lightningRange;
       for (const candidate of enemies) {
         if (candidate.userData.dead || visited.has(candidate)) continue;
         const dSq = source.position.distanceToSquared(candidate.position);
@@ -1064,19 +1292,19 @@ function applyProjectilePower(enemy, bullet) {
   const hitPos = bullet.position.clone();
   spawnImpactEffects(hitPos, bullet.userData.effects || getProjectileEffects());
   if (runPowers.stacks.fire > 0) {
-    enemy.userData.fireDot += runPowers.stacks.fire * 0.7;
+    enemy.userData.fireDot += runPowers.stacks.fire * 0.7 * (1 + getUpgradeLevel('burnDamage') * 0.18);
     spawnBurst(hitPos, EFFECT_COLORS.fire, 3, 1.9, 0.28, 0.8);
   }
   if (runPowers.stacks.poison > 0) {
-    enemy.userData.poisonDot += runPowers.stacks.poison * 0.9;
+    enemy.userData.poisonDot += runPowers.stacks.poison * 0.9 * (1 + getUpgradeLevel('poisonDamage') * 0.18);
     spawnBurst(hitPos, 0x7dff74, 3, 1.4, 0.36, 0.95);
   }
   if (runPowers.stacks.ice > 0) {
-    enemy.userData.iceSlowTimer = Math.max(enemy.userData.iceSlowTimer, 1.2 + runPowers.stacks.ice * 0.2);
+    enemy.userData.iceSlowTimer = Math.max(enemy.userData.iceSlowTimer, 1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2);
     spawnBurst(hitPos, EFFECT_COLORS.ice, 3, 1.5, 0.28, 0.8);
   }
   if (runPowers.stacks.rockets > 0) {
-    const radius = 1.8 + runPowers.stacks.rockets * 0.6;
+    const radius = 1.8 + getUpgradeLevel('rocketRadius') * 0.18 + runPowers.stacks.rockets * 0.6;
     const splash = Math.max(1, Math.round(0.5 + runPowers.stacks.rockets * 0.8));
     const blastRing = new THREE.Mesh(
       VFX.ringGeometry,
@@ -1098,7 +1326,7 @@ function applyProjectilePower(enemy, bullet) {
 
 function shoot() {
   if (state.fireCooldown > 0) return;
-  state.fireCooldown = 0.18;
+  state.fireCooldown = getAttackCooldown();
   const count = sanitizeProjectileCount(state.projectileCount);
   const baseYaw = state.yaw;
   const spread = Math.min(0.75, 0.11 * Math.log2(count));
@@ -1133,7 +1361,7 @@ function shoot() {
     }
     bullet.userData.vel = dirVec.multiplyScalar(30);
     bullet.userData.life = 1.3;
-    bullet.userData.damage = 1;
+    bullet.userData.damage = getBaseDamage();
     bullet.userData.effects = fx;
     bullet.userData.trailTick = 0;
     scene.add(bullet);
@@ -1157,31 +1385,13 @@ function destroyEnemy(enemy, index) {
   state.totalKills += 1;
   state.waveKills += 1;
   state.score += enemy.userData.score || 10;
+  profile.stats.totalKills += 1;
+  if (enemy.userData.role === 'boss') profile.stats.bossesDefeated += 1;
+  const creditsEarned = enemy.userData.role === 'boss' ? 25 : 3;
+  state.runCredits += creditsEarned;
 }
 
-function gameOver() {
-  state.running = false;
-  resetRunPowerUps();
-  removeAllPickups();
-  pickupNotices.length = 0;
-  ui.controls.classList.add('hidden');
-  ui.hud.classList.add('hidden');
-  ui.gameOver.classList.remove('hidden');
-  ui.finalWave.textContent = String(state.wave);
-  ui.finalScore.textContent = String(state.score);
-}
-
-function startGame() {
-  state.running = true;
-  state.hp = 100;
-  state.score = 0;
-  state.wave = 1;
-  state.fireCooldown = 0;
-  state.wavePause = 0;
-  state.totalKills = 0;
-  state.waveKills = 0;
-  state.pickupSpawnTimer = 3.5;
-  playerRigHolder.position.set(0, 0.2, 0);
+function clearRunObjects() {
   enemies.forEach((e) => scene.remove(e));
   bullets.forEach((b) => scene.remove(b));
   vfxParticles.forEach((fx) => scene.remove(fx.mesh));
@@ -1198,6 +1408,178 @@ function startGame() {
   damageNumbers.length = 0;
   removeAllPickups();
   pickupNotices.length = 0;
+}
+
+function setMenuScreen(screenId) {
+  activeMenuScreen = screenId;
+  ui.menuTabs.forEach((tab) => tab.classList.toggle('is-active', tab.dataset.screen === screenId));
+  ui.menuScreens.forEach((screen) => screen.classList.toggle('hidden', screen.dataset.screen !== screenId));
+}
+
+function openMenu(screenId = activeMenuScreen) {
+  setMenuScreen(screenId);
+  renderMenu();
+  ui.menu.classList.remove('hidden');
+  ui.gameOver.classList.add('hidden');
+}
+
+function purchaseUpgrade(upgradeId) {
+  const def = UPGRADE_DEFS.find((entry) => entry.id === upgradeId);
+  const cost = getUpgradeCost(upgradeId);
+  if (!def || cost == null || profile.credits < cost) return;
+  profile.credits -= cost;
+  profile.upgrades[upgradeId] = getUpgradeLevel(upgradeId) + 1;
+  saveProfile();
+  renderMenu();
+}
+
+function renderWorldsScreen() {
+  ui.worldGrid.innerHTML = '';
+  ui.levelGrid.innerHTML = '';
+  for (let world = 1; world <= WORLDS_COUNT; world++) {
+    const unlockedCount = profile.progression.unlockedLevels[world] || 0;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `world-card${profile.progression.selectedWorld === world ? ' is-selected' : ''}${unlockedCount === 0 ? ' is-locked' : ''}`;
+    button.disabled = unlockedCount === 0;
+    button.innerHTML = `<div class="card-label">World ${world}</div><strong>${unlockedCount > 0 ? 'Unlocked' : 'Locked'}</strong><span>${Math.max(unlockedCount, 0)} / ${LEVELS_PER_WORLD} Levels freigeschaltet</span>`;
+    button.addEventListener('click', () => selectMission(world, Math.min(profile.progression.selectedLevel, Math.max(1, unlockedCount || 1))));
+    ui.worldGrid.appendChild(button);
+  }
+  const selectedWorld = profile.progression.selectedWorld;
+  for (let level = 1; level <= LEVELS_PER_WORLD; level++) {
+    const unlocked = isLevelUnlocked(selectedWorld, level);
+    const completed = !!profile.progression.completedLevels[getLevelKey(selectedWorld, level)];
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `level-card${profile.progression.selectedLevel === level ? ' is-selected' : ''}${unlocked ? '' : ' is-locked'}`;
+    button.disabled = !unlocked;
+    button.innerHTML = `<div class="card-label">Level ${level}</div><strong>${completed ? 'Completed' : unlocked ? 'Ready' : 'Locked'}</strong><span>${WAVES_PER_LEVEL} Waves · ${completed ? 'Bonus route cleared' : 'Clear to unlock next'}</span>`;
+    button.addEventListener('click', () => selectMission(selectedWorld, level));
+    ui.levelGrid.appendChild(button);
+  }
+}
+
+function renderUpgradesScreen() {
+  ui.upgradeCredits.textContent = String(profile.credits);
+  ui.upgradeGroups.innerHTML = '';
+  const grouped = UPGRADE_DEFS.reduce((map, def) => {
+    (map[def.group] ||= []).push(def);
+    return map;
+  }, {});
+  for (const [group, defs] of Object.entries(grouped)) {
+    const groupEl = document.createElement('section');
+    groupEl.className = 'upgrade-group';
+    const title = document.createElement('h3');
+    title.textContent = group;
+    groupEl.appendChild(title);
+    defs.forEach((def) => {
+      const level = getUpgradeLevel(def.id);
+      const cost = getUpgradeCost(def.id);
+      const card = document.createElement('article');
+      card.className = `upgrade-card${cost == null || profile.credits < cost ? ' is-disabled' : ''}`;
+      card.innerHTML = `<div class="card-label">${def.label}</div><strong>Level ${level}${def.maxLevel ? ` / ${def.maxLevel}` : ''}</strong><p>${def.description}</p><div class="card-row"><span>Current: ${def.format(level)}</span><span>${cost == null ? 'MAX' : `Next cost: ${cost}`}</span></div>`;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = cost == null ? 'Maxed' : 'Upgrade';
+      button.disabled = cost == null || profile.credits < cost;
+      button.addEventListener('click', () => purchaseUpgrade(def.id));
+      card.appendChild(button);
+      groupEl.appendChild(card);
+    });
+    ui.upgradeGroups.appendChild(groupEl);
+  }
+}
+
+function renderStatisticsScreen() {
+  ui.statsGrid.innerHTML = '';
+  STAT_DEFS.forEach((def) => {
+    const card = document.createElement('article');
+    card.className = 'stat-card';
+    card.innerHTML = `<div class="card-label">${def.label}</div><strong>${def.format(profile.stats[def.id] || 0)}</strong><span>Persistent progression stat</span>`;
+    ui.statsGrid.appendChild(card);
+  });
+}
+
+function renderHomeScreen() {
+  const mission = getSelectedMission();
+  ui.menuCredits.textContent = String(profile.credits);
+  ui.menuHighestWave.textContent = String(profile.stats.highestWaveReached);
+  ui.selectedMissionLabel.textContent = `World ${mission.world} · Level ${mission.level}`;
+  ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'}`;
+  ui.unlockedSummary.textContent = `${getUnlockedLevelCount()} / ${WORLDS_COUNT * LEVELS_PER_WORLD} Levels`;
+  ui.selectedCharacterLabel.textContent = getCharacterDef().name;
+}
+
+function renderMenu() {
+  renderHomeScreen();
+  renderWorldsScreen();
+  renderUpgradesScreen();
+  renderStatisticsScreen();
+  refreshCharacterSelection();
+}
+
+function showRunResult(success) {
+  ui.resultEyebrow.textContent = success ? 'MISSION COMPLETE' : 'EINSATZ BEENDET';
+  ui.resultTitle.textContent = success ? `World ${state.worldIndex} · Level ${state.levelIndex} gesichert` : 'Outpost verloren';
+  ui.resultSummary.textContent = success
+    ? `Alle ${WAVES_PER_LEVEL} Waves abgeschlossen. Höchste Schwierigkeitswelle: ${state.wave}`
+    : `Erreichte Welle: ${state.wave}`;
+  ui.finalWave.textContent = String(state.wave);
+  ui.finalScore.textContent = String(state.score);
+  ui.finalCredits.textContent = String(state.runCredits);
+  const nextMission = getNextMission(state.worldIndex, state.levelIndex);
+  ui.nextLevelBtn.classList.toggle('hidden', !success || !nextMission || !isLevelUnlocked(nextMission.world, nextMission.level));
+}
+
+function finishRun(success) {
+  if (!state.running) return;
+  state.running = false;
+  if (success) unlockNextMission(state.worldIndex, state.levelIndex);
+  addCredits(state.runCredits + (success ? 40 + state.levelIndex * 10 + state.worldIndex * 15 : 0));
+  profile.stats.timePlayed += Math.max(0, state.elapsedRunTime - state.savedRunTime);
+  profile.stats.highestWaveReached = Math.max(profile.stats.highestWaveReached, state.wave);
+  if (success) {
+    const nextMission = getNextMission(state.worldIndex, state.levelIndex);
+    if (nextMission && isLevelUnlocked(nextMission.world, nextMission.level)) {
+      profile.progression.selectedWorld = nextMission.world;
+      profile.progression.selectedLevel = nextMission.level;
+    }
+  }
+  saveProfile();
+  resetRunPowerUps();
+  clearRunObjects();
+  ui.controls.classList.add('hidden');
+  ui.hud.classList.add('hidden');
+  showRunResult(success);
+  ui.gameOver.classList.remove('hidden');
+}
+
+function startGame(world = profile.progression.selectedWorld, level = profile.progression.selectedLevel) {
+  if (!isLevelUnlocked(world, level)) return;
+  profile.progression.selectedWorld = world;
+  profile.progression.selectedLevel = level;
+  profile.stats.totalRuns += 1;
+  saveProfile();
+  state.running = true;
+  state.worldIndex = world;
+  state.levelIndex = level;
+  state.hp = getPlayerMaxHp();
+  state.score = 0;
+  state.waveInLevel = 1;
+  state.wave = getDifficultyIndex(world, level, 1);
+  state.fireCooldown = 0;
+  state.wavePause = 0;
+  state.totalKills = 0;
+  state.waveKills = 0;
+  state.pickupSpawnTimer = 3.5;
+  state.runCredits = 0;
+  state.damageDealt = 0;
+  state.elapsedRunTime = 0;
+  state.savedRunTime = 0;
+  state.lastProfileSaveAt = 0;
+  playerRigHolder.position.set(0, 0.2, 0);
+  clearRunObjects();
   resetRunPowerUps();
   spawnWave();
   updateHUD();
@@ -1414,6 +1796,8 @@ function animate() {
     playerRigHolder.position.z = THREE.MathUtils.clamp(playerRigHolder.position.z, -halfArena, halfArena);
     playerRigHolder.rotation.y = state.yaw;
 
+    state.elapsedRunTime += dt;
+    state.lastProfileSaveAt += dt;
     state.fireCooldown -= dt;
     if (input.shooting) shoot();
 
@@ -1625,10 +2009,21 @@ function animate() {
     if (enemies.length === 0) {
       state.wavePause -= dt;
       if (state.wavePause <= 0) {
-        state.wave += 1;
-        state.wavePause = 1;
-        spawnWave();
+        if (state.waveInLevel >= WAVES_PER_LEVEL) {
+          finishRun(true);
+        } else {
+          state.waveInLevel += 1;
+          state.wavePause = 1;
+          spawnWave();
+        }
       }
+    }
+
+    if (state.lastProfileSaveAt >= 2) {
+      profile.stats.timePlayed += state.lastProfileSaveAt;
+      state.savedRunTime += state.lastProfileSaveAt;
+      state.lastProfileSaveAt = 0;
+      saveProfile();
     }
 
     updateHUD();
@@ -1656,8 +2051,24 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => {}));
 }
 
-ui.startBtn.addEventListener('click', startGame);
-ui.restartBtn.addEventListener('click', startGame);
+ui.menuTabs.forEach((tab) => tab.addEventListener('click', () => setMenuScreen(tab.dataset.screen)));
+ui.startBtn.addEventListener('click', () => startGame());
+ui.quickWorldsBtn.addEventListener('click', () => openMenu('worlds'));
+ui.startSelectedLevelBtn.addEventListener('click', () => {
+  const mission = getSelectedMission();
+  startGame(mission.world, mission.level);
+});
+ui.restartBtn.addEventListener('click', () => startGame(state.worldIndex, state.levelIndex));
+ui.menuBtn.addEventListener('click', () => openMenu('home'));
+ui.nextLevelBtn.addEventListener('click', () => {
+  const nextMission = getNextMission(state.worldIndex, state.levelIndex);
+  if (!nextMission) {
+    openMenu('worlds');
+    return;
+  }
+  startGame(nextMission.world, nextMission.level);
+});
 
+renderMenu();
 updateHUD();
 requestAnimationFrame(animate);

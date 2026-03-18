@@ -15,12 +15,13 @@
   <canvas id="game"></canvas>
 
   <div class="hud hidden" id="hud">
-    <div class="chip">Welle: <span id="wave">1</span></div>
+    <div class="chip">Einsatz: <span id="missionLabel">W1 · L1</span></div>
+    <div class="chip">Welle: <span id="wave">1 / 10</span></div>
     <div class="chip">Punkte: <span id="score">0</span></div>
-    <div class="chip">Munition: ∞</div>
+    <div class="chip">Credits: <span id="creditsValue">0</span></div>
     <div class="chip">Shield: <span id="shieldValue">0</span></div>
     <div class="chip power-chip" id="powerSummary">Power-ups: none</div>
-    <div class="chip health-wrap">Schild
+    <div class="chip health-wrap">HP
       <div class="bar"><div id="hpBar"></div></div>
     </div>
     <div class="pickup-feed" id="pickupFeed"></div>
@@ -32,29 +33,116 @@
   </div>
 
   <div class="overlay" id="menu">
-    <div class="panel">
+    <div class="panel menu-panel">
       <div class="eyebrow">NEON FRONTIER // SURVIVAL PROTOCOL</div>
-      <h1>Sky Blaster: Outpost Siege</h1>
-      <p>Ein echtes 3D-Arena-Spiel mit WebGL. Ein Stick bewegt dich (invertiert), und beim Laufen wird automatisch in Blickrichtung geschossen.</p>
-      <div class="enemy-row">
-        <span>Scout</span><span>Brute</span><span>Spitter</span>
+      <div class="menu-header">
+        <div>
+          <h1>Sky Blaster: Outpost Siege</h1>
+          <p class="menu-copy">Plane deinen Einsatz, verbessere dein Arsenal und arbeite dich durch alle 4 Welten mit je 5 Levels.</p>
+        </div>
+        <div class="summary-stack">
+          <div class="summary-pill">Credits: <span id="menuCredits">0</span></div>
+          <div class="summary-pill">Beste Welle: <span id="menuHighestWave">1</span></div>
+        </div>
       </div>
-      <section class="character-select">
-        <h3>Character Selection</h3>
+
+      <nav class="menu-nav" id="menuNav">
+        <button class="menu-tab is-active" data-screen="home">Play</button>
+        <button class="menu-tab" data-screen="worlds">Worlds / Levels</button>
+        <button class="menu-tab" data-screen="upgrades">Upgrades</button>
+        <button class="menu-tab" data-screen="statistics">Statistics</button>
+        <button class="menu-tab" data-screen="characters">Character Selection</button>
+      </nav>
+
+      <section class="menu-screen" data-screen="home">
+        <div class="hero-card">
+          <div>
+            <h2>Deploy bereit</h2>
+            <p>Starte direkt in dein ausgewähltes Level oder ändere Welt, Upgrades und Charakter auf den separaten Screens.</p>
+          </div>
+          <div class="hero-actions">
+            <button class="btn" id="startBtn">Play</button>
+            <button class="ghost-btn" id="quickWorldsBtn">Level wählen</button>
+          </div>
+        </div>
+        <div class="info-grid compact-grid">
+          <article class="info-card">
+            <div class="info-label">Aktuelle Mission</div>
+            <strong id="selectedMissionLabel">World 1 · Level 1</strong>
+            <span id="selectedMissionStatus">10 Waves · Unlocked</span>
+          </article>
+          <article class="info-card">
+            <div class="info-label">Freigeschaltet</div>
+            <strong id="unlockedSummary">1 / 20 Levels</strong>
+            <span>Neue Levels und Welten werden nach Abschluss freigeschaltet.</span>
+          </article>
+          <article class="info-card">
+            <div class="info-label">Letzter Pilot</div>
+            <strong id="selectedCharacterLabel">Vanguard</strong>
+            <span>Character Selection ist jetzt ein eigener Menüpunkt.</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="menu-screen hidden" data-screen="worlds">
+        <div class="section-head">
+          <div>
+            <h2>Worlds / Levels</h2>
+            <p>Wähle zuerst eine Welt und danach eines der 5 Levels. Jeder Run hat genau 10 Waves.</p>
+          </div>
+          <button class="ghost-btn" id="startSelectedLevelBtn">Selected Level starten</button>
+        </div>
+        <div class="world-grid" id="worldGrid"></div>
+        <div class="level-grid" id="levelGrid"></div>
+      </section>
+
+      <section class="menu-screen hidden" data-screen="upgrades">
+        <div class="section-head">
+          <div>
+            <h2>Upgrades</h2>
+            <p>Persistente Verbesserungen für Basiswerte und Power-up-Effekte. Jeder Kauf kostet Credits und stapelt sich.</p>
+          </div>
+          <div class="summary-pill">Bank: <span id="upgradeCredits">0</span></div>
+        </div>
+        <div class="upgrade-groups" id="upgradeGroups"></div>
+      </section>
+
+      <section class="menu-screen hidden" data-screen="statistics">
+        <div class="section-head">
+          <div>
+            <h2>Statistics</h2>
+            <p>Alle Werte bleiben über Runs und Tode hinweg erhalten und werden live im Hintergrund aktualisiert.</p>
+          </div>
+        </div>
+        <div class="stats-grid" id="statsGrid"></div>
+      </section>
+
+      <section class="menu-screen hidden" data-screen="characters">
+        <div class="section-head">
+          <div>
+            <h2>Character Selection</h2>
+            <p>Der bestehende Character Configurator wurde ohne Logikänderung in einen eigenen Screen verschoben.</p>
+          </div>
+        </div>
         <div class="character-grid" id="characterGrid"></div>
       </section>
-      <button class="btn" id="startBtn">Mission starten</button>
-      <div class="hint">Desktop: WASD bewegen (invertiert), Leertaste/Linksklick feuern.</div>
+
+      <div class="hint">Desktop: WASD bewegen (invertiert), Leertaste/Linksklick feuern. Mobile/PWA: Drag auf dem Feld zum Bewegen und Auto-Fire.</div>
     </div>
   </div>
 
   <div class="overlay hidden" id="gameOver">
     <div class="panel">
-      <div class="eyebrow">EINSATZ BEENDET</div>
-      <h2>Outpost verloren</h2>
-      <p>Erreichte Welle: <strong id="finalWave">1</strong></p>
+      <div class="eyebrow" id="resultEyebrow">EINSATZ BEENDET</div>
+      <h2 id="resultTitle">Outpost verloren</h2>
+      <p id="resultSummary">Erreichte Welle: <strong id="finalWave">1</strong></p>
       <p>Punkte: <strong id="finalScore">0</strong></p>
-      <button class="btn" id="restartBtn">Neu deployen</button>
+      <p>Credits verdient: <strong id="finalCredits">0</strong></p>
+      <div class="result-actions">
+        <button class="btn" id="restartBtn">Erneut deployen</button>
+        <button class="ghost-btn" id="menuBtn">Zum Menü</button>
+        <button class="ghost-btn hidden" id="nextLevelBtn">Nächstes Level</button>
+      </div>
     </div>
   </div>
 
