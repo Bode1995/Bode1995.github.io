@@ -906,6 +906,9 @@ const VFX = {
   chainGeometry: new THREE.CylinderGeometry(0.07, 0.07, 1, 6),
 };
 
+const MAX_IMPACT_VISUAL_LIFETIME = 0.5;
+const DAMAGE_NUMBER_LIFETIME = 0.42;
+
 const EFFECT_COLORS = {
   fire: 0xff8a4f,
   ice: 0x97e8ff,
@@ -1038,6 +1041,18 @@ function maybeSpawnStatusVfx(position, velocity, color, life, scale) {
   spawnVfxParticle(position, velocity, color, life, scale);
 }
 
+function getImpactVisualLifetime(life = MAX_IMPACT_VISUAL_LIFETIME) {
+  return Math.min(MAX_IMPACT_VISUAL_LIFETIME, life);
+}
+
+function maybeSpawnImpactVfx(position, velocity, color, life, scale) {
+  maybeSpawnStatusVfx(position, velocity, color, getImpactVisualLifetime(life), scale);
+}
+
+function spawnImpactBurst(position, color, count, speed, life = MAX_IMPACT_VISUAL_LIFETIME, scale = 1) {
+  spawnBurst(position, color, count, speed, getImpactVisualLifetime(life), scale);
+}
+
 function getProjectileEffects() {
   return {
     fire: runPowers.stacks.fire > 0,
@@ -1066,9 +1081,10 @@ function spawnVfxParticle(position, velocity, color, life = 0.35, scale = 1) {
   vfxParticles.push({
     mesh,
     vel: velocity.clone(),
-    life,
-    maxLife: life,
+    life: Math.min(life, MAX_IMPACT_VISUAL_LIFETIME),
+    maxLife: Math.min(life, MAX_IMPACT_VISUAL_LIFETIME),
     drag: 0.9 + Math.random() * 0.08,
+    baseScale: scale,
   });
 }
 
@@ -1082,12 +1098,13 @@ function spawnBurst(position, color, count, speed, life = 0.3, scale = 1) {
   }
 }
 
-function spawnImpactEffects(position, effects) {
-  if (effects.fire) spawnBurst(position, EFFECT_COLORS.fire, 7, 4.1, 0.42, 1);
-  if (effects.ice) spawnBurst(position, EFFECT_COLORS.ice, 6, 3.5, 0.4, 0.9);
-  if (effects.poison) spawnBurst(position, 0x94ff73, 6, 2.7, 0.44, 1);
-  if (effects.lightning) spawnBurst(position, EFFECT_COLORS.lightning, 5, 4.6, 0.26, 0.82);
-  if (effects.rockets) spawnBurst(position, EFFECT_COLORS.rockets, 10, 5.3, 0.45, 1.08);
+function spawnImpactEffects(position, effects = {}) {
+  spawnImpactBurst(position, 0xf6efe1, 3, 2.8, 0.18, 0.62);
+  if (effects.fire) spawnImpactBurst(position, EFFECT_COLORS.fire, 7, 4.1, 0.42, 1);
+  if (effects.ice) spawnImpactBurst(position, EFFECT_COLORS.ice, 6, 3.5, 0.4, 0.9);
+  if (effects.poison) spawnImpactBurst(position, 0x94ff73, 6, 2.7, 0.44, 1);
+  if (effects.lightning) spawnImpactBurst(position, EFFECT_COLORS.lightning, 5, 4.6, 0.26, 0.82);
+  if (effects.rockets) spawnImpactBurst(position, EFFECT_COLORS.rockets, 10, 5.3, 0.45, 1.08);
 }
 
 function createChainBeam(from, to) {
@@ -1097,10 +1114,7 @@ function createChainBeam(from, to) {
   const maxChainBeams = getAdaptiveLimit(SAFETY_LIMITS.maxChainBeams, 0.68, 0.38);
   if (chainBeams.length >= maxChainBeams) {
     const oldest = chainBeams.shift();
-    if (oldest) {
-      scene.remove(oldest.mesh);
-      oldest.mesh.material.dispose();
-    }
+    if (oldest) disposeChainBeam(oldest);
   }
   const beam = new THREE.Mesh(
     VFX.chainGeometry,
@@ -1114,8 +1128,125 @@ function createChainBeam(from, to) {
   tempQuatA.setFromUnitVectors(WORLD_UP, tempVec3A.normalize());
   beam.quaternion.copy(tempQuatA);
   scene.add(beam);
-  chainBeams.push({ mesh: beam, life: 0.12, maxLife: 0.12 });
+  const beamLife = getImpactVisualLifetime(0.12);
+  chainBeams.push({ mesh: beam, life: beamLife, maxLife: beamLife, baseScale: beam.scale.clone() });
   return true;
+}
+
+function updateDamageNumberTexture(entry) {
+  if (!entry?.ctx) return;
+  const { canvas, ctx, amount, texture } = entry;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '700 64px Inter, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = 'rgba(20, 30, 46, 0.9)';
+  ctx.strokeText(String(amount), canvas.width / 2, canvas.height / 2);
+  ctx.fillStyle = '#ffe28b';
+  ctx.fillText(String(amount), canvas.width / 2, canvas.height / 2);
+  texture.needsUpdate = true;
+}
+
+function disposeDamageNumber(entry) {
+  if (!entry) return;
+  if (entry.enemy?.userData?.damageNumberRef === entry) entry.enemy.userData.damageNumberRef = null;
+  scene.remove(entry.sprite);
+  entry.texture?.dispose?.();
+  entry.sprite.material.dispose();
+}
+
+function disposeChainBeam(entry) {
+  if (!entry) return;
+  scene.remove(entry.mesh);
+  entry.mesh.material.dispose();
+}
+
+function updateTransientVisuals(dt) {
+  for (let i = vfxParticles.length - 1; i >= 0; i--) {
+    const fx = vfxParticles[i];
+    fx.life -= dt;
+    if (fx.life <= 0) {
+      scene.remove(fx.mesh);
+      vfxParticles.splice(i, 1);
+      continue;
+    }
+    fx.mesh.position.addScaledVector(fx.vel, dt);
+    fx.vel.multiplyScalar(Math.pow(fx.drag, dt * 60));
+    const alpha = THREE.MathUtils.clamp(fx.life / Math.max(0.001, fx.maxLife), 0, 1);
+    fx.mesh.material.opacity = alpha;
+    fx.mesh.scale.setScalar(fx.baseScale * (0.55 + alpha * 0.45));
+  }
+
+  for (let i = chainBeams.length - 1; i >= 0; i--) {
+    const entry = chainBeams[i];
+    entry.life -= dt;
+    if (entry.life <= 0) {
+      disposeChainBeam(entry);
+      chainBeams.splice(i, 1);
+      continue;
+    }
+    const alpha = THREE.MathUtils.clamp(entry.life / Math.max(0.001, entry.maxLife), 0, 1);
+    entry.mesh.material.opacity = alpha * (entry.ring ? 0.8 : 0.95);
+    if (entry.ring && entry.baseScale) {
+      const growth = 1 + (1 - alpha) * 1.15;
+      entry.mesh.scale.copy(entry.baseScale).multiplyScalar(growth);
+    }
+  }
+
+  for (let i = damageNumbers.length - 1; i >= 0; i--) {
+    const entry = damageNumbers[i];
+    entry.life -= dt;
+    if (entry.life <= 0) {
+      disposeDamageNumber(entry);
+      damageNumbers.splice(i, 1);
+      continue;
+    }
+    const alpha = THREE.MathUtils.clamp(entry.life / Math.max(0.001, entry.maxLife), 0, 1);
+    const progress = 1 - alpha;
+    const enemy = entry.enemy;
+    if (enemy && !enemy.userData.dead) {
+      entry.sprite.position.copy(enemy.position);
+      entry.sprite.position.y += enemy.userData.hitboxCenterOffsetY + enemy.userData.hitboxHalfHeight + 0.3 + progress * entry.riseSpeed;
+    } else {
+      entry.sprite.position.y += dt * entry.riseSpeed * 0.7;
+    }
+    entry.sprite.material.opacity = alpha;
+    entry.sprite.scale.set(1.4 + progress * 0.18, 0.7 + progress * 0.09, 1);
+  }
+}
+
+function markEnemyImpactVisuals(enemy, effects = null) {
+  if (!enemy?.userData) return;
+  enemy.userData.impactVisualTimer = MAX_IMPACT_VISUAL_LIFETIME;
+  enemy.userData.impactVisualEffects = effects || enemy.userData.impactVisualEffects || null;
+}
+
+function getProjectileWorldImpact(from, to, radius = 0.18) {
+  const segX = to.x - from.x;
+  const segZ = to.z - from.z;
+  const segLenSq = segX * segX + segZ * segZ;
+  let nearestHit = null;
+  let nearestT = Infinity;
+
+  for (let i = 0; i < worldColliders.length; i++) {
+    const collider = worldColliders[i];
+    const combinedRadius = collider.radius + radius;
+    let t = 0;
+    if (segLenSq > 0.000001) {
+      t = ((collider.x - from.x) * segX + (collider.z - from.z) * segZ) / segLenSq;
+      t = THREE.MathUtils.clamp(t, 0, 1);
+    }
+    const hitX = from.x + segX * t;
+    const hitZ = from.z + segZ * t;
+    const dx = hitX - collider.x;
+    const dz = hitZ - collider.z;
+    if ((dx * dx) + (dz * dz) > combinedRadius * combinedRadius || t >= nearestT) continue;
+    nearestT = t;
+    nearestHit = { x: hitX, z: hitZ };
+  }
+
+  return nearestHit;
 }
 
 function createEnemyModel(type) {
@@ -1280,6 +1411,9 @@ function spawnEnemy(type, angle, dist, waveScale) {
     iceSlowTimer: 0,
     shockTimer: 0,
     statusPulse: Math.random() * Math.PI * 2,
+    impactVisualTimer: 0,
+    impactVisualEffects: null,
+    damageNumberRef: null,
   };
   scene.add(enemy);
   enemies.push(enemy);
@@ -1298,21 +1432,22 @@ function spawnDamageNumber(enemy, amount) {
       oldest.sprite.material.dispose();
     }
   }
+  const roundedAmount = Math.max(1, Math.round(amount));
+  const existing = enemy.userData.damageNumberRef;
+  if (existing && damageNumbers.includes(existing) && existing.life > 0.08) {
+    existing.amount += roundedAmount;
+    existing.life = Math.max(existing.life, DAMAGE_NUMBER_LIFETIME * 0.78);
+    existing.maxLife = DAMAGE_NUMBER_LIFETIME;
+    updateDamageNumberTexture(existing);
+    return;
+  }
+
   frameBudgets.damageNumbers += 1;
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.font = '700 64px Inter, Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = 'rgba(20, 30, 46, 0.9)';
-  ctx.strokeText(String(amount), canvas.width / 2, canvas.height / 2);
-  ctx.fillStyle = '#ffe28b';
-  ctx.fillText(String(amount), canvas.width / 2, canvas.height / 2);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
@@ -1322,12 +1457,20 @@ function spawnDamageNumber(enemy, amount) {
   sprite.position.copy(enemy.position);
   sprite.position.y += enemy.userData.hitboxCenterOffsetY + enemy.userData.hitboxHalfHeight + 0.3;
   scene.add(sprite);
-  damageNumbers.push({
+  const entry = {
     sprite,
-    life: 0.3,
-    maxLife: 0.3,
+    texture,
+    canvas,
+    ctx,
+    amount: roundedAmount,
+    enemy,
+    life: DAMAGE_NUMBER_LIFETIME,
+    maxLife: DAMAGE_NUMBER_LIFETIME,
     riseSpeed: 0.9,
-  });
+  };
+  updateDamageNumberTexture(entry);
+  enemy.userData.damageNumberRef = entry;
+  damageNumbers.push(entry);
 }
 
 const input = {
@@ -1461,17 +1604,18 @@ function spawnWave() {
 
 function damageEnemy(enemy, amount, options = {}) {
   if (enemy.userData.dead) return;
-  const { allowLightningChain = true, isSecondaryEffect = false } = options;
+  const { allowLightningChain = true, isSecondaryEffect = false, impactEffects = null } = options;
   enemy.userData.hp -= amount;
   state.damageDealt += amount;
   profile.stats.damageDealt += amount;
-  spawnDamageNumber(enemy, amount);
+  if (!isSecondaryEffect || impactEffects) spawnDamageNumber(enemy, amount);
+  if (impactEffects) markEnemyImpactVisuals(enemy, impactEffects);
 
   if (runPowers.stacks.lightning > 0) {
     enemy.userData.shockTimer = Math.max(enemy.userData.shockTimer, 0.18 + runPowers.stacks.lightning * 0.04);
-    if (frameBudgets.statusVfx < getAdaptiveLimit(SAFETY_LIMITS.maxStatusVfxPerFrame, 0.55, 0.28)) {
+    if (impactEffects && frameBudgets.statusVfx < getAdaptiveLimit(SAFETY_LIMITS.maxStatusVfxPerFrame, 0.55, 0.28)) {
       tempVec3A.copy(enemy.position).setY(enemy.position.y + 1.1);
-      spawnBurst(tempVec3A, EFFECT_COLORS.lightning, isSecondaryEffect ? 1 : 3, 2.2, 0.2, 0.7);
+      spawnImpactBurst(tempVec3A, EFFECT_COLORS.lightning, isSecondaryEffect ? 1 : 3, 2.2, 0.2, 0.7);
     }
   }
 
@@ -1508,7 +1652,7 @@ function damageEnemy(enemy, amount, options = {}) {
     visited.add(nearest);
     if (!createChainBeam(source.position, nearest.position)) break;
     const chainDamage = Math.max(1, Math.round(0.7 + runPowers.stacks.lightning * 0.8));
-    damageEnemy(nearest, chainDamage, { allowLightningChain: false, isSecondaryEffect: true });
+    damageEnemy(nearest, chainDamage, { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { lightning: true } });
     source = nearest;
     chains -= 1;
   }
@@ -1518,19 +1662,21 @@ function applyProjectilePower(enemy, bullet) {
   const hitPos = tempVec3A.copy(bullet.position);
   const volleyWeight = Math.max(1, bullet.userData.volleyWeight || 1);
   const weightBoost = 1 + Math.log2(volleyWeight) * 0.18;
-  spawnImpactEffects(hitPos, bullet.userData.effects || getProjectileEffects());
+  const impactEffects = bullet.userData.effects || getProjectileEffects();
+  spawnImpactEffects(hitPos, impactEffects);
+  markEnemyImpactVisuals(enemy, impactEffects);
 
   if (canSpawnStatusEffects(enemy) && runPowers.stacks.fire > 0) {
     enemy.userData.fireDot = Math.min(14, enemy.userData.fireDot + runPowers.stacks.fire * 0.55 * (1 + getUpgradeLevel('burnDamage') * 0.18) * Math.min(3.2, volleyWeight));
-    maybeSpawnStatusVfx(hitPos, tempVec3B.set((Math.random() - 0.5) * 0.22, 0.35, (Math.random() - 0.5) * 0.22), EFFECT_COLORS.fire, 0.22, 0.72);
+    maybeSpawnImpactVfx(hitPos, tempVec3B.set((Math.random() - 0.5) * 0.22, 0.35, (Math.random() - 0.5) * 0.22), EFFECT_COLORS.fire, 0.22, 0.72);
   }
   if (canSpawnStatusEffects(enemy) && runPowers.stacks.poison > 0) {
     enemy.userData.poisonDot = Math.min(16, enemy.userData.poisonDot + runPowers.stacks.poison * 0.7 * (1 + getUpgradeLevel('poisonDamage') * 0.18) * Math.min(3.2, volleyWeight));
-    maybeSpawnStatusVfx(hitPos, tempVec3B.set((Math.random() - 0.5) * 0.14, 0.16, (Math.random() - 0.5) * 0.14), 0x7dff74, 0.28, 0.88);
+    maybeSpawnImpactVfx(hitPos, tempVec3B.set((Math.random() - 0.5) * 0.14, 0.16, (Math.random() - 0.5) * 0.14), 0x7dff74, 0.28, 0.88);
   }
   if (canSpawnStatusEffects(enemy) && runPowers.stacks.ice > 0) {
     enemy.userData.iceSlowTimer = Math.max(enemy.userData.iceSlowTimer, (1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2) * Math.min(2.1, weightBoost));
-    maybeSpawnStatusVfx(hitPos, tempVec3B.set((Math.random() - 0.5) * 0.15, 0.18, (Math.random() - 0.5) * 0.15), EFFECT_COLORS.ice, 0.22, 0.72);
+    maybeSpawnImpactVfx(hitPos, tempVec3B.set((Math.random() - 0.5) * 0.15, 0.18, (Math.random() - 0.5) * 0.15), EFFECT_COLORS.ice, 0.22, 0.72);
   }
 
   if (runPowers.stacks.rockets <= 0) return;
@@ -1543,8 +1689,7 @@ function applyProjectilePower(enemy, bullet) {
   if (chainBeams.length >= maxChainBeams) {
     const oldest = chainBeams.shift();
     if (oldest) {
-      scene.remove(oldest.mesh);
-      oldest.mesh.material.dispose();
+      disposeChainBeam(oldest);
     }
   }
   const blastRing = new THREE.Mesh(
@@ -1555,7 +1700,8 @@ function applyProjectilePower(enemy, bullet) {
   blastRing.rotation.x = Math.PI / 2;
   blastRing.scale.setScalar(Math.max(0.8, radius * 0.45));
   scene.add(blastRing);
-  chainBeams.push({ mesh: blastRing, life: 0.18, maxLife: 0.18, ring: true });
+  const ringLife = getImpactVisualLifetime(0.18);
+  chainBeams.push({ mesh: blastRing, life: ringLife, maxLife: ringLife, ring: true, baseScale: blastRing.scale.clone() });
 
   let splashTargets = 0;
   forEachEnemyNearPosition(hitPos, radius, (other) => {
@@ -1566,7 +1712,7 @@ function applyProjectilePower(enemy, bullet) {
     if ((dx * dx) + (dz * dz) > radius * radius) return;
     frameBudgets.splashDamageEvents += 1;
     splashTargets += 1;
-    damageEnemy(other, splash, { allowLightningChain: false, isSecondaryEffect: true, hitPosition: hitPos });
+    damageEnemy(other, splash, { allowLightningChain: false, isSecondaryEffect: true, hitPosition: hitPos, impactEffects: { rockets: true } });
     if (splashTargets >= getAdaptiveLimit(SAFETY_LIMITS.maxRocketSplashTargets, 0.7, 0.45)) return false;
   }, SAFETY_LIMITS.maxRocketSplashSearchCells);
 }
@@ -1644,12 +1790,8 @@ function clearRunObjects() {
   enemies.forEach((e) => scene.remove(e));
   bullets.forEach((b) => scene.remove(b));
   vfxParticles.forEach((fx) => scene.remove(fx.mesh));
-  chainBeams.forEach((beam) => scene.remove(beam.mesh));
-  damageNumbers.forEach((dmg) => {
-    scene.remove(dmg.sprite);
-    dmg.sprite.material.map?.dispose();
-    dmg.sprite.material.dispose();
-  });
+  chainBeams.forEach((beam) => disposeChainBeam(beam));
+  damageNumbers.forEach((dmg) => disposeDamageNumber(dmg));
   enemies.length = 0;
   bullets.length = 0;
   vfxParticles.length = 0;
@@ -1995,6 +2137,7 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.033);
   const elapsed = clock.elapsedTime;
 
+  updateTransientVisuals(dt);
   updatePerformanceGuard(dt);
   frameBudgets.lightningChains = 0;
   frameBudgets.vfxSpawns = 0;
@@ -2086,8 +2229,17 @@ function animate() {
     const bulletHardRangeSq = SAFETY_LIMITS.bulletHardRange * SAFETY_LIMITS.bulletHardRange;
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
+      const prevX = b.position.x;
+      const prevZ = b.position.z;
       b.userData.life -= dt;
       b.position.addScaledVector(b.userData.vel, dt);
+      const worldImpact = getProjectileWorldImpact({ x: prevX, z: prevZ }, b.position, 0.22);
+      if (worldImpact) {
+        b.position.set(worldImpact.x, b.position.y, worldImpact.z);
+        spawnImpactEffects(b.position, b.userData.effects || getProjectileEffects());
+        removeBulletAtIndex(i);
+        continue;
+      }
       const dxPlayer = b.position.x - playerRigHolder.position.x;
       const dzPlayer = b.position.z - playerRigHolder.position.z;
       const distPlayerSq = dxPlayer * dxPlayer + dzPlayer * dzPlayer;
@@ -2139,23 +2291,20 @@ function animate() {
       const hasIce = data.iceSlowTimer > 0;
       const hasShock = data.shockTimer > 0;
       if (hasFire || hasPoison || hasIce || hasShock) performanceState.activeEnemyEffects += 1;
+      data.impactVisualTimer = Math.max(0, data.impactVisualTimer - dt);
 
+      const showStatusVisuals = data.impactVisualTimer > 0;
       if (body) {
         body.scale.setScalar(1);
-        if (hasFire) {
+        if (hasFire && showStatusVisuals) {
           body.scale.x *= 1.01;
-          if (performanceState.qualityLevel <= 1 && Math.random() > 0.45) maybeSpawnStatusVfx(tempVec3B.copy(e.position).setY(e.position.y + 0.95), tempVec3A.set((Math.random() - 0.5) * 0.16, 0.35 + Math.random() * 0.22, (Math.random() - 0.5) * 0.16), EFFECT_COLORS.fire, 0.22, 0.62);
         }
-        if (hasPoison && performanceState.qualityLevel <= 1 && Math.random() > 0.58) {
-          maybeSpawnStatusVfx(tempVec3B.copy(e.position).setY(e.position.y + 0.8), tempVec3A.set((Math.random() - 0.5) * 0.12, 0.14, (Math.random() - 0.5) * 0.12), 0x7dff69, 0.28, 0.6);
-        }
-        if (hasIce) {
+        if (hasPoison && showStatusVisuals) body.scale.z *= 1.008;
+        if (hasIce && showStatusVisuals) {
           const pulse = 0.94 + Math.sin(data.statusPulse) * 0.02;
           body.scale.set(pulse, pulse, pulse);
         }
-        if (hasShock && performanceState.qualityLevel === 0 && Math.random() > 0.5) {
-          maybeSpawnStatusVfx(tempVec3B.copy(e.position).setY(e.position.y + 1.15), tempVec3A.set((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.22, (Math.random() - 0.5) * 0.5), EFFECT_COLORS.lightning, 0.14, 0.46);
-        }
+        if (hasShock && showStatusVisuals) body.scale.y *= 1.012;
       }
 
       if (hasFire) {
@@ -2247,7 +2396,7 @@ function animate() {
       });
       if (!hitEnemy) continue;
       frameBudgets.hitResolutions += 1;
-      damageEnemy(hitEnemy, bullet.userData.damage, { hitPosition: bullet.position });
+      damageEnemy(hitEnemy, bullet.userData.damage, { hitPosition: bullet.position, impactEffects: bullet.userData.effects || getProjectileEffects() });
       applyProjectilePower(hitEnemy, bullet);
       removeBulletAtIndex(i);
     }
@@ -2335,6 +2484,16 @@ function installDebugApi() {
       this.spawnEnemyRing(18, 'runner', 15);
       this.spawnEnemyRing(12, 'shooter', 20);
       this.spawnEnemyRing(10, 'charger', 24);
+      return this.snapshot();
+    },
+    setPlayerPose(x = 0, z = 0, yaw = state.yaw) {
+      playerRigHolder.position.set(x, playerRigHolder.position.y, z);
+      state.yaw = yaw;
+      playerRigHolder.rotation.y = yaw;
+      return this.snapshot();
+    },
+    setShooting(active = false) {
+      input.shooting = Boolean(active);
       return this.snapshot();
     },
   };
