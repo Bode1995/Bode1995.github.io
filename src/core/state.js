@@ -47,6 +47,7 @@ export function createGameState(profile, helpers) {
       debugEnabled: false,
       activeEnemyEffects: 0,
       enemyEffectSoftCap: 0,
+      frameIndex: 0,
       frameBudgets: {
         lightningChains: 0,
         vfxSpawns: 0,
@@ -61,6 +62,7 @@ export function createGameState(profile, helpers) {
     ui: {
       activeMenuScreen: 'home',
       pickupNotices: [],
+      synergyFlash: null,
     },
     world: {
       colliders: [],
@@ -102,6 +104,16 @@ export function createGameState(profile, helpers) {
         shield: 0,
       },
       shieldHp: 0,
+      activeSynergies: [],
+      synergyFlags: {},
+      synergyCounters: {
+        frameEvents: 0,
+        killFrameEvents: 0,
+        totalReactions: 0,
+      },
+      recentReactionCache: new Map(),
+      thresholdUnlocks: {},
+      lastWeaponTag: null,
     },
   };
 }
