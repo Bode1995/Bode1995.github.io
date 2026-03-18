@@ -162,15 +162,26 @@ export function startGameApp() {
   scene.add(arenaRoot);
 
   const mapRoot = new THREE.Group();
+  const collisionDebugRoot = new THREE.Group();
   const playerRigHolder = new THREE.Group();
-  playerRigHolder.position.set(0, 0.2, 0);
-  scene.add(mapRoot, playerRigHolder);
+  scene.add(mapRoot, collisionDebugRoot, playerRigHolder);
 
   const state = createGameState(profile, {
     getPlayerMaxHp,
     getBaseMoveSpeedMultiplier,
   });
   state.selection.characterId = loadSelectedCharacterId();
+  playerRigHolder.position.set(0, state.world.playerGroundY, 0);
+
+  const collision = createCollisionSystem({
+    THREE,
+    gameplayConfig,
+    state,
+    getPlayerPosition: () => playerRigHolder.position,
+    SAFETY_LIMITS,
+    debugRoot: collisionDebugRoot,
+  });
+  createWorldMap({ THREE, gameplayConfig, mapRoot, collision });
 
   const performance = createPerformanceSystem({
     THREE,
@@ -184,16 +195,8 @@ export function startGameApp() {
       damageNumbers: state.entities.damageNumbers.length,
       chainBeams: state.entities.chainBeams.length,
     }),
+    getExtraDebugLines: () => collision.getWorldDebugLines(),
   });
-
-  const collision = createCollisionSystem({
-    THREE,
-    gameplayConfig,
-    state,
-    getPlayerPosition: () => playerRigHolder.position,
-    SAFETY_LIMITS,
-  });
-  createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider: collision.addCollider });
 
   const vfx = createVfxSystem({
     THREE,
@@ -778,6 +781,7 @@ export function startGameApp() {
     }
 
     collision.resolveWorldCollision(playerRigHolder.position, state.world.playerCollisionRadius);
+    playerRigHolder.position.y = state.world.playerGroundY;
     const halfArena = gameplayConfig.arena.size * 0.5 - gameplayConfig.arena.padding - 1.8;
     playerRigHolder.position.x = THREE.MathUtils.clamp(playerRigHolder.position.x, -halfArena, halfArena);
     playerRigHolder.position.z = THREE.MathUtils.clamp(playerRigHolder.position.z, -halfArena, halfArena);
@@ -866,6 +870,7 @@ export function startGameApp() {
 
     characterSelection.renderPreviews(elapsed);
     inputSystem.updateStick(ui.moveStick, ui.moveKnob, state.input.moveTouch);
+    collision.syncDebugVisualization(state.performance.debugEnabled);
     performance.renderDebug(vfx.VFX.maxParticles);
 
     temp.vec3A.set(0, gameplayConfig.camera.height, gameplayConfig.camera.forwardOffset);
@@ -888,6 +893,7 @@ export function startGameApp() {
           frameMs: state.performance.frameMs,
           qualityLevel: state.performance.qualityLevel,
           activeEnemyEffects: state.performance.activeEnemyEffects,
+          worldAudit: collision.getWorldAuditSnapshot(),
         };
       },
       grantPowerUps(stacks = 3) {
@@ -902,7 +908,7 @@ export function startGameApp() {
         return this.snapshot();
       },
       setPlayerPose(x = 0, z = 0, yaw = state.yaw) {
-        playerRigHolder.position.set(x, playerRigHolder.position.y, z);
+        playerRigHolder.position.set(x, state.world.playerGroundY, z);
         state.yaw = yaw;
         playerRigHolder.rotation.y = yaw;
         return this.snapshot();

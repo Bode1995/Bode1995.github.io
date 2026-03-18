@@ -54,7 +54,17 @@ export function createGameState(profile, helpers) {
     },
     world: {
       colliders: [],
+      objects: [],
       playerCollisionRadius: 0.72,
+      playerGroundY: 0.2,
+      audit: {
+        blockingObjects: 0,
+        decorativeObjects: 0,
+        blockingColliders: 0,
+        totalColliders: 0,
+        missingColliderObjects: [],
+        colliderWarnings: [],
+      },
     },
     input: {
       move: null,
