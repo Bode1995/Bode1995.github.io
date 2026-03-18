@@ -1,6 +1,8 @@
 export function createGameState(profile, helpers) {
   return {
     running: false,
+    paused: false,
+    pauseReason: null,
     hp: helpers.getPlayerMaxHp(),
     score: 0,
     wave: 1,
