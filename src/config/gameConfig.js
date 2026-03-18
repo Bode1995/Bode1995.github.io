@@ -3,6 +3,7 @@ export const PROFILE_STORAGE_KEY = 'skyBlaster.profile.v2';
 export const WORLDS_COUNT = 4;
 export const LEVELS_PER_WORLD = 5;
 export const WAVES_PER_LEVEL = 10;
+export const WAVE_INTERVAL_SECONDS = 30;
 
 export const CHARACTER_DEFS = [
   {
