@@ -1,4 +1,31 @@
-export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) {
+function disposeMaterial(material) {
+  if (!material) return;
+  if (Array.isArray(material)) {
+    material.forEach(disposeMaterial);
+    return;
+  }
+  material.dispose?.();
+}
+
+function disposeObject3D(root) {
+  root.traverse((child) => {
+    child.geometry?.dispose?.();
+    disposeMaterial(child.material);
+  });
+}
+
+export function clearWorldMap(mapRoot) {
+  while (mapRoot.children.length) {
+    const child = mapRoot.children[mapRoot.children.length - 1];
+    mapRoot.remove(child);
+    disposeObject3D(child);
+  }
+}
+
+export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
+  clearWorldMap(mapRoot);
+  collision.clearColliders();
+
   const makeMaterial = (config) => new THREE.MeshStandardMaterial(config);
   const shared = {
     asphalt: makeMaterial({ color: 0x61625c, roughness: 0.98, metalness: 0.02 }),
@@ -53,31 +80,54 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
     return mesh;
   };
 
-  const addBox = ({ x = 0, y = 0.1, z = 0, sx, sy, sz, material, receive = true, rotation = 0 }) => {
+  function registerWorldObject({ mesh, source, blocking = false, footprint = null, collider = null }) {
+    if (mesh) {
+      mesh.userData.worldSource = source;
+      mesh.userData.blocking = blocking;
+    }
+    return collision.registerWorldObject({ source, blocking, footprint, collider });
+  }
+
+  const addBox = ({ x = 0, y = 0.1, z = 0, sx, sy, sz, material, receive = true, rotation = 0, source = 'box', blocking = false, collider = null }) => {
     const mesh = setShadow(new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material), receive);
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotation;
     mapRoot.add(mesh);
+    registerWorldObject({
+      mesh,
+      source,
+      blocking,
+      footprint: { type: 'rect', x, z, width: sx, depth: sz, rotation },
+      collider,
+    });
     return mesh;
   };
 
-  const addCylinder = ({ x = 0, y = 0.1, z = 0, rt, rb = rt, h, segments = 12, material, receive = true }) => {
+  const addCylinder = ({ x = 0, y = 0.1, z = 0, rt, rb = rt, h, segments = 12, material, receive = true, source = 'cylinder', blocking = false, collider = null }) => {
     const mesh = setShadow(new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, segments), material), receive);
     mesh.position.set(x, y, z);
     mapRoot.add(mesh);
+    registerWorldObject({
+      mesh,
+      source,
+      blocking,
+      footprint: { type: 'circle', x, z, radius: Math.max(rt, rb) },
+      collider,
+    });
     return mesh;
   };
 
-  const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = 0.02, height = 0.05, material, rotation = 0, materialSalt = 0 }) => {
+  const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = 0.02, height = 0.05, material, rotation = 0, materialSalt = 0, source = 'ground-patch' }) => {
     const patch = new THREE.Mesh(new THREE.BoxGeometry(sx, height, sz), varyMaterial(material, x, z, materialSalt));
     patch.position.set(x, y, z);
     patch.rotation.y = rotation;
     patch.receiveShadow = true;
     mapRoot.add(patch);
+    registerWorldObject({ mesh: patch, source, blocking: false, footprint: { type: 'rect', x, z, width: sx, depth: sz, rotation } });
     return patch;
   };
 
-  const addSurfaceScatter = ({ x, z, sx, sz, count, material, y = 0.065, maxSize = 5.5, opacity = 0.26, salt = 0 }) => {
+  const addSurfaceScatter = ({ x, z, sx, sz, count, material, y = 0.065, maxSize = 5.5, opacity = 0.26, salt = 0, source = 'surface-scatter' }) => {
     for (let i = 0; i < count; i++) {
       const px = x + ((hash(i + salt, z, salt + 10) - 0.5) * sx * 0.84);
       const pz = z + ((hash(x, i + salt, salt + 20) - 0.5) * sz * 0.84);
@@ -92,16 +142,17 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
       stain.rotation.y = rotation;
       stain.receiveShadow = true;
       mapRoot.add(stain);
+      registerWorldObject({ mesh: stain, source: `${source}-${i}`, blocking: false, footprint: { type: 'rect', x: px, z: pz, width, depth, rotation } });
     }
   };
 
-  const addPlanter = ({ x, z, sx, sz, withTrees = false, treeCount = 0, collider = true, rotation = 0, style = 'planter' }) => {
+  const addPlanter = ({ x, z, sx, sz, withTrees = false, treeCount = 0, blocking = true, rotation = 0, style = 'planter', source = 'planter' }) => {
     const planter = new THREE.Group();
     planter.position.set(x, 0, z);
     planter.rotation.y = rotation;
 
     const borderMaterial = style === 'berm' ? shared.soil : shared.wallDark;
-    const innerMaterial = style === 'berm' ? shared.soil : shared.soil;
+    const innerMaterial = shared.soil;
     const greensMaterial = withTrees ? shared.grassDark : shared.grass;
     const borderHeight = style === 'berm' ? 0.34 : 0.56;
     const innerInset = style === 'berm' ? 0.24 : 0.58;
@@ -147,11 +198,17 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
     }
 
     mapRoot.add(planter);
-    if (collider) addCollider(x, z, Math.max(sx, sz) * (style === 'berm' ? 0.34 : 0.42));
+    registerWorldObject({
+      mesh: planter,
+      source,
+      blocking,
+      footprint: { type: 'rect', x, z, width: sx, depth: sz, rotation },
+      collider: blocking ? { type: 'rect', x, z, width: sx, depth: sz, rotation } : null,
+    });
     return planter;
   };
 
-  const addLamp = ({ x, z, h = 3.8 }) => {
+  const addLamp = ({ x, z, h = 3.8, blocking = true, source = 'lamp' }) => {
     const lamp = new THREE.Group();
     lamp.position.set(x, 0, z);
 
@@ -166,10 +223,17 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
 
     lamp.add(base, pole, head, glow);
     mapRoot.add(lamp);
+    registerWorldObject({
+      mesh: lamp,
+      source,
+      blocking,
+      footprint: { type: 'circle', x, z, radius: 0.38 },
+      collider: blocking ? { type: 'circle', x, z, radius: 0.4 } : null,
+    });
     return lamp;
   };
 
-  const addBuilding = ({ x, z, sx, sz, h, rotation = 0, collider = true, pad = 1.8, awning = true }) => {
+  const addBuilding = ({ x, z, sx, sz, h, rotation = 0, blocking = true, pad = 1.8, awning = true, source = 'building' }) => {
     const building = new THREE.Group();
     building.position.set(x, 0, z);
     building.rotation.y = rotation;
@@ -224,78 +288,129 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
     }
 
     mapRoot.add(building);
-    if (collider) addCollider(x, z, Math.max(sx, sz) * 0.58);
+    registerWorldObject({
+      mesh: building,
+      source,
+      blocking,
+      footprint: { type: 'rect', x, z, width: sx, depth: sz, rotation },
+      collider: blocking ? { type: 'rect', x, z, width: sx, depth: sz, rotation } : null,
+    });
     return building;
   };
 
   const half = gameplayConfig.arena.size * 0.5;
   const buildableHalf = half - gameplayConfig.arena.padding - 2;
 
-  // Base terrain and large, function-driven zones for an urban service campus.
-  addGroundPatch({ x: 0, z: 0, sx: gameplayConfig.arena.size, sz: gameplayConfig.arena.size, y: -0.02, height: 0.06, material: shared.soil, materialSalt: 30 });
-  addGroundPatch({ x: -6, z: 3, sx: 94, sz: 86, y: 0.01, height: 0.04, material: shared.grassDark, rotation: -0.03, materialSalt: 31 });
+  addGroundPatch({ x: 0, z: 0, sx: gameplayConfig.arena.size, sz: gameplayConfig.arena.size, y: -0.02, height: 0.06, material: shared.soil, materialSalt: 30, source: 'terrain-soil-base' });
+  addGroundPatch({ x: -6, z: 3, sx: 94, sz: 86, y: 0.01, height: 0.04, material: shared.grassDark, rotation: -0.03, materialSalt: 31, source: 'terrain-grass-backdrop' });
 
-  addGroundPatch({ x: 3, z: 5, sx: 76, sz: 60, y: 0.035, height: 0.05, material: shared.asphalt, rotation: -0.04, materialSalt: 32 });
-  addGroundPatch({ x: -18, z: -18, sx: 30, sz: 24, y: 0.055, height: 0.04, material: shared.concrete, rotation: 0.07, materialSalt: 33 });
-  addGroundPatch({ x: 23, z: 16, sx: 28, sz: 18, y: 0.058, height: 0.04, material: shared.paver, rotation: -0.12, materialSalt: 34 });
-  addGroundPatch({ x: 31, z: -21, sx: 24, sz: 20, y: 0.05, height: 0.04, material: shared.gravel, rotation: 0.09, materialSalt: 35 });
-  addGroundPatch({ x: -31, z: 27, sx: 24, sz: 28, y: 0.032, height: 0.04, material: shared.grass, rotation: 0.11, materialSalt: 36 });
-  addGroundPatch({ x: -3, z: 41, sx: 46, sz: 16, y: 0.03, height: 0.04, material: shared.grass, rotation: -0.06, materialSalt: 37 });
-  addGroundPatch({ x: 5, z: -43, sx: 58, sz: 15, y: 0.028, height: 0.04, material: shared.grassDark, rotation: 0.04, materialSalt: 38 });
-  addGroundPatch({ x: 5, z: 8, sx: 22, sz: 16, y: 0.065, height: 0.035, material: shared.concreteLight, rotation: -0.08, materialSalt: 39 });
-  addGroundPatch({ x: -42, z: -3, sx: 13, sz: 54, y: 0.038, height: 0.04, material: shared.gravel, rotation: 0.02, materialSalt: 40 });
+  addGroundPatch({ x: 3, z: 5, sx: 76, sz: 60, y: 0.035, height: 0.05, material: shared.asphalt, rotation: -0.04, materialSalt: 32, source: 'zone-asphalt-main' });
+  addGroundPatch({ x: -18, z: -18, sx: 30, sz: 24, y: 0.055, height: 0.04, material: shared.concrete, rotation: 0.07, materialSalt: 33, source: 'zone-concrete-southwest' });
+  addGroundPatch({ x: 23, z: 16, sx: 28, sz: 18, y: 0.058, height: 0.04, material: shared.paver, rotation: -0.12, materialSalt: 34, source: 'zone-paver-east' });
+  addGroundPatch({ x: 31, z: -21, sx: 24, sz: 20, y: 0.05, height: 0.04, material: shared.gravel, rotation: 0.09, materialSalt: 35, source: 'zone-gravel-southeast' });
+  addGroundPatch({ x: -31, z: 27, sx: 24, sz: 28, y: 0.032, height: 0.04, material: shared.grass, rotation: 0.11, materialSalt: 36, source: 'zone-grass-northwest' });
+  addGroundPatch({ x: -3, z: 41, sx: 46, sz: 16, y: 0.03, height: 0.04, material: shared.grass, rotation: -0.06, materialSalt: 37, source: 'zone-grass-north' });
+  addGroundPatch({ x: 5, z: -43, sx: 58, sz: 15, y: 0.028, height: 0.04, material: shared.grassDark, rotation: 0.04, materialSalt: 38, source: 'zone-grass-south' });
+  addGroundPatch({ x: 5, z: 8, sx: 22, sz: 16, y: 0.065, height: 0.035, material: shared.concreteLight, rotation: -0.08, materialSalt: 39, source: 'zone-concrete-center' });
+  addGroundPatch({ x: -42, z: -3, sx: 13, sz: 54, y: 0.038, height: 0.04, material: shared.gravel, rotation: 0.02, materialSalt: 40, source: 'zone-gravel-west' });
 
-  addSurfaceScatter({ x: 3, z: 5, sx: 76, sz: 60, count: 14, material: shared.asphaltDark, y: 0.066, maxSize: 6.5, opacity: 0.22, salt: 41 });
-  addSurfaceScatter({ x: -18, z: -18, sx: 30, sz: 24, count: 8, material: shared.concreteLight, y: 0.074, maxSize: 4.6, opacity: 0.2, salt: 42 });
-  addSurfaceScatter({ x: 23, z: 16, sx: 28, sz: 18, count: 7, material: shared.concrete, y: 0.078, maxSize: 3.8, opacity: 0.18, salt: 43 });
-  addSurfaceScatter({ x: 31, z: -21, sx: 24, sz: 20, count: 8, material: shared.soil, y: 0.068, maxSize: 3.4, opacity: 0.18, salt: 44 });
+  addSurfaceScatter({ x: 3, z: 5, sx: 76, sz: 60, count: 14, material: shared.asphaltDark, y: 0.066, maxSize: 6.5, opacity: 0.22, salt: 41, source: 'scatter-asphalt' });
+  addSurfaceScatter({ x: -18, z: -18, sx: 30, sz: 24, count: 8, material: shared.concreteLight, y: 0.074, maxSize: 4.6, opacity: 0.2, salt: 42, source: 'scatter-concrete' });
+  addSurfaceScatter({ x: 23, z: 16, sx: 28, sz: 18, count: 7, material: shared.concrete, y: 0.078, maxSize: 3.8, opacity: 0.18, salt: 43, source: 'scatter-paver' });
+  addSurfaceScatter({ x: 31, z: -21, sx: 24, sz: 20, count: 8, material: shared.soil, y: 0.068, maxSize: 3.4, opacity: 0.18, salt: 44, source: 'scatter-gravel' });
 
-  // Edge definition through real-world structures instead of a complete square wall.
-  addBox({ x: -1, y: 1.45, z: -buildableHalf + 1.3, sx: 72, sy: 2.9, sz: 3, material: varyMaterial(shared.wallDark, 0, -50, 45), rotation: 0.03 });
-  addBox({ x: 39, y: 1.45, z: -8, sx: 3.2, sy: 2.9, sz: 42, material: varyMaterial(shared.wallDark, 39, -8, 46), rotation: 0.04 });
-  addBox({ x: -46, y: 1.1, z: 23, sx: 3.6, sy: 2.2, sz: 28, material: varyMaterial(shared.wallDark, -46, 23, 47), rotation: -0.03 });
-  addBox({ x: 6, y: 1.05, z: 48, sx: 34, sy: 2.1, sz: 3.2, material: varyMaterial(shared.wallDark, 6, 48, 48), rotation: -0.05 });
+  [
+    { x: -1, y: 1.45, z: -buildableHalf + 1.3, sx: 72, sy: 2.9, sz: 3, rotation: 0.03, source: 'perimeter-wall-north' },
+    { x: 39, y: 1.45, z: -8, sx: 3.2, sy: 2.9, sz: 42, rotation: 0.04, source: 'perimeter-wall-east' },
+    { x: -46, y: 1.1, z: 23, sx: 3.6, sy: 2.2, sz: 28, rotation: -0.03, source: 'perimeter-wall-west' },
+    { x: 6, y: 1.05, z: 48, sx: 34, sy: 2.1, sz: 3.2, rotation: -0.05, source: 'perimeter-wall-south' },
+  ].forEach(({ x, y, z, sx, sy, sz, rotation, source }) => {
+    addBox({
+      x,
+      y,
+      z,
+      sx,
+      sy,
+      sz,
+      material: varyMaterial(shared.wallDark, x, z, 45 + Math.round(Math.abs(x + z))),
+      rotation,
+      source,
+      blocking: true,
+      collider: { type: 'rect', x, z, width: sx, depth: sz, rotation },
+    });
+  });
 
   const lampPositions = [
     [-24, -28], [-7, -23], [13, -19], [29, -10],
     [-15, 12], [6, 18], [24, 27], [-29, 34],
   ];
-  lampPositions.forEach(([x, z], index) => addLamp({ x, z, h: 3.6 + (index % 3) * 0.25 }));
+  lampPositions.forEach(([x, z], index) => addLamp({ x, z, h: 3.6 + (index % 3) * 0.25, source: `lamp-${index + 1}` }));
 
   const buildings = [
-    { x: -35, z: -35, sx: 15, sz: 10, h: 8.2, rotation: 0.12 },
-    { x: -16, z: -37, sx: 11, sz: 9, h: 7.5, rotation: -0.06 },
-    { x: 37, z: -11, sx: 16, sz: 22, h: 9.4, rotation: Math.PI * 0.5 - 0.06, awning: false },
-    { x: 38, z: 18, sx: 11, sz: 14, h: 7.2, rotation: Math.PI * 0.5 + 0.05 },
-    { x: -29, z: 33, sx: 18, sz: 11, h: 7.8, rotation: 0.08 },
-    { x: 11, z: 35, sx: 10, sz: 8, h: 4.8, rotation: -0.18 },
+    { x: -35, z: -35, sx: 15, sz: 10, h: 8.2, rotation: 0.12, source: 'building-admin-west' },
+    { x: -16, z: -37, sx: 11, sz: 9, h: 7.5, rotation: -0.06, source: 'building-utility-southwest' },
+    { x: 37, z: -11, sx: 16, sz: 22, h: 9.4, rotation: Math.PI * 0.5 - 0.06, awning: false, source: 'building-hall-east' },
+    { x: 38, z: 18, sx: 11, sz: 14, h: 7.2, rotation: Math.PI * 0.5 + 0.05, source: 'building-kiosk-east' },
+    { x: -29, z: 33, sx: 18, sz: 11, h: 7.8, rotation: 0.08, source: 'building-service-northwest' },
+    { x: 11, z: 35, sx: 10, sz: 8, h: 4.8, rotation: -0.18, source: 'building-kiosk-north' },
   ];
   buildings.forEach(addBuilding);
 
   const plantedZones = [
-    { x: -26, z: 21, sx: 11, sz: 14, withTrees: true, treeCount: 3, rotation: 0.15 },
-    { x: -9, z: 38, sx: 15, sz: 8, withTrees: true, treeCount: 3, rotation: -0.08 },
-    { x: 28, z: 29, sx: 10, sz: 7, withTrees: false, rotation: -0.12 },
-    { x: 17, z: 14, sx: 8, sz: 5, withTrees: false, rotation: -0.16 },
-    { x: -22, z: -10, sx: 8, sz: 5, withTrees: false, rotation: 0.08 },
-    { x: 42, z: -33, sx: 8, sz: 18, withTrees: false, rotation: 0.04, style: 'berm' },
-    { x: -43, z: 43, sx: 12, sz: 10, withTrees: true, treeCount: 2, rotation: -0.05, style: 'berm' },
-    { x: 35, z: 42, sx: 16, sz: 8, withTrees: false, rotation: -0.03, style: 'berm' },
+    { x: -26, z: 21, sx: 11, sz: 14, withTrees: true, treeCount: 3, rotation: 0.15, source: 'planter-grove-west' },
+    { x: -9, z: 38, sx: 15, sz: 8, withTrees: true, treeCount: 3, rotation: -0.08, source: 'planter-grove-north' },
+    { x: 28, z: 29, sx: 10, sz: 7, withTrees: false, rotation: -0.12, source: 'planter-east-1' },
+    { x: 17, z: 14, sx: 8, sz: 5, withTrees: false, rotation: -0.16, source: 'planter-east-2' },
+    { x: -22, z: -10, sx: 8, sz: 5, withTrees: false, rotation: 0.08, source: 'planter-centerwest' },
+    { x: 42, z: -33, sx: 8, sz: 18, withTrees: false, rotation: 0.04, style: 'berm', source: 'berm-southeast' },
+    { x: -43, z: 43, sx: 12, sz: 10, withTrees: true, treeCount: 2, rotation: -0.05, style: 'berm', source: 'berm-northwest' },
+    { x: 35, z: 42, sx: 16, sz: 8, withTrees: false, rotation: -0.03, style: 'berm', source: 'berm-northeast' },
   ];
   plantedZones.forEach(addPlanter);
 
-  // Small service elements concentrated near actual functional areas.
   [
-    { x: -3, z: -6, sx: 5.5, sz: 1.2, rotation: -0.22 },
-    { x: 12, z: 2, sx: 4.2, sz: 1.2, rotation: 0.12 },
-    { x: 22, z: -27, sx: 1.2, sz: 5.8, rotation: 0.08 },
-  ].forEach(({ x, z, sx, sz, rotation }) => {
-    addBox({ x, y: 0.36, z, sx, sy: 0.72, sz, material: varyMaterial(shared.curb, x, z, 49), rotation });
-    addCollider(x, z, Math.max(sx, sz) * 0.34);
+    { x: -3, z: -6, sx: 5.5, sz: 1.2, rotation: -0.22, source: 'barrier-mid-west' },
+    { x: 12, z: 2, sx: 4.2, sz: 1.2, rotation: 0.12, source: 'barrier-mid-center' },
+    { x: 22, z: -27, sx: 1.2, sz: 5.8, rotation: 0.08, source: 'barrier-mid-east' },
+  ].forEach(({ x, z, sx, sz, rotation, source }) => {
+    addBox({
+      x,
+      y: 0.36,
+      z,
+      sx,
+      sy: 0.72,
+      sz,
+      material: varyMaterial(shared.curb, x, z, 49),
+      rotation,
+      source,
+      blocking: true,
+      collider: { type: 'rect', x, z, width: sx, depth: sz, rotation },
+    });
   });
 
   [
     [-10, 11], [-4, 14], [2, 17], [8, 20],
     [20, -16], [24, -14], [28, -12],
-  ].forEach(([x, z]) => addCylinder({ x, y: 0.4, z, rt: 0.24, h: 0.8, material: shared.bollard }));
+  ].forEach(([x, z], index) => {
+    addCylinder({
+      x,
+      y: 0.4,
+      z,
+      rt: 0.24,
+      h: 0.8,
+      material: shared.bollard,
+      source: `bollard-${index + 1}`,
+      blocking: true,
+      collider: { type: 'circle', x, z, radius: 0.28 },
+    });
+  });
+
+  const audit = collision.finalizeWorldAudit();
+  if (audit.missingColliderObjects.length || audit.colliderWarnings.length) {
+    console.warn('[WorldAudit] Collider audit detected issues.', audit);
+  } else {
+    console.info('[WorldAudit] Blocking world objects audited successfully.', audit);
+  }
+
+  return audit;
 }

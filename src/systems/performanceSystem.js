@@ -1,4 +1,4 @@
-export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCounts }) {
+export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCounts, getExtraDebugLines = null }) {
   const perfFlags = new URLSearchParams(window.location.search);
   state.performance.debugEnabled = perfFlags.has('debugPerf');
   state.performance.enemyEffectSoftCap = SAFETY_LIMITS.maxEnemyStatusEffects;
@@ -50,7 +50,7 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
   function renderDebug(maxParticles) {
     if (!state.performance.debugEnabled) return;
     const counts = getCounts();
-    debugEl.textContent = [
+    const lines = [
       `FPS ${state.performance.fps.toFixed(1)} · ${state.performance.frameMs.toFixed(1)} ms`,
       `Quality ${state.performance.qualityLevel}`,
       `Bullets ${counts.bullets}/${getAdaptiveLimit(SAFETY_LIMITS.maxActiveBullets)}`,
@@ -59,7 +59,9 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
       `Damage # ${counts.damageNumbers}/${getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers)}`,
       `Chain beams ${counts.chainBeams}/${getAdaptiveLimit(SAFETY_LIMITS.maxChainBeams)}`,
       `Enemy FX ${state.performance.activeEnemyEffects}/${state.performance.enemyEffectSoftCap}`,
-    ].join('\n');
+    ];
+    if (typeof getExtraDebugLines === 'function') lines.push(...getExtraDebugLines());
+    debugEl.textContent = lines.join('\n');
   }
 
   function toggleDebug() {
