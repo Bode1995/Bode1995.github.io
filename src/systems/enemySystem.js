@@ -22,7 +22,15 @@ export function createEnemySystem({
     visor: new THREE.BoxGeometry(0.35, 0.18, 0.08),
     spike: new THREE.CylinderGeometry(0.08, 0.18, 0.7, 6),
     weaponBarrel: new THREE.CylinderGeometry(0.12, 0.12, 0.9, 8),
+    enemyProjectile: new THREE.SphereGeometry(0.16, 10, 10),
   };
+  const enemyProjectileMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff8cf6,
+    emissive: 0xff8cf6,
+    emissiveIntensity: 1.35,
+    roughness: 0.18,
+    metalness: 0.18,
+  });
 
   const enemyStyle = {
     runner: { shell: 0xff6d78, dark: 0x30111d, main: 0x5d2030, glow: 0xffb39d },
@@ -55,6 +63,84 @@ export function createEnemySystem({
     mesh.receiveShadow = true;
     parent.add(mesh);
     return mesh;
+  }
+
+  function removeEnemyProjectileAtIndex(index) {
+    const projectile = state.entities.enemyProjectiles[index];
+    if (!projectile) return;
+    scene.remove(projectile.mesh);
+    state.entities.enemyProjectiles.splice(index, 1);
+  }
+
+  function spawnEnemyProjectile(enemy, data) {
+    const projectile = new THREE.Mesh(sharedGeometries.enemyProjectile, enemyProjectileMaterial);
+    const muzzleOffset = data.type === 'shooter'
+      ? data.hitboxRadius + 0.55
+      : data.hitboxRadius + 0.35;
+    const spawnY = enemy.position.y + data.hitboxCenterOffsetY * 0.52;
+    temp.vec3C.set(state.movement.velocityX, 0, state.movement.velocityZ);
+    temp.vec3D.copy(temp.player.position)
+      .addScaledVector(temp.vec3C, 0.08)
+      .sub(temp.vec3B.set(enemy.position.x, spawnY, enemy.position.z));
+    temp.vec3D.y = THREE.MathUtils.clamp(temp.vec3D.y, -0.16, 0.3);
+    if (temp.vec3D.lengthSq() < 0.0001) temp.vec3D.set(0, 0, 1);
+    temp.vec3D.normalize();
+
+    projectile.position.set(enemy.position.x, spawnY, enemy.position.z)
+      .addScaledVector(temp.vec3D, muzzleOffset);
+    projectile.scale.setScalar(1);
+    scene.add(projectile);
+    state.entities.enemyProjectiles.push({
+      mesh: projectile,
+      velocity: temp.vec3D.clone().multiplyScalar(12.5 + Math.min(3.5, data.range * 0.12)),
+      damage: data.damage * 0.18,
+      life: 1.8,
+      radius: 0.22,
+      trailTick: 0.035,
+    });
+  }
+
+  function updateEnemyProjectiles(dt) {
+    for (let i = state.entities.enemyProjectiles.length - 1; i >= 0; i--) {
+      const projectile = state.entities.enemyProjectiles[i];
+      if (!projectile?.mesh) {
+        state.entities.enemyProjectiles.splice(i, 1);
+        continue;
+      }
+
+      projectile.life -= dt;
+      projectile.mesh.position.addScaledVector(projectile.velocity, dt);
+      projectile.trailTick -= dt;
+
+      if (projectile.trailTick <= 0) {
+        projectile.trailTick = 0.045;
+        vfx.spawnVfxParticle(
+          projectile.mesh.position,
+          temp.vec3D.copy(projectile.velocity).multiplyScalar(-0.04),
+          0xffb7ff,
+          0.16,
+          0.3,
+        );
+      }
+
+      const dx = projectile.mesh.position.x - temp.player.position.x;
+      const dz = projectile.mesh.position.z - temp.player.position.z;
+      const dy = projectile.mesh.position.y - (state.world.playerGroundY + 0.95);
+      const hitRadius = state.world.playerCollisionRadius + projectile.radius;
+      if ((dx * dx) + (dz * dz) + (dy * dy) <= hitRadius * hitRadius) {
+        vfx.spawnImpactEffects(projectile.mesh.position, { lightning: true });
+        onDamagePlayer(projectile.damage);
+        removeEnemyProjectileAtIndex(i);
+        continue;
+      }
+
+      if (
+        projectile.life <= 0 ||
+        collision.isOutsideArenaBounds(projectile.mesh.position, -0.4)
+      ) {
+        removeEnemyProjectileAtIndex(i);
+      }
+    }
   }
 
   function createEnemyModel(type) {
@@ -276,6 +362,7 @@ export function createEnemySystem({
   function update(dt, elapsed, runPowers) {
     state.performance.activeEnemyEffects = 0;
     const dotBudget = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDotTicksPerFrame, 0.62, 0.38);
+    updateEnemyProjectiles(dt);
     removeInvalidEnemiesFromList(state.entities.enemies, state, 'enemy.update.prepass');
 
     for (let i = state.entities.enemies.length - 1; i >= 0; i--) {
@@ -356,7 +443,7 @@ export function createEnemySystem({
         }
         data.fireCooldown -= dt;
         if (dist < data.range && data.fireCooldown <= 0) {
-          onDamagePlayer(data.damage * 0.18);
+          spawnEnemyProjectile(enemy, data);
           data.fireCooldown = data.fireRate;
         }
       }
@@ -390,6 +477,10 @@ export function createEnemySystem({
   }
 
   function clear() {
+    state.entities.enemyProjectiles.forEach((projectile) => {
+      if (projectile?.mesh) scene.remove(projectile.mesh);
+    });
+    state.entities.enemyProjectiles.length = 0;
     state.entities.enemies.forEach((enemy) => {
       if (enemy) scene.remove(enemy);
       const data = getEnemyData(enemy);
