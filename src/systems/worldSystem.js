@@ -74,6 +74,14 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     return clone;
   };
 
+  const createLayeredSurfaceMaterial = (material, x = 0, z = 0, salt = 0, layer = 0, options = {}) => {
+    const clone = varyMaterial(material, x, z, salt, options);
+    clone.polygonOffset = true;
+    clone.polygonOffsetFactor = -1;
+    clone.polygonOffsetUnits = -1 - (layer * 2);
+    return clone;
+  };
+
   const setShadow = (mesh, receive = true) => {
     mesh.castShadow = true;
     mesh.receiveShadow = receive;
@@ -117,30 +125,32 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     return mesh;
   };
 
-  const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = 0.02, height = 0.05, material, rotation = 0, materialSalt = 0, source = 'ground-patch' }) => {
-    const patch = new THREE.Mesh(new THREE.BoxGeometry(sx, height, sz), varyMaterial(material, x, z, materialSalt));
+  const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = 0.02, height = 0.05, material, rotation = 0, materialSalt = 0, layer = 0, source = 'ground-patch' }) => {
+    const patch = new THREE.Mesh(new THREE.BoxGeometry(sx, height, sz), createLayeredSurfaceMaterial(material, x, z, materialSalt, layer));
     patch.position.set(x, y, z);
     patch.rotation.y = rotation;
     patch.receiveShadow = true;
+    patch.renderOrder = layer;
     mapRoot.add(patch);
     registerWorldObject({ mesh: patch, source, blocking: false, footprint: { type: 'rect', x, z, width: sx, depth: sz, rotation } });
     return patch;
   };
 
-  const addSurfaceScatter = ({ x, z, sx, sz, count, material, y = 0.065, maxSize = 5.5, opacity = 0.26, salt = 0, source = 'surface-scatter' }) => {
+  const addSurfaceScatter = ({ x, z, sx, sz, count, material, y = 0.065, maxSize = 5.5, opacity = 0.26, salt = 0, layer = 0, source = 'surface-scatter' }) => {
     for (let i = 0; i < count; i++) {
       const px = x + ((hash(i + salt, z, salt + 10) - 0.5) * sx * 0.84);
       const pz = z + ((hash(x, i + salt, salt + 20) - 0.5) * sz * 0.84);
       const width = 1.2 + hash(px, pz, salt + 30) * maxSize;
       const depth = 1 + hash(pz, px, salt + 40) * maxSize * 0.7;
       const rotation = hash(px, pz, salt + 50) * Math.PI;
-      const overlayMaterial = varyMaterial(material, px, pz, salt + i, { light: 0.1, sat: 0.04, hue: 0.008, roughness: 0.03 });
+      const overlayMaterial = createLayeredSurfaceMaterial(material, px, pz, salt + i, layer, { light: 0.1, sat: 0.04, hue: 0.008, roughness: 0.03 });
       overlayMaterial.transparent = true;
       overlayMaterial.opacity = opacity + hash(px, pz, salt + 60) * 0.12;
       const stain = new THREE.Mesh(new THREE.BoxGeometry(width, 0.01, depth), overlayMaterial);
       stain.position.set(px, y, pz);
       stain.rotation.y = rotation;
       stain.receiveShadow = true;
+      stain.renderOrder = layer;
       mapRoot.add(stain);
       registerWorldObject({ mesh: stain, source: `${source}-${i}`, blocking: false, footprint: { type: 'rect', x: px, z: pz, width, depth, rotation } });
     }
@@ -163,13 +173,21 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     border.castShadow = true;
     border.receiveShadow = true;
 
-    const inner = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.8, sx - innerInset), 0.24, Math.max(0.8, sz - innerInset)), varyMaterial(innerMaterial, x + 1.5, z - 1.5, 5));
+    const inner = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.max(0.8, sx - innerInset), 0.24, Math.max(0.8, sz - innerInset)),
+      createLayeredSurfaceMaterial(innerMaterial, x + 1.5, z - 1.5, 5, style === 'berm' ? 4 : 5),
+    );
     inner.position.y = style === 'berm' ? 0.18 : 0.24;
     inner.receiveShadow = true;
+    inner.renderOrder = style === 'berm' ? 4 : 5;
 
-    const greens = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.7, sx - greensInset), 0.16, Math.max(0.7, sz - greensInset)), varyMaterial(greensMaterial, x - 1.2, z + 1.2, 6));
+    const greens = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.max(0.7, sx - greensInset), 0.16, Math.max(0.7, sz - greensInset)),
+      createLayeredSurfaceMaterial(greensMaterial, x - 1.2, z + 1.2, 6, style === 'berm' ? 6 : 7),
+    );
     greens.position.y = style === 'berm' ? 0.29 : 0.47;
     greens.receiveShadow = true;
+    greens.renderOrder = style === 'berm' ? 6 : 7;
 
     planter.add(border, inner, greens);
 
@@ -301,23 +319,23 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
   const half = gameplayConfig.arena.size * 0.5;
   const buildableHalf = half - gameplayConfig.arena.padding - 2;
 
-  addGroundPatch({ x: 0, z: 0, sx: gameplayConfig.arena.size, sz: gameplayConfig.arena.size, y: -0.02, height: 0.06, material: shared.soil, materialSalt: 30, source: 'terrain-soil-base' });
-  addGroundPatch({ x: -6, z: 3, sx: 94, sz: 86, y: 0.01, height: 0.04, material: shared.grassDark, rotation: -0.03, materialSalt: 31, source: 'terrain-grass-backdrop' });
+  addGroundPatch({ x: 0, z: 0, sx: gameplayConfig.arena.size, sz: gameplayConfig.arena.size, y: -0.02, height: 0.06, material: shared.soil, materialSalt: 30, layer: 0, source: 'terrain-soil-base' });
+  addGroundPatch({ x: -6, z: 3, sx: 94, sz: 86, y: 0.01, height: 0.04, material: shared.grassDark, rotation: -0.03, materialSalt: 31, layer: 1, source: 'terrain-grass-backdrop' });
 
-  addGroundPatch({ x: 3, z: 5, sx: 76, sz: 60, y: 0.035, height: 0.05, material: shared.asphalt, rotation: -0.04, materialSalt: 32, source: 'zone-asphalt-main' });
-  addGroundPatch({ x: -18, z: -18, sx: 30, sz: 24, y: 0.055, height: 0.04, material: shared.concrete, rotation: 0.07, materialSalt: 33, source: 'zone-concrete-southwest' });
-  addGroundPatch({ x: 23, z: 16, sx: 28, sz: 18, y: 0.058, height: 0.04, material: shared.paver, rotation: -0.12, materialSalt: 34, source: 'zone-paver-east' });
-  addGroundPatch({ x: 31, z: -21, sx: 24, sz: 20, y: 0.05, height: 0.04, material: shared.gravel, rotation: 0.09, materialSalt: 35, source: 'zone-gravel-southeast' });
-  addGroundPatch({ x: -31, z: 27, sx: 24, sz: 28, y: 0.032, height: 0.04, material: shared.grass, rotation: 0.11, materialSalt: 36, source: 'zone-grass-northwest' });
-  addGroundPatch({ x: -3, z: 41, sx: 46, sz: 16, y: 0.03, height: 0.04, material: shared.grass, rotation: -0.06, materialSalt: 37, source: 'zone-grass-north' });
-  addGroundPatch({ x: 5, z: -43, sx: 58, sz: 15, y: 0.028, height: 0.04, material: shared.grassDark, rotation: 0.04, materialSalt: 38, source: 'zone-grass-south' });
-  addGroundPatch({ x: 5, z: 8, sx: 22, sz: 16, y: 0.065, height: 0.035, material: shared.concreteLight, rotation: -0.08, materialSalt: 39, source: 'zone-concrete-center' });
-  addGroundPatch({ x: -42, z: -3, sx: 13, sz: 54, y: 0.038, height: 0.04, material: shared.gravel, rotation: 0.02, materialSalt: 40, source: 'zone-gravel-west' });
+  addGroundPatch({ x: 3, z: 5, sx: 76, sz: 60, y: 0.035, height: 0.05, material: shared.asphalt, rotation: -0.04, materialSalt: 32, layer: 3, source: 'zone-asphalt-main' });
+  addGroundPatch({ x: -18, z: -18, sx: 30, sz: 24, y: 0.055, height: 0.04, material: shared.concrete, rotation: 0.07, materialSalt: 33, layer: 4, source: 'zone-concrete-southwest' });
+  addGroundPatch({ x: 23, z: 16, sx: 28, sz: 18, y: 0.058, height: 0.04, material: shared.paver, rotation: -0.12, materialSalt: 34, layer: 4, source: 'zone-paver-east' });
+  addGroundPatch({ x: 31, z: -21, sx: 24, sz: 20, y: 0.05, height: 0.04, material: shared.gravel, rotation: 0.09, materialSalt: 35, layer: 3, source: 'zone-gravel-southeast' });
+  addGroundPatch({ x: -31, z: 27, sx: 24, sz: 28, y: 0.032, height: 0.04, material: shared.grass, rotation: 0.11, materialSalt: 36, layer: 2, source: 'zone-grass-northwest' });
+  addGroundPatch({ x: -3, z: 41, sx: 46, sz: 16, y: 0.03, height: 0.04, material: shared.grass, rotation: -0.06, materialSalt: 37, layer: 2, source: 'zone-grass-north' });
+  addGroundPatch({ x: 5, z: -43, sx: 58, sz: 15, y: 0.028, height: 0.04, material: shared.grassDark, rotation: 0.04, materialSalt: 38, layer: 2, source: 'zone-grass-south' });
+  addGroundPatch({ x: 5, z: 8, sx: 22, sz: 16, y: 0.065, height: 0.035, material: shared.concreteLight, rotation: -0.08, materialSalt: 39, layer: 5, source: 'zone-concrete-center' });
+  addGroundPatch({ x: -42, z: -3, sx: 13, sz: 54, y: 0.038, height: 0.04, material: shared.gravel, rotation: 0.02, materialSalt: 40, layer: 3, source: 'zone-gravel-west' });
 
-  addSurfaceScatter({ x: 3, z: 5, sx: 76, sz: 60, count: 14, material: shared.asphaltDark, y: 0.066, maxSize: 6.5, opacity: 0.22, salt: 41, source: 'scatter-asphalt' });
-  addSurfaceScatter({ x: -18, z: -18, sx: 30, sz: 24, count: 8, material: shared.concreteLight, y: 0.074, maxSize: 4.6, opacity: 0.2, salt: 42, source: 'scatter-concrete' });
-  addSurfaceScatter({ x: 23, z: 16, sx: 28, sz: 18, count: 7, material: shared.concrete, y: 0.078, maxSize: 3.8, opacity: 0.18, salt: 43, source: 'scatter-paver' });
-  addSurfaceScatter({ x: 31, z: -21, sx: 24, sz: 20, count: 8, material: shared.soil, y: 0.068, maxSize: 3.4, opacity: 0.18, salt: 44, source: 'scatter-gravel' });
+  addSurfaceScatter({ x: 3, z: 5, sx: 76, sz: 60, count: 14, material: shared.asphaltDark, y: 0.066, maxSize: 6.5, opacity: 0.22, salt: 41, layer: 6, source: 'scatter-asphalt' });
+  addSurfaceScatter({ x: -18, z: -18, sx: 30, sz: 24, count: 8, material: shared.concreteLight, y: 0.074, maxSize: 4.6, opacity: 0.2, salt: 42, layer: 7, source: 'scatter-concrete' });
+  addSurfaceScatter({ x: 23, z: 16, sx: 28, sz: 18, count: 7, material: shared.concrete, y: 0.078, maxSize: 3.8, opacity: 0.18, salt: 43, layer: 7, source: 'scatter-paver' });
+  addSurfaceScatter({ x: 31, z: -21, sx: 24, sz: 20, count: 8, material: shared.soil, y: 0.068, maxSize: 3.4, opacity: 0.18, salt: 44, layer: 6, source: 'scatter-gravel' });
 
   [
     { x: -1, y: 1.45, z: -buildableHalf + 1.3, sx: 72, sy: 2.9, sz: 3, rotation: 0.03, source: 'perimeter-wall-north' },
