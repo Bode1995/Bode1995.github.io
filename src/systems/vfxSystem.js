@@ -148,7 +148,6 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
 
   function applyDamageNumberVisualConfig(entry, amount) {
     const visual = getDamageNumberVisualConfig(amount);
-    entry.amount = visual.amount;
     entry.amountTotal = visual.amount;
     entry.fontScale = visual.fontScale;
     entry.fontPx = visual.fontPx;
@@ -180,7 +179,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
 
   function updateDamageNumberTexture(entry) {
     if (!entry?.ctx) return;
-    const { canvas, ctx, amount, texture, fontPx, strokePx } = entry;
+    const { canvas, ctx, amountTotal, texture, fontPx, strokePx } = entry;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.font = `800 ${fontPx}px Inter, Arial, sans-serif`;
     ctx.textAlign = 'center';
@@ -191,13 +190,13 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     ctx.strokeStyle = 'rgba(20, 10, 30, 0.92)';
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    ctx.strokeText(String(amount), centerX, centerY);
+    ctx.strokeText(String(amountTotal), centerX, centerY);
     const gradient = ctx.createLinearGradient(0, strokePx, canvas.width, canvas.height - strokePx);
     gradient.addColorStop(0, '#fff4bf');
     gradient.addColorStop(0.55, '#ffd16a');
     gradient.addColorStop(1, '#ff8c5a');
     ctx.fillStyle = gradient;
-    ctx.fillText(String(amount), centerX, centerY);
+    ctx.fillText(String(amountTotal), centerX, centerY);
     texture.needsUpdate = true;
   }
 
@@ -219,10 +218,13 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     const budgets = state.performance.frameBudgets;
     const existing = enemyData.damageNumberRef;
     const roundedAmount = Math.max(1, Math.round(amount));
-    const nextAmount = enemyData.damageWindowTimer < DAMAGE_NUMBER_IDLE_WINDOW
+    const withinDamageWindow = enemyData.damageWindowTimer < DAMAGE_NUMBER_IDLE_WINDOW;
+    const nextHitCount = withinDamageWindow ? enemyData.damageWindowHitCount + 1 : 1;
+    const nextAmount = withinDamageWindow
       ? enemyData.damageWindowTotal + roundedAmount
       : roundedAmount;
 
+    enemyData.damageWindowHitCount = nextHitCount;
     enemyData.damageWindowTotal = nextAmount;
     enemyData.damageWindowTimer = 0;
 
@@ -232,7 +234,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
         state.entities.damageNumbers.splice(state.entities.damageNumbers.indexOf(existing), 1);
         enemyData.damageNumberRef = null;
       } else {
-        existing.hitCount = (existing.hitCount || 1) + 1;
+        existing.hitCount = nextHitCount;
         existing.lastHitAt = 0;
         existing.idleTimer = 0;
         existing.fadeTimer = 0;
@@ -271,7 +273,6 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       texture,
       canvas,
       ctx,
-      amount: roundedAmount,
       amountTotal: nextAmount,
       enemy,
       lastHitAt: 0,
