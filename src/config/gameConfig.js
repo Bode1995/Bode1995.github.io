@@ -8,6 +8,8 @@ export const CHARACTER_DEFS = [
   {
     id: 'char_01',
     name: 'Vanguard',
+    roleLabel: 'Frontline',
+    tagline: 'Balanced assault frame with luminous visor plating.',
     base: 0x66e8ff,
     dark: 0x163a5a,
     accent: 0xd6fbff,
@@ -21,6 +23,8 @@ export const CHARACTER_DEFS = [
   {
     id: 'char_02',
     name: 'Strider',
+    roleLabel: 'Scout',
+    tagline: 'Long-legged skirmisher built for clean lateral pressure.',
     base: 0x8df07c,
     dark: 0x1f4f2f,
     accent: 0xe7ffd9,
@@ -34,6 +38,8 @@ export const CHARACTER_DEFS = [
   {
     id: 'char_03',
     name: 'Bulwark',
+    roleLabel: 'Siege',
+    tagline: 'Heavy armor shell with reinforced cannon architecture.',
     base: 0xffba66,
     dark: 0x6f3a19,
     accent: 0xffeed2,
@@ -47,6 +53,8 @@ export const CHARACTER_DEFS = [
   {
     id: 'char_04',
     name: 'Warden',
+    roleLabel: 'Sentinel',
+    tagline: 'Angular guardian frame with ceremonial crest lighting.',
     base: 0xc698ff,
     dark: 0x422563,
     accent: 0xf4ebff,
@@ -60,6 +68,8 @@ export const CHARACTER_DEFS = [
   {
     id: 'char_05',
     name: 'Rogue',
+    roleLabel: 'Flanker',
+    tagline: 'Compact duelist chassis tuned for velocity and burst fire.',
     base: 0xff86ac,
     dark: 0x62223b,
     accent: 0xffe2ee,
@@ -139,15 +149,15 @@ export const gameplayConfig = {
 };
 
 export const POWER_UP_DEFS = {
-  fire: { kind: 'projectile', label: 'Fire', color: 0xff7f4d, icon: '🔥' },
-  ice: { kind: 'projectile', label: 'Ice', color: 0x8de0ff, icon: '❄️' },
-  lightning: { kind: 'projectile', label: 'Lightning', color: 0x95a8ff, icon: '⚡' },
-  poison: { kind: 'projectile', label: 'Poison', color: 0x7bdf64, icon: '☠️' },
-  rockets: { kind: 'projectile', label: 'Rockets', color: 0xffa34a, icon: '🚀' },
-  doubler: { kind: 'projectile', label: 'Doubler', color: 0xfff38c, icon: '✖️' },
-  health: { kind: 'player', label: 'Health', color: 0xff8faf, icon: '❤️' },
-  movementSpeed: { kind: 'player', label: 'Move Speed', color: 0x66ffd8, icon: '🏃' },
-  shield: { kind: 'player', label: 'Shield', color: 0x79d7ff, icon: '🛡️' },
+  fire: { kind: 'projectile', label: 'Fire', color: 0xff7f4d, icon: '🔥', symbol: 'FR', shortLabel: 'Burn' },
+  ice: { kind: 'projectile', label: 'Ice', color: 0x8de0ff, icon: '❄️', symbol: 'IC', shortLabel: 'Freeze' },
+  lightning: { kind: 'projectile', label: 'Lightning', color: 0x95a8ff, icon: '⚡', symbol: 'LT', shortLabel: 'Shock' },
+  poison: { kind: 'projectile', label: 'Poison', color: 0x7bdf64, icon: '☠️', symbol: 'PX', shortLabel: 'Toxin' },
+  rockets: { kind: 'projectile', label: 'Rockets', color: 0xffa34a, icon: '🚀', symbol: 'RK', shortLabel: 'Blast' },
+  doubler: { kind: 'projectile', label: 'Doubler', color: 0xfff38c, icon: '✖️', symbol: 'DB', shortLabel: 'Multi' },
+  health: { kind: 'player', label: 'Health', color: 0xff8faf, icon: '❤️', symbol: 'HP', shortLabel: 'Repair' },
+  movementSpeed: { kind: 'player', label: 'Move Speed', color: 0x66ffd8, icon: '🏃', symbol: 'MV', shortLabel: 'Rush' },
+  shield: { kind: 'player', label: 'Shield', color: 0x79d7ff, icon: '🛡️', symbol: 'SH', shortLabel: 'Aegis' },
 };
 
 export const RUN_BASE = {

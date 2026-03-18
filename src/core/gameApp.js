@@ -31,8 +31,8 @@ export function startGameApp() {
   const ui = getUI();
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
-    'restartBtn', 'menuBtn', 'nextLevelBtn', 'wave', 'score', 'hpBar', 'shieldValue', 'powerSummary',
-    'pickupFeed', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
+    'restartBtn', 'menuBtn', 'nextLevelBtn', 'wave', 'score', 'hpBar', 'hpValue', 'shieldValue', 'powerSummary',
+    'activePowers', 'pickupFeed', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
     'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
@@ -77,10 +77,13 @@ export function startGameApp() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.04;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x08121f);
-  scene.fog = new THREE.Fog(0x08121f, 24, 126);
+  scene.background = new THREE.Color(0x090c16);
+  scene.fog = new THREE.Fog(0x090c16, 24, 128);
 
   const camera = new THREE.PerspectiveCamera(gameplayConfig.camera.fov, window.innerWidth / window.innerHeight, 0.1, 220);
   const clock = new THREE.Clock();
@@ -99,31 +102,73 @@ export function startGameApp() {
     SAFETY_LIMITS,
   };
 
-  scene.add(new THREE.HemisphereLight(0x9fd9ff, 0x1b273b, 0.75));
-  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-  dir.position.set(10, 18, 4);
-  dir.castShadow = true;
-  dir.shadow.mapSize.set(1024, 1024);
-  dir.shadow.camera.near = 0.1;
-  dir.shadow.camera.far = 90;
-  dir.shadow.camera.left = -40;
-  dir.shadow.camera.right = 40;
-  dir.shadow.camera.top = 40;
-  dir.shadow.camera.bottom = -40;
-  dir.shadow.bias = -0.00025;
-  scene.add(dir);
+  const hemi = new THREE.HemisphereLight(0x6c87ff, 0x130f19, 0.62);
+  scene.add(hemi);
 
-  const fillLight = new THREE.DirectionalLight(0x8ec5ff, 0.35);
-  fillLight.position.set(-16, 10, -9);
+  const keyLight = new THREE.DirectionalLight(0xffe2b2, 1.18);
+  keyLight.position.set(12, 22, 6);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.camera.near = 0.1;
+  keyLight.shadow.camera.far = 92;
+  keyLight.shadow.camera.left = -42;
+  keyLight.shadow.camera.right = 42;
+  keyLight.shadow.camera.top = 42;
+  keyLight.shadow.camera.bottom = -42;
+  keyLight.shadow.bias = -0.00025;
+  scene.add(keyLight);
+
+  const fillLight = new THREE.DirectionalLight(0x74ffe0, 0.42);
+  fillLight.position.set(-18, 12, -11);
   scene.add(fillLight);
 
+  const accentLight = new THREE.PointLight(0xa66bff, 0.75, 78, 2);
+  accentLight.position.set(0, 18, -8);
+  scene.add(accentLight);
+
+  const arenaRoot = new THREE.Group();
+  const arenaBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(gameplayConfig.arena.size * 0.54, gameplayConfig.arena.size * 0.56, 1.8, 56),
+    new THREE.MeshStandardMaterial({ color: 0x131826, roughness: 0.86, metalness: 0.16 }),
+  );
+  arenaBase.position.y = -0.92;
+  arenaBase.receiveShadow = true;
+  arenaRoot.add(arenaBase);
+
   const arena = new THREE.Mesh(
-    new THREE.PlaneGeometry(gameplayConfig.arena.size, gameplayConfig.arena.size, 24, 24),
-    new THREE.MeshStandardMaterial({ color: 0x243f35, metalness: 0.03, roughness: 0.96 }),
+    new THREE.PlaneGeometry(gameplayConfig.arena.size, gameplayConfig.arena.size, 36, 36),
+    new THREE.MeshStandardMaterial({ color: 0x171d2d, emissive: 0x090d16, emissiveIntensity: 0.22, metalness: 0.22, roughness: 0.8 }),
   );
   arena.rotation.x = -Math.PI / 2;
   arena.receiveShadow = true;
-  scene.add(arena);
+  arenaRoot.add(arena);
+
+  const arenaInner = new THREE.Mesh(
+    new THREE.RingGeometry(18, 38, 48),
+    new THREE.MeshBasicMaterial({ color: 0x241d3a, transparent: true, opacity: 0.26, side: THREE.DoubleSide }),
+  );
+  arenaInner.rotation.x = -Math.PI / 2;
+  arenaInner.position.y = 0.015;
+  arenaRoot.add(arenaInner);
+
+  const arenaPerimeter = new THREE.Mesh(
+    new THREE.RingGeometry(gameplayConfig.arena.size * 0.4, gameplayConfig.arena.size * 0.49, 56),
+    new THREE.MeshBasicMaterial({ color: 0x35f3d1, transparent: true, opacity: 0.2, side: THREE.DoubleSide }),
+  );
+  arenaPerimeter.rotation.x = -Math.PI / 2;
+  arenaPerimeter.position.y = 0.02;
+  arenaRoot.add(arenaPerimeter);
+
+  for (let i = -3; i <= 3; i++) {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(gameplayConfig.arena.size * 0.82, 0.02, 0.5),
+      new THREE.MeshBasicMaterial({ color: i === 0 ? 0xffb85c : 0xa66bff, transparent: true, opacity: i === 0 ? 0.18 : 0.12 }),
+    );
+    stripe.position.set(0, 0.025, i * 8);
+    arenaRoot.add(stripe);
+  }
+
+  scene.add(arenaRoot);
 
   const mapRoot = new THREE.Group();
   const playerRigHolder = new THREE.Group();
@@ -298,6 +343,65 @@ export function startGameApp() {
     return `W${world} · L${level}`;
   }
 
+  function formatPowerBadge(def, count) {
+    return `
+      <span class="power-badge__icon" style="background:${`#${def.color.toString(16).padStart(6, '0')}`}">${def.symbol || def.icon}</span>
+      <span class="power-badge__meta">
+        <span class="power-badge__name">${def.shortLabel || def.label}</span>
+        <span class="power-badge__count">x${count}</span>
+      </span>
+    `;
+  }
+
+  function formatPickupNotice(notice) {
+    const def = POWER_UP_DEFS[notice.type];
+    const colorHex = def ? `#${def.color.toString(16).padStart(6, '0')}` : '#ffffff';
+    return `
+      <span class="pickup-line__icon" style="background:${colorHex}">${def?.symbol || def?.icon || '+'}</span>
+      <span class="pickup-line__meta">
+        <span class="pickup-line__name">${notice.text}</span>
+        <span class="pickup-line__count">${def?.kind === 'projectile' ? 'Weapon module' : 'Pilot module'}</span>
+      </span>
+    `;
+  }
+
+  function createPickupTokenMaterial(def) {
+    return new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: def.color,
+      emissiveIntensity: 0.52,
+      roughness: 0.22,
+      metalness: 0.32,
+    });
+  }
+
+  function createPickupToken(def) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const colorHex = `#${def.color.toString(16).padStart(6, '0')}`;
+    const gradient = ctx.createRadialGradient(64, 64, 12, 64, 64, 56);
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(0.38, colorHex);
+    gradient.addColorStop(1, 'rgba(6,10,18,0.08)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(64, 64, 52, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 36px Inter, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.symbol || def.icon || '?', 64, 66);
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(0.78, 0.78, 0.78);
+    return sprite;
+  }
+
   function getNextMission(world, level) {
     if (level < LEVELS_PER_WORLD) return { world, level: level + 1 };
     if (world < WORLDS_COUNT) return { world: world + 1, level: 1 };
@@ -317,20 +421,30 @@ export function startGameApp() {
 
     const def = POWER_UP_DEFS[type];
     const mesh = new THREE.Group();
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.52, 0.09, 10, 26),
-      new THREE.MeshStandardMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 0.45, roughness: 0.35, metalness: 0.25 }),
+    const halo = new THREE.Mesh(
+      new THREE.TorusGeometry(0.58, 0.07, 12, 28),
+      new THREE.MeshStandardMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 0.5, roughness: 0.28, metalness: 0.32 }),
     );
-    ring.rotation.x = Math.PI / 2;
-    const core = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.28, 0),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: def.color, emissiveIntensity: 0.55, roughness: 0.22, metalness: 0.35 }),
+    halo.rotation.x = Math.PI / 2;
+    const shell = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.34, 0),
+      createPickupTokenMaterial(def),
     );
-    mesh.add(ring, core);
-    mesh.userData.ring = ring;
-    mesh.position.copy(position).setY(0.9);
+    const beacon = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, 0.92, 8),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: def.color, emissiveIntensity: 0.26, roughness: 0.18, metalness: 0.28 }),
+    );
+    beacon.position.y = -0.06;
+    const token = createPickupToken(def);
+    if (token) token.position.y = 0.02;
+    mesh.add(halo, shell, beacon);
+    if (token) mesh.add(token);
+    mesh.userData.halo = halo;
+    mesh.userData.shell = shell;
+    mesh.userData.token = token;
+    mesh.position.copy(position).setY(0.92);
     scene.add(mesh);
-    state.entities.powerPickups.push({ mesh, type, pulse: Math.random() * Math.PI * 2, radius: 0.95 });
+    state.entities.powerPickups.push({ mesh, type, pulse: Math.random() * Math.PI * 2, radius: 0.98 });
   }
 
   function randomPowerKey() {
@@ -338,26 +452,54 @@ export function startGameApp() {
     return keys[Math.floor(Math.random() * keys.length)];
   }
 
+  function disposePickupMesh(mesh) {
+    if (!mesh) return;
+    scene.remove(mesh);
+    mesh.traverse((child) => {
+      if (child.material?.map) child.material.map.dispose?.();
+      child.material?.dispose?.();
+    });
+  }
+
   function removeAllPickups() {
-    state.entities.powerPickups.forEach((pickup) => scene.remove(pickup.mesh));
+    state.entities.powerPickups.forEach((pickup) => disposePickupMesh(pickup.mesh));
     state.entities.powerPickups.length = 0;
   }
 
   function updateHUD() {
-    ui.wave.textContent = `${state.waveInLevel} / ${WAVES_PER_LEVEL}`;
+    const hpPercent = THREE.MathUtils.clamp((Math.max(0, state.hp) / getPlayerMaxHp()) * 100, 0, 100);
+    ui.wave.textContent = `Welle ${state.waveInLevel} / ${WAVES_PER_LEVEL}`;
     ui.score.textContent = String(state.score);
-    ui.hpBar.style.width = `${THREE.MathUtils.clamp((Math.max(0, state.hp) / getPlayerMaxHp()) * 100, 0, 100)}%`;
+    ui.hpValue.textContent = `${Math.max(0, Math.round(state.hp))} HP`;
+    ui.hpBar.style.width = `${hpPercent}%`;
     ui.shieldValue.textContent = `${Math.max(0, Math.round(state.runPowers.shieldHp))}`;
-    ui.powerSummary.textContent = `Power-ups: ${combat.getPowerSummaryText(POWER_UP_DEFS)}`;
+    ui.powerSummary.textContent = combat.getPowerSummaryText(POWER_UP_DEFS) === 'none' ? 'Keine aktiv' : 'Aktivierte Combos';
     ui.missionLabel.textContent = getMissionLabel();
     ui.creditsValue.textContent = String(profile.credits + state.runCredits);
+
+    ui.activePowers.innerHTML = '';
+    for (const [key, count] of Object.entries(state.runPowers.stacks)) {
+      if (count <= 0) continue;
+      const def = POWER_UP_DEFS[key];
+      if (!def) continue;
+      const badge = document.createElement('div');
+      badge.className = 'power-badge';
+      badge.innerHTML = formatPowerBadge(def, count);
+      ui.activePowers.appendChild(badge);
+    }
+    if (!ui.activePowers.children.length) {
+      const emptyBadge = document.createElement('div');
+      emptyBadge.className = 'power-badge';
+      emptyBadge.innerHTML = '<span class="power-badge__icon" style="background:#2a3044">--</span><span class="power-badge__meta"><span class="power-badge__name">No buffs</span><span class="power-badge__count">Collect pickups</span></span>';
+      ui.activePowers.appendChild(emptyBadge);
+    }
 
     ui.pickupFeed.innerHTML = '';
     for (const notice of state.ui.pickupNotices) {
       const el = document.createElement('div');
       el.className = 'pickup-line';
       el.style.opacity = `${Math.max(0, notice.life / notice.maxLife)}`;
-      el.textContent = notice.text;
+      el.innerHTML = formatPickupNotice(notice);
       ui.pickupFeed.appendChild(el);
     }
   }
@@ -596,13 +738,17 @@ export function startGameApp() {
     for (let i = state.entities.powerPickups.length - 1; i >= 0; i--) {
       const pickup = state.entities.powerPickups[i];
       pickup.pulse += dt * 2.4;
-      pickup.mesh.position.y = 0.86 + Math.sin(pickup.pulse) * 0.12;
-      pickup.mesh.rotation.y += dt * 1.8;
-      const ring = pickup.mesh.userData.ring;
-      if (ring) ring.scale.setScalar(1 + Math.sin(pickup.pulse * 1.2) * 0.08);
+      pickup.mesh.position.y = 0.9 + Math.sin(pickup.pulse) * 0.12;
+      pickup.mesh.rotation.y += dt * 1.4;
+      const halo = pickup.mesh.userData.halo;
+      const shell = pickup.mesh.userData.shell;
+      const token = pickup.mesh.userData.token;
+      if (halo) halo.scale.setScalar(1 + Math.sin(pickup.pulse * 1.2) * 0.1);
+      if (shell) shell.rotation.y -= dt * 0.8;
+      if (token) token.material.opacity = 0.82 + Math.sin(pickup.pulse * 1.8) * 0.12;
       if (pickup.mesh.position.distanceTo(playerRigHolder.position) <= pickup.radius) {
         combat.applyRunPower(pickup.type, POWER_UP_DEFS);
-        scene.remove(pickup.mesh);
+        disposePickupMesh(pickup.mesh);
         state.entities.powerPickups.splice(i, 1);
       }
     }

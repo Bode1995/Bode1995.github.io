@@ -21,9 +21,14 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       const unlockedCount = profile.progression.unlockedLevels[world] || 0;
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = `world-card${profile.progression.selectedWorld === world ? ' is-selected' : ''}${unlockedCount === 0 ? ' is-locked' : ''}`;
+      button.className = `world-card card-surface${profile.progression.selectedWorld === world ? ' is-selected' : ''}${unlockedCount === 0 ? ' is-locked' : ''}`;
       button.disabled = unlockedCount === 0;
-      button.innerHTML = `<div class="card-label">World ${world}</div><strong>${unlockedCount > 0 ? 'Unlocked' : 'Locked'}</strong><span>${Math.max(unlockedCount, 0)} / ${LEVELS_PER_WORLD} Levels freigeschaltet</span>`;
+      button.innerHTML = `
+        <div class="card-topline"><span class="card-chip">W${world}</span><span class="card-state">${unlockedCount > 0 ? 'Online' : 'Locked'}</span></div>
+        <div class="card-label">Orbital Cluster</div>
+        <strong>World ${world}</strong>
+        <span>${Math.max(unlockedCount, 0)} / ${LEVELS_PER_WORLD} Levels freigeschaltet</span>
+      `;
       button.addEventListener('click', () => actions.selectMission(world, Math.min(profile.progression.selectedLevel, Math.max(1, unlockedCount || 1))));
       ui.worldGrid.appendChild(button);
     }
@@ -33,9 +38,14 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       const completed = !!profile.progression.completedLevels[helpers.getLevelKey(selectedWorld, level)];
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = `level-card${profile.progression.selectedLevel === level ? ' is-selected' : ''}${unlocked ? '' : ' is-locked'}`;
+      button.className = `level-card card-surface${profile.progression.selectedLevel === level ? ' is-selected' : ''}${unlocked ? '' : ' is-locked'}${completed ? ' is-complete' : ''}`;
       button.disabled = !unlocked;
-      button.innerHTML = `<div class="card-label">Level ${level}</div><strong>${completed ? 'Completed' : unlocked ? 'Ready' : 'Locked'}</strong><span>${WAVES_PER_LEVEL} Waves · ${completed ? 'Bonus route cleared' : 'Clear to unlock next'}</span>`;
+      button.innerHTML = `
+        <div class="card-topline"><span class="card-chip">L${level}</span><span class="card-state">${completed ? 'Cleared' : unlocked ? 'Ready' : 'Locked'}</span></div>
+        <div class="card-label">Strike Route</div>
+        <strong>Level ${level}</strong>
+        <span>${WAVES_PER_LEVEL} Waves · ${completed ? 'Bonus route cleared' : 'Clear to unlock next'}</span>
+      `;
       button.addEventListener('click', () => actions.selectMission(selectedWorld, level));
       ui.levelGrid.appendChild(button);
     }
@@ -58,8 +68,14 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         const level = helpers.getUpgradeLevel(def.id);
         const cost = helpers.getUpgradeCost(def.id);
         const card = document.createElement('article');
-        card.className = `upgrade-card${cost == null || profile.credits < cost ? ' is-disabled' : ''}`;
-        card.innerHTML = `<div class="card-label">${def.label}</div><strong>Level ${level}${def.maxLevel ? ` / ${def.maxLevel}` : ''}</strong><p>${def.description}</p><div class="card-row"><span>Current: ${def.format(level)}</span><span>${cost == null ? 'MAX' : `Next cost: ${cost}`}</span></div>`;
+        card.className = `upgrade-card card-surface${cost == null || profile.credits < cost ? ' is-disabled' : ''}`;
+        card.innerHTML = `
+          <div class="card-topline"><span class="card-chip">Mk ${level + 1}</span><span class="card-state">${cost == null ? 'Maxed' : profile.credits >= cost ? 'Available' : 'Insufficient'}</span></div>
+          <div class="card-label">${def.label}</div>
+          <strong>Level ${level}${def.maxLevel ? ` / ${def.maxLevel}` : ''}</strong>
+          <p>${def.description}</p>
+          <div class="card-row"><span>Current: ${def.format(level)}</span><span>${cost == null ? 'MAX' : `Next cost: ${cost}`}</span></div>
+        `;
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = cost == null ? 'Maxed' : 'Upgrade';
@@ -76,8 +92,8 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.statsGrid.innerHTML = '';
     STAT_DEFS.forEach((def) => {
       const card = document.createElement('article');
-      card.className = 'stat-card';
-      card.innerHTML = `<div class="card-label">${def.label}</div><strong>${def.format(profile.stats[def.id] || 0)}</strong><span>Persistent progression stat</span>`;
+      card.className = 'stat-card card-surface';
+      card.innerHTML = `<div class="card-topline"><span class="card-chip">LOG</span></div><div class="card-label">${def.label}</div><strong>${def.format(profile.stats[def.id] || 0)}</strong><span>Persistent progression stat</span>`;
       ui.statsGrid.appendChild(card);
     });
   }

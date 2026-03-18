@@ -43,7 +43,7 @@ export function createCombatSystem({
 
   function showPickupNotice(type, POWER_UP_DEFS) {
     const def = POWER_UP_DEFS[type];
-    state.ui.pickupNotices.push({ text: `${def.icon} ${def.label} +1`, life: 1.4, maxLife: 1.4 });
+    state.ui.pickupNotices.push({ type, text: `${def.label} +1`, life: 1.4, maxLife: 1.4 });
   }
 
   function applyRunPower(type, POWER_UP_DEFS) {
