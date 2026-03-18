@@ -832,7 +832,7 @@ export function startGameApp() {
         state.elapsedRunTime += dt;
         state.lastProfileSaveAt += dt;
         state.fireCooldown -= dt;
-        if (state.input.shooting) projectileSystem.shoot();
+        projectileSystem.shoot();
         updatePickups(dt);
         enemySystem.update(dt, elapsed, state.runPowers);
         projectileSystem.update(dt, { damageEnemy: combat.damageEnemy, applyProjectilePower: combat.applyProjectilePower });
