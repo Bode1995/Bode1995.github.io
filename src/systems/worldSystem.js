@@ -1,25 +1,50 @@
 export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) {
+  const makeMaterial = (config) => new THREE.MeshStandardMaterial(config);
   const shared = {
-    asphalt: new THREE.MeshStandardMaterial({ color: 0x5f625c, roughness: 0.98, metalness: 0.02 }),
-    asphaltDark: new THREE.MeshStandardMaterial({ color: 0x4c4e49, roughness: 1, metalness: 0.01 }),
-    concrete: new THREE.MeshStandardMaterial({ color: 0xb9b1a2, roughness: 0.94, metalness: 0.04 }),
-    concreteLight: new THREE.MeshStandardMaterial({ color: 0xcac4b7, roughness: 0.92, metalness: 0.03 }),
-    paver: new THREE.MeshStandardMaterial({ color: 0x9e9486, roughness: 0.95, metalness: 0.03 }),
-    curb: new THREE.MeshStandardMaterial({ color: 0xddd5c8, roughness: 0.9, metalness: 0.02 }),
-    soil: new THREE.MeshStandardMaterial({ color: 0x6d5742, roughness: 1, metalness: 0 }),
-    grass: new THREE.MeshStandardMaterial({ color: 0x698253, roughness: 0.98, metalness: 0 }),
-    grassDark: new THREE.MeshStandardMaterial({ color: 0x556741, roughness: 0.98, metalness: 0 }),
-    treeTrunk: new THREE.MeshStandardMaterial({ color: 0x6a4b34, roughness: 1, metalness: 0 }),
-    foliage: new THREE.MeshStandardMaterial({ color: 0x5f8650, roughness: 0.96, metalness: 0 }),
-    foliageDark: new THREE.MeshStandardMaterial({ color: 0x47653d, roughness: 0.96, metalness: 0 }),
-    wall: new THREE.MeshStandardMaterial({ color: 0xb5a999, roughness: 0.94, metalness: 0.04 }),
-    wallDark: new THREE.MeshStandardMaterial({ color: 0x8c7f73, roughness: 0.95, metalness: 0.04 }),
-    roof: new THREE.MeshStandardMaterial({ color: 0x7a685b, roughness: 0.92, metalness: 0.06 }),
-    trim: new THREE.MeshStandardMaterial({ color: 0xd8ccb9, roughness: 0.88, metalness: 0.08 }),
-    glass: new THREE.MeshStandardMaterial({ color: 0x9fc5cf, emissive: 0x35505a, emissiveIntensity: 0.07, roughness: 0.28, metalness: 0.24 }),
-    metal: new THREE.MeshStandardMaterial({ color: 0x66625b, roughness: 0.72, metalness: 0.22 }),
-    lamp: new THREE.MeshStandardMaterial({ color: 0xf0d6a0, emissive: 0xf0c781, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.18 }),
-    bollard: new THREE.MeshStandardMaterial({ color: 0x4f524f, roughness: 0.78, metalness: 0.12 }),
+    asphalt: makeMaterial({ color: 0x61625c, roughness: 0.98, metalness: 0.02 }),
+    asphaltDark: makeMaterial({ color: 0x4d4f4a, roughness: 1, metalness: 0.01 }),
+    concrete: makeMaterial({ color: 0xb9b1a2, roughness: 0.94, metalness: 0.04 }),
+    concreteLight: makeMaterial({ color: 0xcec8ba, roughness: 0.91, metalness: 0.03 }),
+    paver: makeMaterial({ color: 0xa09587, roughness: 0.95, metalness: 0.03 }),
+    gravel: makeMaterial({ color: 0x8c857a, roughness: 1, metalness: 0.01 }),
+    curb: makeMaterial({ color: 0xded6c8, roughness: 0.9, metalness: 0.02 }),
+    soil: makeMaterial({ color: 0x705a46, roughness: 1, metalness: 0 }),
+    grass: makeMaterial({ color: 0x6f8758, roughness: 0.98, metalness: 0 }),
+    grassDark: makeMaterial({ color: 0x5a6d45, roughness: 0.98, metalness: 0 }),
+    treeTrunk: makeMaterial({ color: 0x6a4b34, roughness: 1, metalness: 0 }),
+    foliage: makeMaterial({ color: 0x648852, roughness: 0.96, metalness: 0 }),
+    foliageDark: makeMaterial({ color: 0x496740, roughness: 0.96, metalness: 0 }),
+    wall: makeMaterial({ color: 0xb4a89a, roughness: 0.94, metalness: 0.04 }),
+    wallDark: makeMaterial({ color: 0x897d72, roughness: 0.95, metalness: 0.04 }),
+    roof: makeMaterial({ color: 0x77685e, roughness: 0.92, metalness: 0.06 }),
+    trim: makeMaterial({ color: 0xd8ceb9, roughness: 0.88, metalness: 0.08 }),
+    glass: makeMaterial({ color: 0x9fc5cf, emissive: 0x35505a, emissiveIntensity: 0.07, roughness: 0.28, metalness: 0.24 }),
+    metal: makeMaterial({ color: 0x66625b, roughness: 0.72, metalness: 0.22 }),
+    lamp: makeMaterial({ color: 0xf0d6a0, emissive: 0xf0c781, emissiveIntensity: 0.44, roughness: 0.4, metalness: 0.18 }),
+    bollard: makeMaterial({ color: 0x4f524f, roughness: 0.78, metalness: 0.12 }),
+  };
+
+  const hash = (x, z, salt = 0) => {
+    const value = Math.sin((x * 12.9898) + (z * 78.233) + (salt * 37.719)) * 43758.5453123;
+    return value - Math.floor(value);
+  };
+
+  const varyMaterial = (material, x = 0, z = 0, salt = 0, options = {}) => {
+    const clone = material.clone();
+    const color = clone.color.clone();
+    const hsl = {};
+    color.getHSL(hsl);
+    const hueShift = ((hash(x, z, salt) - 0.5) * 2) * (options.hue ?? 0.012);
+    const satShift = ((hash(z, x, salt + 1) - 0.5) * 2) * (options.sat ?? 0.06);
+    const lightShift = ((hash(x + z, z - x, salt + 2) - 0.5) * 2) * (options.light ?? 0.08);
+    color.setHSL(
+      THREE.MathUtils.clamp(hsl.h + hueShift, 0, 1),
+      THREE.MathUtils.clamp(hsl.s + satShift, 0, 1),
+      THREE.MathUtils.clamp(hsl.l + lightShift, 0, 1),
+    );
+    clone.color.copy(color);
+    clone.roughness = THREE.MathUtils.clamp(clone.roughness + ((hash(x * 0.7, z * 0.7, salt + 3) - 0.5) * 2) * (options.roughness ?? 0.05), 0.15, 1);
+    return clone;
   };
 
   const setShadow = (mesh, receive = true) => {
@@ -28,9 +53,10 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
     return mesh;
   };
 
-  const addBox = ({ x = 0, y = 0.1, z = 0, sx, sy, sz, material, receive = true }) => {
+  const addBox = ({ x = 0, y = 0.1, z = 0, sx, sy, sz, material, receive = true, rotation = 0 }) => {
     const mesh = setShadow(new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material), receive);
     mesh.position.set(x, y, z);
+    mesh.rotation.y = rotation;
     mapRoot.add(mesh);
     return mesh;
   };
@@ -42,62 +68,86 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
     return mesh;
   };
 
-  const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = 0.02, material }) => {
-    const patch = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.04, sz), material);
+  const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = 0.02, height = 0.05, material, rotation = 0, materialSalt = 0 }) => {
+    const patch = new THREE.Mesh(new THREE.BoxGeometry(sx, height, sz), varyMaterial(material, x, z, materialSalt));
     patch.position.set(x, y, z);
+    patch.rotation.y = rotation;
     patch.receiveShadow = true;
     mapRoot.add(patch);
     return patch;
   };
 
-  const addPlanter = ({ x, z, sx, sz, withTrees = false, treeCount = 0, collider = true, rotation = 0 }) => {
+  const addSurfaceScatter = ({ x, z, sx, sz, count, material, y = 0.065, maxSize = 5.5, opacity = 0.26, salt = 0 }) => {
+    for (let i = 0; i < count; i++) {
+      const px = x + ((hash(i + salt, z, salt + 10) - 0.5) * sx * 0.84);
+      const pz = z + ((hash(x, i + salt, salt + 20) - 0.5) * sz * 0.84);
+      const width = 1.2 + hash(px, pz, salt + 30) * maxSize;
+      const depth = 1 + hash(pz, px, salt + 40) * maxSize * 0.7;
+      const rotation = hash(px, pz, salt + 50) * Math.PI;
+      const overlayMaterial = varyMaterial(material, px, pz, salt + i, { light: 0.1, sat: 0.04, hue: 0.008, roughness: 0.03 });
+      overlayMaterial.transparent = true;
+      overlayMaterial.opacity = opacity + hash(px, pz, salt + 60) * 0.12;
+      const stain = new THREE.Mesh(new THREE.BoxGeometry(width, 0.01, depth), overlayMaterial);
+      stain.position.set(px, y, pz);
+      stain.rotation.y = rotation;
+      stain.receiveShadow = true;
+      mapRoot.add(stain);
+    }
+  };
+
+  const addPlanter = ({ x, z, sx, sz, withTrees = false, treeCount = 0, collider = true, rotation = 0, style = 'planter' }) => {
     const planter = new THREE.Group();
     planter.position.set(x, 0, z);
     planter.rotation.y = rotation;
 
-    const border = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.56, sz), shared.wallDark);
-    border.position.y = 0.28;
+    const borderMaterial = style === 'berm' ? shared.soil : shared.wallDark;
+    const innerMaterial = style === 'berm' ? shared.soil : shared.soil;
+    const greensMaterial = withTrees ? shared.grassDark : shared.grass;
+    const borderHeight = style === 'berm' ? 0.34 : 0.56;
+    const innerInset = style === 'berm' ? 0.24 : 0.58;
+    const greensInset = style === 'berm' ? 0.5 : 0.9;
+
+    const border = new THREE.Mesh(new THREE.BoxGeometry(sx, borderHeight, sz), varyMaterial(borderMaterial, x, z, 4));
+    border.position.y = borderHeight * 0.5;
     border.castShadow = true;
     border.receiveShadow = true;
 
-    const inner = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.8, sx - 0.58), 0.4, Math.max(0.8, sz - 0.58)), shared.soil);
-    inner.position.y = 0.24;
+    const inner = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.8, sx - innerInset), 0.24, Math.max(0.8, sz - innerInset)), varyMaterial(innerMaterial, x + 1.5, z - 1.5, 5));
+    inner.position.y = style === 'berm' ? 0.18 : 0.24;
     inner.receiveShadow = true;
 
-    const greens = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.7, sx - 0.9), 0.18, Math.max(0.7, sz - 0.9)), withTrees ? shared.grassDark : shared.grass);
-    greens.position.y = 0.47;
+    const greens = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.7, sx - greensInset), 0.16, Math.max(0.7, sz - greensInset)), varyMaterial(greensMaterial, x - 1.2, z + 1.2, 6));
+    greens.position.y = style === 'berm' ? 0.29 : 0.47;
     greens.receiveShadow = true;
 
     planter.add(border, inner, greens);
 
     if (withTrees && treeCount > 0) {
-      const cols = Math.ceil(Math.sqrt(treeCount));
-      const rows = Math.ceil(treeCount / cols);
-      let placed = 0;
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols && placed < treeCount; col++, placed++) {
-          const px = cols === 1 ? 0 : (-sx * 0.25) + (col / (cols - 1)) * (sx * 0.5);
-          const pz = rows === 1 ? 0 : (-sz * 0.25) + (row / (rows - 1)) * (sz * 0.5);
-          const trunk = setShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.4, 8), shared.treeTrunk));
-          trunk.position.set(px, 1.1, pz);
-          const crown = setShadow(new THREE.Mesh(new THREE.SphereGeometry(0.82, 9, 8), placed % 2 === 0 ? shared.foliage : shared.foliageDark));
-          crown.position.set(px, 2.25, pz);
-          planter.add(trunk, crown);
-        }
+      for (let i = 0; i < treeCount; i++) {
+        const px = (hash(i, x, 7) - 0.5) * sx * 0.48;
+        const pz = (hash(z, i, 8) - 0.5) * sz * 0.48;
+        const trunkHeight = 1.25 + hash(px, pz, 9) * 0.65;
+        const crownRadius = 0.76 + hash(pz, px, 10) * 0.42;
+        const trunk = setShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, trunkHeight, 8), shared.treeTrunk));
+        trunk.position.set(px, 0.86 + trunkHeight * 0.5, pz);
+        const crown = setShadow(new THREE.Mesh(new THREE.SphereGeometry(crownRadius, 9, 8), i % 2 === 0 ? shared.foliage : shared.foliageDark));
+        crown.scale.y = 0.86 + hash(px, pz, 11) * 0.4;
+        crown.position.set(px + (hash(px, pz, 12) - 0.5) * 0.28, trunk.position.y + trunkHeight * 0.46, pz + (hash(pz, px, 13) - 0.5) * 0.28);
+        planter.add(trunk, crown);
       }
     } else {
-      const bushCount = Math.max(2, Math.round((sx + sz) / 4));
+      const bushCount = Math.max(3, Math.round((sx + sz) / 3.8));
       for (let i = 0; i < bushCount; i++) {
-        const bush = setShadow(new THREE.Mesh(new THREE.SphereGeometry(0.45 + (i % 3) * 0.08, 8, 7), i % 2 === 0 ? shared.foliage : shared.foliageDark));
-        const tx = bushCount === 1 ? 0 : -sx * 0.28 + (i / (bushCount - 1)) * sx * 0.56;
-        const tz = ((i % 2) - 0.5) * Math.min(0.9, sz * 0.18);
-        bush.position.set(tx, 0.86, tz);
+        const radius = 0.34 + hash(i, sx + sz, 14) * 0.26;
+        const bush = setShadow(new THREE.Mesh(new THREE.SphereGeometry(radius, 8, 7), i % 2 === 0 ? shared.foliage : shared.foliageDark));
+        bush.scale.y = 0.82 + hash(i, z, 15) * 0.3;
+        bush.position.set((hash(i, x, 16) - 0.5) * sx * 0.64, 0.72 + radius * 0.22, (hash(z, i, 17) - 0.5) * sz * 0.44);
         planter.add(bush);
       }
     }
 
     mapRoot.add(planter);
-    if (collider) addCollider(x, z, Math.max(sx, sz) * 0.42);
+    if (collider) addCollider(x, z, Math.max(sx, sz) * (style === 'berm' ? 0.34 : 0.42));
     return planter;
   };
 
@@ -119,34 +169,34 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
     return lamp;
   };
 
-  const addBuilding = ({ x, z, sx, sz, h, rotation = 0, collider = true }) => {
+  const addBuilding = ({ x, z, sx, sz, h, rotation = 0, collider = true, pad = 1.8, awning = true }) => {
     const building = new THREE.Group();
     building.position.set(x, 0, z);
     building.rotation.y = rotation;
 
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(sx + 1.8, 0.26, sz + 1.8), shared.concrete);
-    pad.position.y = 0.13;
-    pad.receiveShadow = true;
+    const padMesh = new THREE.Mesh(new THREE.BoxGeometry(sx + pad, 0.24, sz + pad), varyMaterial(shared.concrete, x, z, 20));
+    padMesh.position.y = 0.12;
+    padMesh.receiveShadow = true;
 
-    const shell = setShadow(new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), shared.wall));
-    shell.position.y = h * 0.5 + 0.13;
+    const shell = setShadow(new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), varyMaterial(shared.wall, x, z, 21)));
+    shell.position.y = h * 0.5 + 0.12;
 
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(sx + 0.5, 0.32, sz + 0.5), shared.roof);
-    roof.position.y = h + 0.45;
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(sx + 0.5, 0.32, sz + 0.5), varyMaterial(shared.roof, x, z, 22));
+    roof.position.y = h + 0.44;
     roof.castShadow = true;
     roof.receiveShadow = true;
 
-    const trimBand = new THREE.Mesh(new THREE.BoxGeometry(sx * 0.96, 0.18, sz * 0.96), shared.trim);
-    trimBand.position.y = 2.2;
+    const trimBand = new THREE.Mesh(new THREE.BoxGeometry(sx * 0.95, 0.18, sz * 0.95), varyMaterial(shared.trim, x, z, 23));
+    trimBand.position.y = Math.min(h - 0.8, 2.3);
     trimBand.receiveShadow = true;
 
-    building.add(pad, shell, roof, trimBand);
+    building.add(padMesh, shell, roof, trimBand);
 
     const windowRows = Math.max(1, Math.floor((h - 1.4) / 1.5));
-    const frontCols = Math.max(2, Math.floor(sx / 2.2));
-    const sideCols = Math.max(2, Math.floor(sz / 2.4));
+    const frontCols = Math.max(2, Math.floor(sx / 2.4));
+    const sideCols = Math.max(2, Math.floor(sz / 2.5));
     for (let row = 0; row < windowRows; row++) {
-      const wy = 1.2 + row * 1.45;
+      const wy = 1.16 + row * 1.45;
       for (let col = 0; col < frontCols; col++) {
         const wx = -sx * 0.36 + (frontCols === 1 ? 0 : (col / (frontCols - 1)) * sx * 0.72);
         for (const dir of [-1, 1]) {
@@ -165,11 +215,13 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
       }
     }
 
-    const awning = new THREE.Mesh(new THREE.BoxGeometry(Math.max(1.8, sx * 0.4), 0.14, 1), shared.trim);
-    awning.position.set(0, 2.5, sz * 0.5 + 0.48);
-    awning.castShadow = true;
-    awning.receiveShadow = true;
-    building.add(awning);
+    if (awning) {
+      const awningMesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(1.8, sx * 0.42), 0.14, 1.1), varyMaterial(shared.trim, x + 1, z - 1, 24));
+      awningMesh.position.set(0, Math.min(h - 1, 2.6), sz * 0.5 + 0.52);
+      awningMesh.castShadow = true;
+      awningMesh.receiveShadow = true;
+      building.add(awningMesh);
+    }
 
     mapRoot.add(building);
     if (collider) addCollider(x, z, Math.max(sx, sz) * 0.58);
@@ -177,87 +229,73 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, addCollider }) 
   };
 
   const half = gameplayConfig.arena.size * 0.5;
-  const boundaryOffset = half - 1.8;
+  const buildableHalf = half - gameplayConfig.arena.padding - 2;
 
-  addGroundPatch({ x: 0, z: 0, sx: gameplayConfig.arena.size, sz: gameplayConfig.arena.size, y: 0.02, material: shared.asphalt });
-  addGroundPatch({ x: 0, z: 0, sx: gameplayConfig.arena.size * 0.8, sz: gameplayConfig.arena.size * 0.8, y: 0.04, material: shared.asphaltDark });
-  addGroundPatch({ x: 0, z: 0, sx: 34, sz: 34, y: 0.055, material: shared.paver });
-  addGroundPatch({ x: 0, z: 0, sx: 12, sz: 12, y: 0.07, material: shared.concreteLight });
+  // Base terrain and large, function-driven zones for an urban service campus.
+  addGroundPatch({ x: 0, z: 0, sx: gameplayConfig.arena.size, sz: gameplayConfig.arena.size, y: -0.02, height: 0.06, material: shared.soil, materialSalt: 30 });
+  addGroundPatch({ x: -6, z: 3, sx: 94, sz: 86, y: 0.01, height: 0.04, material: shared.grassDark, rotation: -0.03, materialSalt: 31 });
 
-  addGroundPatch({ x: 0, z: -22, sx: 44, sz: 8, y: 0.05, material: shared.concrete });
-  addGroundPatch({ x: 0, z: 22, sx: 44, sz: 8, y: 0.05, material: shared.concrete });
-  addGroundPatch({ x: -22, z: 0, sx: 8, sz: 44, y: 0.05, material: shared.concrete });
-  addGroundPatch({ x: 22, z: 0, sx: 8, sz: 44, y: 0.05, material: shared.concrete });
+  addGroundPatch({ x: 3, z: 5, sx: 76, sz: 60, y: 0.035, height: 0.05, material: shared.asphalt, rotation: -0.04, materialSalt: 32 });
+  addGroundPatch({ x: -18, z: -18, sx: 30, sz: 24, y: 0.055, height: 0.04, material: shared.concrete, rotation: 0.07, materialSalt: 33 });
+  addGroundPatch({ x: 23, z: 16, sx: 28, sz: 18, y: 0.058, height: 0.04, material: shared.paver, rotation: -0.12, materialSalt: 34 });
+  addGroundPatch({ x: 31, z: -21, sx: 24, sz: 20, y: 0.05, height: 0.04, material: shared.gravel, rotation: 0.09, materialSalt: 35 });
+  addGroundPatch({ x: -31, z: 27, sx: 24, sz: 28, y: 0.032, height: 0.04, material: shared.grass, rotation: 0.11, materialSalt: 36 });
+  addGroundPatch({ x: -3, z: 41, sx: 46, sz: 16, y: 0.03, height: 0.04, material: shared.grass, rotation: -0.06, materialSalt: 37 });
+  addGroundPatch({ x: 5, z: -43, sx: 58, sz: 15, y: 0.028, height: 0.04, material: shared.grassDark, rotation: 0.04, materialSalt: 38 });
+  addGroundPatch({ x: 5, z: 8, sx: 22, sz: 16, y: 0.065, height: 0.035, material: shared.concreteLight, rotation: -0.08, materialSalt: 39 });
+  addGroundPatch({ x: -42, z: -3, sx: 13, sz: 54, y: 0.038, height: 0.04, material: shared.gravel, rotation: 0.02, materialSalt: 40 });
 
-  for (const z of [-34, 34]) {
-    addGroundPatch({ x: 0, z, sx: 88, sz: 10, y: 0.045, material: shared.concrete });
-    for (let x = -36; x <= 36; x += 12) addGroundPatch({ x, z, sx: 6.6, sz: 1.5, y: 0.06, material: shared.curb });
-  }
-  for (const x of [-34, 34]) {
-    addGroundPatch({ x, z: 0, sx: 10, sz: 88, y: 0.045, material: shared.concrete });
-    for (let z = -36; z <= 36; z += 12) addGroundPatch({ x, z, sx: 1.5, sz: 6.6, y: 0.06, material: shared.curb });
-  }
+  addSurfaceScatter({ x: 3, z: 5, sx: 76, sz: 60, count: 14, material: shared.asphaltDark, y: 0.066, maxSize: 6.5, opacity: 0.22, salt: 41 });
+  addSurfaceScatter({ x: -18, z: -18, sx: 30, sz: 24, count: 8, material: shared.concreteLight, y: 0.074, maxSize: 4.6, opacity: 0.2, salt: 42 });
+  addSurfaceScatter({ x: 23, z: 16, sx: 28, sz: 18, count: 7, material: shared.concrete, y: 0.078, maxSize: 3.8, opacity: 0.18, salt: 43 });
+  addSurfaceScatter({ x: 31, z: -21, sx: 24, sz: 20, count: 8, material: shared.soil, y: 0.068, maxSize: 3.4, opacity: 0.18, salt: 44 });
 
-  const perimeterSegments = [
-    { x: 0, z: -boundaryOffset, sx: gameplayConfig.arena.size - 8, sz: 3.2 },
-    { x: 0, z: boundaryOffset, sx: gameplayConfig.arena.size - 8, sz: 3.2 },
-    { x: -boundaryOffset, z: 0, sx: 3.2, sz: gameplayConfig.arena.size - 8 },
-    { x: boundaryOffset, z: 0, sx: 3.2, sz: gameplayConfig.arena.size - 8 },
+  // Edge definition through real-world structures instead of a complete square wall.
+  addBox({ x: -1, y: 1.45, z: -buildableHalf + 1.3, sx: 72, sy: 2.9, sz: 3, material: varyMaterial(shared.wallDark, 0, -50, 45), rotation: 0.03 });
+  addBox({ x: 39, y: 1.45, z: -8, sx: 3.2, sy: 2.9, sz: 42, material: varyMaterial(shared.wallDark, 39, -8, 46), rotation: 0.04 });
+  addBox({ x: -46, y: 1.1, z: 23, sx: 3.6, sy: 2.2, sz: 28, material: varyMaterial(shared.wallDark, -46, 23, 47), rotation: -0.03 });
+  addBox({ x: 6, y: 1.05, z: 48, sx: 34, sy: 2.1, sz: 3.2, material: varyMaterial(shared.wallDark, 6, 48, 48), rotation: -0.05 });
+
+  const lampPositions = [
+    [-24, -28], [-7, -23], [13, -19], [29, -10],
+    [-15, 12], [6, 18], [24, 27], [-29, 34],
   ];
-  perimeterSegments.forEach(({ x, z, sx, sz }) => {
-    addBox({ x, y: 1.5, z, sx, sy: 3, sz, material: shared.wallDark });
-    addBox({ x, y: 0.35, z, sx: sx + 0.6, sy: 0.26, sz: sz + 0.6, material: shared.trim, receive: true });
+  lampPositions.forEach(([x, z], index) => addLamp({ x, z, h: 3.6 + (index % 3) * 0.25 }));
+
+  const buildings = [
+    { x: -35, z: -35, sx: 15, sz: 10, h: 8.2, rotation: 0.12 },
+    { x: -16, z: -37, sx: 11, sz: 9, h: 7.5, rotation: -0.06 },
+    { x: 37, z: -11, sx: 16, sz: 22, h: 9.4, rotation: Math.PI * 0.5 - 0.06, awning: false },
+    { x: 38, z: 18, sx: 11, sz: 14, h: 7.2, rotation: Math.PI * 0.5 + 0.05 },
+    { x: -29, z: 33, sx: 18, sz: 11, h: 7.8, rotation: 0.08 },
+    { x: 11, z: 35, sx: 10, sz: 8, h: 4.8, rotation: -0.18 },
+  ];
+  buildings.forEach(addBuilding);
+
+  const plantedZones = [
+    { x: -26, z: 21, sx: 11, sz: 14, withTrees: true, treeCount: 3, rotation: 0.15 },
+    { x: -9, z: 38, sx: 15, sz: 8, withTrees: true, treeCount: 3, rotation: -0.08 },
+    { x: 28, z: 29, sx: 10, sz: 7, withTrees: false, rotation: -0.12 },
+    { x: 17, z: 14, sx: 8, sz: 5, withTrees: false, rotation: -0.16 },
+    { x: -22, z: -10, sx: 8, sz: 5, withTrees: false, rotation: 0.08 },
+    { x: 42, z: -33, sx: 8, sz: 18, withTrees: false, rotation: 0.04, style: 'berm' },
+    { x: -43, z: 43, sx: 12, sz: 10, withTrees: true, treeCount: 2, rotation: -0.05, style: 'berm' },
+    { x: 35, z: 42, sx: 16, sz: 8, withTrees: false, rotation: -0.03, style: 'berm' },
+  ];
+  plantedZones.forEach(addPlanter);
+
+  // Small service elements concentrated near actual functional areas.
+  [
+    { x: -3, z: -6, sx: 5.5, sz: 1.2, rotation: -0.22 },
+    { x: 12, z: 2, sx: 4.2, sz: 1.2, rotation: 0.12 },
+    { x: 22, z: -27, sx: 1.2, sz: 5.8, rotation: 0.08 },
+  ].forEach(({ x, z, sx, sz, rotation }) => {
+    addBox({ x, y: 0.36, z, sx, sy: 0.72, sz, material: varyMaterial(shared.curb, x, z, 49), rotation });
+    addCollider(x, z, Math.max(sx, sz) * 0.34);
   });
 
-  for (let i = -4; i <= 4; i++) {
-    addLamp({ x: i * 12, z: -boundaryOffset + 2.7 });
-    addLamp({ x: i * 12, z: boundaryOffset - 2.7 });
-    addLamp({ x: -boundaryOffset + 2.7, z: i * 12 });
-    addLamp({ x: boundaryOffset - 2.7, z: i * 12 });
-  }
-
-  const buildingSpots = [
-    [-40, -40, 10, 8, 8], [-23, -41, 12, 8, 9], [0, -40, 14, 8, 8.5], [24, -41, 12, 8, 9], [40, -40, 10, 8, 8],
-    [-41, -19, 8, 11, 7.5], [41, -19, 8, 11, 7.5], [-41, 19, 8, 11, 7.5], [41, 19, 8, 11, 7.5],
-    [-40, 40, 10, 8, 8], [-23, 41, 12, 8, 9], [0, 40, 14, 8, 8.5], [24, 41, 12, 8, 9], [40, 40, 10, 8, 8],
-  ];
-  for (const [x, z, sx, sz, h] of buildingSpots) addBuilding({ x, z, sx, sz, h, rotation: Math.abs(x) > Math.abs(z) ? Math.PI / 2 : 0 });
-
-  const plazaPlanters = [
-    { x: -12, z: -12, sx: 7, sz: 7, withTrees: true, treeCount: 1 },
-    { x: 12, z: -12, sx: 7, sz: 7, withTrees: true, treeCount: 1 },
-    { x: -12, z: 12, sx: 7, sz: 7, withTrees: true, treeCount: 1 },
-    { x: 12, z: 12, sx: 7, sz: 7, withTrees: true, treeCount: 1 },
-  ];
-  plazaPlanters.forEach(addPlanter);
-
-  const edgeGreenery = [
-    { x: 0, z: -48, sx: 18, sz: 4, withTrees: false },
-    { x: 0, z: 48, sx: 18, sz: 4, withTrees: false },
-    { x: -48, z: 0, sx: 4, sz: 18, withTrees: false },
-    { x: 48, z: 0, sx: 4, sz: 18, withTrees: false },
-    { x: -22, z: -48, sx: 10, sz: 4, withTrees: false },
-    { x: 22, z: -48, sx: 10, sz: 4, withTrees: false },
-    { x: -22, z: 48, sx: 10, sz: 4, withTrees: false },
-    { x: 22, z: 48, sx: 10, sz: 4, withTrees: false },
-  ];
-  edgeGreenery.forEach(addPlanter);
-
-  for (const [x, z, sx, sz] of [[0, -10, 16, 2.4], [0, 10, 16, 2.4], [-10, 0, 2.4, 16], [10, 0, 2.4, 16]]) {
-    addBox({ x, y: 0.45, z, sx, sy: 0.9, sz, material: shared.curb });
-    addCollider(x, z, Math.max(sx, sz) * 0.32);
-  }
-
-  const kiosks = [
-    [-24, 0, 6, 4, 4.2], [24, 0, 6, 4, 4.2], [0, -24, 4, 6, 4.2], [0, 24, 4, 6, 4.2],
-  ];
-  kiosks.forEach(([x, z, sx, sz, h], index) => addBuilding({ x, z, sx, sz, h, rotation: index >= 2 ? Math.PI / 2 : 0 }));
-
-  for (let i = -3; i <= 3; i++) {
-    const x = i * 11;
-    addCylinder({ x, y: 0.4, z: -5.5, rt: 0.26, h: 0.8, material: shared.bollard });
-    addCylinder({ x, y: 0.4, z: 5.5, rt: 0.26, h: 0.8, material: shared.bollard });
-    addCylinder({ x: -5.5, y: 0.4, z: x, rt: 0.26, h: 0.8, material: shared.bollard });
-    addCylinder({ x: 5.5, y: 0.4, z: x, rt: 0.26, h: 0.8, material: shared.bollard });
-  }
+  [
+    [-10, 11], [-4, 14], [2, 17], [8, 20],
+    [20, -16], [24, -14], [28, -12],
+  ].forEach(([x, z]) => addCylinder({ x, y: 0.4, z, rt: 0.24, h: 0.8, material: shared.bollard }));
 }
