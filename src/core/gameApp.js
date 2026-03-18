@@ -71,6 +71,8 @@ export function startGameApp() {
 
   const profile = loadProfile();
   const profileApi = createProfileApi(profile);
+  const initialCharacterId = loadSelectedCharacterId();
+  let currentCharacterId = initialCharacterId;
   const characterModule = createCharacterModule(THREE, CHARACTER_DEFS);
 
   const renderer = new THREE.WebGLRenderer({ canvas: ui.canvas, antialias: true });
@@ -171,7 +173,7 @@ export function startGameApp() {
     getPlayerMaxHp,
     getBaseMoveSpeedMultiplier,
   });
-  state.selection.characterId = loadSelectedCharacterId();
+  state.selection.characterId = currentCharacterId;
   playerRigHolder.position.set(0, state.world.playerGroundY, 0);
 
   const collision = createCollisionSystem({
@@ -253,6 +255,7 @@ export function startGameApp() {
     playerRigHolder,
     getAttackCooldown,
     getBaseDamage,
+    getCharacterCombatProfile,
     getProjectileEffects: combat.getProjectileEffects,
     sceneResources,
   });
@@ -270,8 +273,12 @@ export function startGameApp() {
   });
 
   let playerRig = null;
-  function getCharacterDef(characterId = state.selection.characterId) {
-    return characterModule.getCharacterDef(characterId, state.selection.characterId);
+  function getCharacterDef(characterId = currentCharacterId) {
+    return characterModule.getCharacterDef(characterId, currentCharacterId);
+  }
+
+  function getCharacterCombatProfile(characterId = currentCharacterId) {
+    return getCharacterDef(characterId).combatProfile;
   }
 
   function setPlayerCharacter(characterId) {
@@ -280,11 +287,15 @@ export function startGameApp() {
       reportRuntimeError('Character selection', new Error(`Unknown character: ${characterId}`));
       return;
     }
+    currentCharacterId = characterDef.id;
     state.selection.characterId = characterDef.id;
     saveSelectedCharacterId(characterDef.id);
     if (playerRig) playerRigHolder.remove(playerRig.root);
     playerRig = characterModule.createCharacterRig(characterDef);
     playerRigHolder.add(playerRig.root);
+    state.moveSpeedMultiplier = getBaseMoveSpeedMultiplier() + state.runPowers.stacks.movementSpeed * 0.05;
+    state.weaponState.burstShotsRemaining = 0;
+    state.weaponState.burstTimer = 0;
     ui.selectedCharacterLabel.textContent = characterDef.name;
   }
 
@@ -315,15 +326,18 @@ export function startGameApp() {
   }
 
   function getBaseDamage() {
-    return 1 + getUpgradeLevel('baseDamage') * 0.22;
+    return (1 + getUpgradeLevel('baseDamage') * 0.22) * getCharacterCombatProfile().baseDamageModifier;
   }
 
   function getAttackCooldown() {
-    return Math.max(0.07, 0.18 * Math.pow(0.94, getUpgradeLevel('attackSpeed')));
+    const combatProfile = getCharacterCombatProfile();
+    const baseCooldown = combatProfile.baseAttackCooldown || 0.18;
+    const fireRateModifier = combatProfile.fireRateModifier || 1;
+    return Math.max(0.055, baseCooldown * fireRateModifier * Math.pow(0.94, getUpgradeLevel('attackSpeed')));
   }
 
   function getBaseMoveSpeedMultiplier() {
-    return 1 + getUpgradeLevel('movementSpeed') * 0.05;
+    return (1 + getUpgradeLevel('movementSpeed') * 0.05) * getCharacterCombatProfile().baseMoveSpeedModifier;
   }
 
   function getShieldPickupCapacity() {
@@ -626,6 +640,10 @@ export function startGameApp() {
   function resetTransientInputState() {
     state.input.shooting = false;
     state.input.moveTouch = null;
+    state.movement.velocityX = 0;
+    state.movement.velocityZ = 0;
+    state.weaponState.burstShotsRemaining = 0;
+    state.weaponState.burstTimer = 0;
     if (state.input.move) state.input.move.set(0, 0);
     if (state.input.keys) state.input.keys.clear();
   }
@@ -691,6 +709,10 @@ export function startGameApp() {
       state.savedRunTime = 0;
       state.lastProfileSaveAt = 0;
       state.pendingResult = null;
+      state.weaponState.burstShotsRemaining = 0;
+      state.weaponState.burstTimer = 0;
+      state.movement.velocityX = 0;
+      state.movement.velocityZ = 0;
       playerRigHolder.position.set(0, 0.2, 0);
       resetTransientInputState();
       clearRunObjects();
@@ -740,6 +762,8 @@ export function startGameApp() {
   });
 
   function updatePlayer(dt) {
+    const characterDef = getCharacterDef();
+    const locomotion = characterDef.locomotionProfile || {};
     temp.vec2A.set(
       (state.input.keys.has('KeyA') ? 1 : 0) - (state.input.keys.has('KeyD') ? 1 : 0),
       (state.input.keys.has('KeyS') ? 1 : 0) - (state.input.keys.has('KeyW') ? 1 : 0),
@@ -752,34 +776,44 @@ export function startGameApp() {
 
     if (moveStrength > gameplayConfig.controls.rotationDeadZone) state.yaw = Math.atan2(finalMove.x, finalMove.y);
 
-    let moveSpeed = 0;
-    let moveBlend = 0;
+    let targetSpeed = 0;
+    let targetBlend = 0;
     if (usingTouchMove) {
       const moveRange = Math.max(0.001, 1 - gameplayConfig.controls.moveStartRadius);
       const normalized = THREE.MathUtils.clamp((moveStrength - gameplayConfig.controls.moveStartRadius) / moveRange, 0, 1);
       const curved = Math.pow(normalized, gameplayConfig.controls.speedExponent);
-      moveSpeed = THREE.MathUtils.lerp(gameplayConfig.controls.minMoveSpeed, gameplayConfig.controls.maxMoveSpeed, curved) * state.moveSpeedMultiplier;
+      targetSpeed = THREE.MathUtils.lerp(gameplayConfig.controls.minMoveSpeed, gameplayConfig.controls.maxMoveSpeed, curved) * state.moveSpeedMultiplier;
       if (inputZone === 'rotation' || normalized <= 0) {
-        moveSpeed = 0;
+        targetSpeed = 0;
       } else if (inputZone === 'fine') {
-        moveSpeed *= 0.7;
-        moveBlend = THREE.MathUtils.clamp(curved * 0.8, 0.08, 0.45);
+        targetSpeed *= 0.68;
+        targetBlend = THREE.MathUtils.clamp(curved * 0.78, 0.08, 0.45);
       } else if (inputZone === 'standard') {
-        moveBlend = THREE.MathUtils.clamp(curved * 1.05, 0.35, 0.8);
+        targetBlend = THREE.MathUtils.clamp(curved * 1.05, 0.35, 0.84);
       } else {
-        moveSpeed *= 1.06;
-        moveBlend = THREE.MathUtils.clamp(curved * 1.2, 0.72, 1);
+        targetSpeed *= 1.06;
+        targetBlend = THREE.MathUtils.clamp(curved * 1.2, 0.74, 1);
       }
     } else {
       const keyMoving = temp.vec2A.lengthSq() > 0;
-      moveSpeed = keyMoving ? gameplayConfig.controls.maxMoveSpeed * 0.88 * state.moveSpeedMultiplier : 0;
-      moveBlend = keyMoving ? 0.9 : 0;
+      targetSpeed = keyMoving ? gameplayConfig.controls.maxMoveSpeed * 0.88 * state.moveSpeedMultiplier : 0;
+      targetBlend = keyMoving ? 0.92 : 0;
     }
 
-    if (moveSpeed > 0 && moveStrength > 0) {
+    let targetVelocityX = 0;
+    let targetVelocityZ = 0;
+    if (targetSpeed > 0 && moveStrength > 0) {
       temp.vec3A.set(finalMove.x, 0, finalMove.y).normalize();
-      playerRigHolder.position.addScaledVector(temp.vec3A, moveSpeed * dt);
+      targetVelocityX = temp.vec3A.x * targetSpeed;
+      targetVelocityZ = temp.vec3A.z * targetSpeed;
     }
+
+    const response = targetSpeed > 0 ? (locomotion.acceleration || 14) : (locomotion.deceleration || 16);
+    const damping = 1 - Math.exp(-response * dt);
+    state.movement.velocityX = THREE.MathUtils.lerp(state.movement.velocityX, targetVelocityX, damping);
+    state.movement.velocityZ = THREE.MathUtils.lerp(state.movement.velocityZ, targetVelocityZ, damping);
+    playerRigHolder.position.x += state.movement.velocityX * dt;
+    playerRigHolder.position.z += state.movement.velocityZ * dt;
 
     collision.resolveWorldCollision(playerRigHolder.position, state.world.playerCollisionRadius);
     playerRigHolder.position.y = state.world.playerGroundY;
@@ -788,6 +822,10 @@ export function startGameApp() {
     playerRigHolder.position.z = THREE.MathUtils.clamp(playerRigHolder.position.z, -halfArena, halfArena);
     playerRigHolder.rotation.y = state.yaw;
     temp.player.position.copy(playerRigHolder.position);
+
+    const velocityMagnitude = Math.hypot(state.movement.velocityX, state.movement.velocityZ);
+    const normalizedBlend = targetSpeed > 0 ? THREE.MathUtils.clamp(velocityMagnitude / Math.max(0.001, gameplayConfig.controls.maxMoveSpeed * state.moveSpeedMultiplier), 0, 1) : 0;
+    const moveBlend = Math.max(targetBlend * 0.45, normalizedBlend);
     characterModule.animateCharacterRig(playerRig, moveBlend, clock.elapsedTime);
   }
 
@@ -837,6 +875,7 @@ export function startGameApp() {
         state.elapsedRunTime += dt;
         state.lastProfileSaveAt += dt;
         state.fireCooldown -= dt;
+        state.weaponState.burstTimer = Math.max(0, state.weaponState.burstTimer - dt);
         projectileSystem.shoot();
         updatePickups(dt);
         enemySystem.update(dt, elapsed, state.runPowers);

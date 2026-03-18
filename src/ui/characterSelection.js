@@ -9,30 +9,70 @@ export function setupCharacterSelection({
 }) {
   const previewCards = [];
 
+  function renderStatRow(label, value, accent) {
+    const maxValue = 5;
+    return `
+      <div class="character-stat-row">
+        <span>${label}</span>
+        <div class="character-stat-bar"><div style="width:${(Math.max(0, Math.min(maxValue, value)) / maxValue) * 100}%;background:${accent}"></div></div>
+      </div>
+    `;
+  }
+
   function createCharacterCard(def) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'character-card card-surface';
     button.dataset.characterId = def.id;
 
+    const accentColor = `#${(def.accent || 0xffffff).toString(16).padStart(6, '0')}`;
+    button.style.setProperty('--character-accent', accentColor);
+
     const meta = document.createElement('div');
     meta.className = 'character-meta';
-    meta.innerHTML = `<span class="card-chip">${def.roleLabel || 'Pilot'}</span><span class="character-accent-dot"></span>`;
+    meta.innerHTML = `
+      <div class="character-meta-stack">
+        <span class="card-chip">${def.roleLabel || 'Pilot'}</span>
+        <span class="character-weapon-chip">${def.weaponLabel || def.weapon || 'Weapon'}</span>
+      </div>
+      <span class="character-accent-dot"></span>
+    `;
 
     const label = document.createElement('div');
     label.className = 'character-name';
     label.textContent = def.name;
 
+    const playstyle = document.createElement('div');
+    playstyle.className = 'character-playstyle';
+    playstyle.textContent = def.playstyleLabel || 'Adaptive combat frame';
+
     const subline = document.createElement('div');
     subline.className = 'character-subline';
-    subline.textContent = def.tagline || 'Adaptive combat frame';
+    subline.textContent = def.classSummary || def.tagline || 'Adaptive combat frame';
+
+    const traitList = document.createElement('div');
+    traitList.className = 'character-traits';
+    (def.traitTags || []).forEach((tag) => {
+      const tagEl = document.createElement('span');
+      tagEl.className = 'character-trait';
+      tagEl.textContent = tag;
+      traitList.append(tagEl);
+    });
+
+    const stats = document.createElement('div');
+    stats.className = 'character-stats';
+    stats.innerHTML = [
+      renderStatRow('Mobility', def.uiStats?.mobility || 1, 'linear-gradient(90deg, #66ffd8, #35f3d1)'),
+      renderStatRow('Power', def.uiStats?.power || 1, 'linear-gradient(90deg, #ffcf82, #ff8c5d)'),
+      renderStatRow('Control', def.uiStats?.control || 1, 'linear-gradient(90deg, #d2a6ff, #9f7dff)'),
+    ].join('');
 
     const previewCanvas = document.createElement('canvas');
     previewCanvas.className = 'character-preview';
     previewCanvas.width = 220;
     previewCanvas.height = 160;
 
-    button.append(meta, previewCanvas, label, subline);
+    button.append(meta, previewCanvas, label, playstyle, subline, traitList, stats);
     ui.characterGrid.append(button);
 
     const previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
