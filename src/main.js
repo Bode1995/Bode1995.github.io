@@ -314,8 +314,9 @@ const RUN_BASE = {
 };
 
 const SAFETY_LIMITS = {
-  maxProjectileCount: 128,
-  maxActiveBullets: 900,
+  maxProjectileCount: 4096,
+  maxVisualProjectilesPerShot: 16,
+  maxActiveBullets: 320,
   maxChainBeams: 140,
   maxDamageNumbers: 80,
   maxLightningChainsPerHit: 10,
@@ -1171,8 +1172,7 @@ function applyRunPower(type) {
   if (type === 'movementSpeed') {
     state.moveSpeedMultiplier = getBaseMoveSpeedMultiplier() + runPowers.stacks.movementSpeed * 0.05;
   } else if (type === 'doubler') {
-    const rawProjectileCount = RUN_BASE.projectileCount * Math.pow(2, runPowers.stacks.doubler);
-    state.projectileCount = sanitizeProjectileCount(rawProjectileCount);
+    state.projectileCount = getSafeProjectileCountFromDoublers(runPowers.stacks.doubler);
   } else if (type === 'shield') {
     runPowers.shieldHp += getShieldPickupCapacity();
   }
@@ -1180,8 +1180,29 @@ function applyRunPower(type) {
 }
 
 function sanitizeProjectileCount(value) {
-  if (!Number.isFinite(value) || value <= 0) return RUN_BASE.projectileCount;
+  if (Number.isNaN(value) || value <= 0) return RUN_BASE.projectileCount;
+  if (!Number.isFinite(value)) return SAFETY_LIMITS.maxProjectileCount;
   return Math.min(SAFETY_LIMITS.maxProjectileCount, Math.floor(value));
+}
+
+function getSafeProjectileCountFromDoublers(stacks) {
+  if (!Number.isFinite(stacks) || stacks <= 0) return RUN_BASE.projectileCount;
+  const clampedStacks = Math.max(0, Math.floor(stacks));
+  const maxDoublers = Math.floor(Math.log2(SAFETY_LIMITS.maxProjectileCount));
+  if (clampedStacks >= maxDoublers) return SAFETY_LIMITS.maxProjectileCount;
+  return sanitizeProjectileCount(RUN_BASE.projectileCount * (2 ** clampedStacks));
+}
+
+function getVolleyProfile(projectileCount = state.projectileCount) {
+  const requestedCount = sanitizeProjectileCount(projectileCount);
+  const visualCount = Math.min(requestedCount, SAFETY_LIMITS.maxVisualProjectilesPerShot);
+  const volleyWeight = requestedCount / Math.max(1, visualCount);
+  return {
+    requestedCount,
+    visualCount,
+    volleyWeight,
+    spread: Math.min(0.75, 0.11 * Math.log2(requestedCount)),
+  };
 }
 
 function resetRunPowerUps() {
@@ -1290,22 +1311,24 @@ function damageEnemy(enemy, amount, fromChain = false) {
 
 function applyProjectilePower(enemy, bullet) {
   const hitPos = bullet.position.clone();
+  const volleyWeight = Math.max(1, bullet.userData.volleyWeight || 1);
+  const weightBoost = 1 + Math.log2(volleyWeight) * 0.18;
   spawnImpactEffects(hitPos, bullet.userData.effects || getProjectileEffects());
   if (runPowers.stacks.fire > 0) {
-    enemy.userData.fireDot += runPowers.stacks.fire * 0.7 * (1 + getUpgradeLevel('burnDamage') * 0.18);
+    enemy.userData.fireDot += runPowers.stacks.fire * 0.7 * (1 + getUpgradeLevel('burnDamage') * 0.18) * volleyWeight;
     spawnBurst(hitPos, EFFECT_COLORS.fire, 3, 1.9, 0.28, 0.8);
   }
   if (runPowers.stacks.poison > 0) {
-    enemy.userData.poisonDot += runPowers.stacks.poison * 0.9 * (1 + getUpgradeLevel('poisonDamage') * 0.18);
+    enemy.userData.poisonDot += runPowers.stacks.poison * 0.9 * (1 + getUpgradeLevel('poisonDamage') * 0.18) * volleyWeight;
     spawnBurst(hitPos, 0x7dff74, 3, 1.4, 0.36, 0.95);
   }
   if (runPowers.stacks.ice > 0) {
-    enemy.userData.iceSlowTimer = Math.max(enemy.userData.iceSlowTimer, 1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2);
+    enemy.userData.iceSlowTimer = Math.max(enemy.userData.iceSlowTimer, (1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2) * weightBoost);
     spawnBurst(hitPos, EFFECT_COLORS.ice, 3, 1.5, 0.28, 0.8);
   }
   if (runPowers.stacks.rockets > 0) {
-    const radius = 1.8 + getUpgradeLevel('rocketRadius') * 0.18 + runPowers.stacks.rockets * 0.6;
-    const splash = Math.max(1, Math.round(0.5 + runPowers.stacks.rockets * 0.8));
+    const radius = (1.8 + getUpgradeLevel('rocketRadius') * 0.18 + runPowers.stacks.rockets * 0.6) * Math.min(2.4, weightBoost);
+    const splash = Math.max(1, Math.round((0.5 + runPowers.stacks.rockets * 0.8) * volleyWeight));
     const blastRing = new THREE.Mesh(
       VFX.ringGeometry,
       new THREE.MeshBasicMaterial({ color: 0xff9d5f, transparent: true, opacity: 0.75, depthWrite: false })
@@ -1327,22 +1350,21 @@ function applyProjectilePower(enemy, bullet) {
 function shoot() {
   if (state.fireCooldown > 0) return;
   state.fireCooldown = getAttackCooldown();
-  const count = sanitizeProjectileCount(state.projectileCount);
+  const volley = getVolleyProfile(state.projectileCount);
   const baseYaw = state.yaw;
-  const spread = Math.min(0.75, 0.11 * Math.log2(count));
   const fx = getProjectileEffects();
 
-  if (bullets.length > SAFETY_LIMITS.maxActiveBullets) {
-    const overflow = bullets.length - SAFETY_LIMITS.maxActiveBullets;
+  if (bullets.length + volley.visualCount > SAFETY_LIMITS.maxActiveBullets) {
+    const overflow = bullets.length + volley.visualCount - SAFETY_LIMITS.maxActiveBullets;
     for (let i = 0; i < overflow; i++) {
       const old = bullets.shift();
       if (old) scene.remove(old);
     }
   }
 
-  for (let shot = 0; shot < count; shot++) {
-    const t = count === 1 ? 0 : shot / (count - 1);
-    const yaw = baseYaw + THREE.MathUtils.lerp(-spread, spread, t);
+  for (let shot = 0; shot < volley.visualCount; shot++) {
+    const t = volley.visualCount === 1 ? 0 : shot / (volley.visualCount - 1);
+    const yaw = baseYaw + THREE.MathUtils.lerp(-volley.spread, volley.spread, t);
     const bulletColor = new THREE.Color(0x9df9ff);
     if (fx.fire) bulletColor.lerp(new THREE.Color(EFFECT_COLORS.fire), 0.5);
     if (fx.ice) bulletColor.lerp(new THREE.Color(EFFECT_COLORS.ice), 0.42);
@@ -1361,9 +1383,10 @@ function shoot() {
     }
     bullet.userData.vel = dirVec.multiplyScalar(30);
     bullet.userData.life = 1.3;
-    bullet.userData.damage = getBaseDamage();
+    bullet.userData.damage = getBaseDamage() * volley.volleyWeight;
     bullet.userData.effects = fx;
     bullet.userData.trailTick = 0;
+    bullet.userData.volleyWeight = volley.volleyWeight;
     scene.add(bullet);
     bullets.push(bullet);
   }
