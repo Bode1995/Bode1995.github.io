@@ -344,12 +344,13 @@ export function startGameApp() {
   }
 
   function formatPowerBadge(def, count) {
+    const colorHex = `#${def.color.toString(16).padStart(6, '0')}`;
     return `
-      <span class="power-badge__icon" style="background:${`#${def.color.toString(16).padStart(6, '0')}`}">${def.symbol || def.icon}</span>
+      <span class="power-badge__icon" style="background:${colorHex}" title="${def.label} x${count}">${def.symbol || def.icon}</span>
       <span class="power-badge__meta">
         <span class="power-badge__name">${def.shortLabel || def.label}</span>
-        <span class="power-badge__count">x${count}</span>
       </span>
+      <span class="power-badge__count">${count}</span>
     `;
   }
 
@@ -360,7 +361,6 @@ export function startGameApp() {
       <span class="pickup-line__icon" style="background:${colorHex}">${def?.symbol || def?.icon || '+'}</span>
       <span class="pickup-line__meta">
         <span class="pickup-line__name">${notice.text}</span>
-        <span class="pickup-line__count">${def?.kind === 'projectile' ? 'Weapon module' : 'Pilot module'}</span>
       </span>
     `;
   }
@@ -468,20 +468,24 @@ export function startGameApp() {
 
   function updateHUD() {
     const hpPercent = THREE.MathUtils.clamp((Math.max(0, state.hp) / getPlayerMaxHp()) * 100, 0, 100);
-    ui.wave.textContent = `Welle ${state.waveInLevel} / ${WAVES_PER_LEVEL}`;
+    const roundedHp = Math.max(0, Math.round(state.hp));
+    const roundedShield = Math.max(0, Math.round(state.runPowers.shieldHp));
+    const activePowerEntries = Object.entries(state.runPowers.stacks)
+      .filter(([, count]) => count > 0)
+      .map(([key, count]) => [POWER_UP_DEFS[key], count])
+      .filter(([def]) => !!def);
+
+    ui.wave.textContent = `${state.waveInLevel}/${WAVES_PER_LEVEL}`;
     ui.score.textContent = String(state.score);
-    ui.hpValue.textContent = `${Math.max(0, Math.round(state.hp))} HP`;
+    ui.hpValue.textContent = String(roundedHp);
     ui.hpBar.style.width = `${hpPercent}%`;
-    ui.shieldValue.textContent = `${Math.max(0, Math.round(state.runPowers.shieldHp))}`;
-    ui.powerSummary.textContent = combat.getPowerSummaryText(POWER_UP_DEFS) === 'none' ? 'Keine aktiv' : 'Aktivierte Combos';
+    ui.shieldValue.textContent = String(roundedShield);
+    ui.powerSummary.textContent = `⟐ ${activePowerEntries.length}`;
     ui.missionLabel.textContent = getMissionLabel();
     ui.creditsValue.textContent = String(profile.credits + state.runCredits);
 
     ui.activePowers.innerHTML = '';
-    for (const [key, count] of Object.entries(state.runPowers.stacks)) {
-      if (count <= 0) continue;
-      const def = POWER_UP_DEFS[key];
-      if (!def) continue;
+    for (const [def, count] of activePowerEntries) {
       const badge = document.createElement('div');
       badge.className = 'power-badge';
       badge.innerHTML = formatPowerBadge(def, count);
@@ -490,12 +494,12 @@ export function startGameApp() {
     if (!ui.activePowers.children.length) {
       const emptyBadge = document.createElement('div');
       emptyBadge.className = 'power-badge';
-      emptyBadge.innerHTML = '<span class="power-badge__icon" style="background:#2a3044">--</span><span class="power-badge__meta"><span class="power-badge__name">No buffs</span><span class="power-badge__count">Collect pickups</span></span>';
+      emptyBadge.innerHTML = '<span class="power-badge__icon" style="background:#2a3044" title="Keine aktiven Power-ups">+</span><span class="power-badge__count">0</span>';
       ui.activePowers.appendChild(emptyBadge);
     }
 
     ui.pickupFeed.innerHTML = '';
-    for (const notice of state.ui.pickupNotices) {
+    for (const notice of state.ui.pickupNotices.slice(0, 3)) {
       const el = document.createElement('div');
       el.className = 'pickup-line';
       el.style.opacity = `${Math.max(0, notice.life / notice.maxLife)}`;

@@ -464,64 +464,143 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 
 .hud {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  left: max(12px, env(safe-area-inset-left));
-  right: max(12px, env(safe-area-inset-right));
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.7fr);
-  gap: 12px;
+  inset: 0;
   z-index: 10;
   pointer-events: none;
   font-weight: 700;
 }
 
-.hud-column {
-  display: grid;
-  gap: 12px;
-  align-content: start;
+.hud-topbar,
+.hud-side {
+  position: absolute;
+  display: flex;
+  gap: 8px;
 }
 
-.hud-card {
-  padding: 14px 16px;
-  background: linear-gradient(180deg, rgba(18, 22, 38, 0.88), rgba(10, 13, 24, 0.88));
-  backdrop-filter: blur(12px);
-}
-
-.hud-card__head,
-.result-grid,
-.hud-inline-grid {
+.hud-topbar {
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: start;
 }
 
-.hud-card__value {
-  font-size: clamp(18px, 2.4vw, 28px);
+.hud-side--right {
+  top: calc(max(10px, env(safe-area-inset-top)) + 58px);
+  right: max(10px, env(safe-area-inset-right));
+  flex-direction: column;
+  align-items: flex-end;
+  width: min(150px, 34vw);
 }
 
-.hud-card__detail,
-.hud-mini-stat__value {
-  color: var(--muted);
+.hud-cluster,
+.hud-health,
+.hud-chip,
+.hud-power-summary,
+.power-badge,
+.pickup-line {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 14, 25, 0.62);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
-.hud-mini-stat {
-  text-align: right;
+.hud-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  max-width: min(34vw, 320px);
 }
 
-.hud-inline-grid {
+.hud-cluster--mission {
+  justify-content: flex-start;
+}
+
+.hud-cluster--powers {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  max-width: min(38vw, 380px);
+}
+
+.hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  color: var(--text);
+  line-height: 1;
+}
+
+.hud-chip__icon,
+.hud-stat-pill__icon,
+.power-badge__icon,
+.pickup-line__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.hud-chip__icon {
+  width: 20px;
+  height: 20px;
+  color: var(--teal);
+  font-size: 14px;
+}
+
+.hud-chip__value {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.hud-health {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  min-width: min(36vw, 320px);
+  max-width: min(42vw, 360px);
+  padding: 8px 10px 10px;
 }
 
-.hud-card--compact .hud-card__value,
-.hud-card--credits .hud-card__value {
-  font-size: clamp(22px, 3vw, 30px);
+.hud-health__stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hud-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.hud-stat-pill strong {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+.hud-stat-pill--hp .hud-stat-pill__icon {
+  color: var(--danger);
+}
+
+.hud-stat-pill--shield .hud-stat-pill__icon {
+  color: #86dcff;
+}
+
+.hud-health__bar {
+  margin-top: 0;
+  height: 8px;
 }
 
 .bar {
-  height: 12px;
   border-radius: 999px;
   background: rgba(157, 178, 212, 0.18);
-  margin-top: 10px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -534,67 +613,209 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   box-shadow: 0 0 22px rgba(255, 184, 92, 0.3);
 }
 
+.hud-power-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .power-stack {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .power-badge,
 .pickup-line {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(11, 15, 29, 0.84);
 }
 
 .power-badge {
-  padding: 8px 10px;
-  min-width: 106px;
+  position: relative;
+  min-width: 0;
+  padding: 6px;
 }
 
 .power-badge__icon,
 .pickup-line__icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
   color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.power-badge__count {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(7, 11, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
 }
 
 .power-badge__meta,
-.pickup-line__meta {
-  display: grid;
-}
-
 .power-badge__name,
-.pickup-line__name {
-  font-size: 12px;
-  color: var(--text);
-}
-
-.power-badge__count,
 .pickup-line__count {
-  font-size: 11px;
-  color: var(--muted);
+  display: none;
 }
 
 .pickup-feed {
   display: grid;
-  gap: 6px;
-  min-width: 180px;
-  margin-top: 10px;
+  gap: 5px;
+  width: 100%;
 }
 
 .pickup-line {
-  padding: 8px 10px;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  justify-content: flex-start;
+  background: rgba(10, 14, 25, 0.46);
+}
+
+.pickup-line__meta {
+  display: block;
+  min-width: 0;
+}
+
+.pickup-line__name {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .hud-topbar {
+    gap: 6px;
+  }
+
+  .hud-cluster,
+  .hud-health {
+    max-width: min(33vw, 280px);
+    min-width: 0;
+  }
+
+  .hud-cluster--powers {
+    max-width: min(34vw, 320px);
+  }
+}
+
+@media (max-width: 720px) {
+  .panel { padding: 18px; }
+  .menu-hero-grid,
+  .menu-header,
+  .section-head,
+  .hero-card,
+  .summary-stack--menu {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .menu-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .btn, .ghost-btn, .menu-tab { width: 100%; justify-content: center; }
+  .hero-actions, .result-actions, .menu-hero-actions { flex-direction: column; }
+
+  .hud-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+    grid-template-areas:
+      'mission powers'
+      'health health';
+    align-items: start;
+  }
+
+  .hud-cluster--mission { grid-area: mission; }
+  .hud-health { grid-area: health; max-width: none; }
+  .hud-cluster--powers {
+    grid-area: powers;
+    justify-self: end;
+    max-width: min(42vw, 220px);
+  }
+
+  .hud-side--right {
+    top: calc(max(10px, env(safe-area-inset-top)) + 102px);
+    width: min(132px, 36vw);
+  }
+}
+
+@media (max-width: 560px) {
+  .menu-nav,
+  .summary-stack--menu {
+    grid-template-columns: 1fr;
+  }
+  .compact-grid,
+  .world-grid,
+  .level-grid,
+  .stats-grid,
+  .character-grid,
+  .upgrade-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .hud-topbar {
+    top: max(6px, env(safe-area-inset-top));
+    left: max(6px, env(safe-area-inset-left));
+    right: max(6px, env(safe-area-inset-right));
+    gap: 5px;
+  }
+
+  .hud-cluster {
+    padding: 5px;
+    gap: 5px;
+    max-width: min(48vw, 180px);
+  }
+
+  .hud-chip,
+  .hud-power-summary {
+    min-height: 34px;
+    padding: 7px 9px;
+  }
+
+  .hud-chip__value,
+  .hud-stat-pill strong {
+    font-size: 12px;
+  }
+
+  .hud-health {
+    padding: 7px 9px 9px;
+  }
+
+  .hud-side--right {
+    top: calc(max(6px, env(safe-area-inset-top)) + 90px);
+    right: max(6px, env(safe-area-inset-right));
+    gap: 5px;
+    width: min(116px, 34vw);
+  }
+
+  .pickup-line {
+    padding: 5px 7px;
+  }
+
+  .pickup-line__name {
+    font-size: 10px;
+  }
 }
 
 .controls {
