@@ -23,16 +23,42 @@ export function createGameState(profile, helpers) {
     savedRunTime: 0,
     lastProfileSaveAt: 0,
     pendingResult: null,
+    selection: {
+      worldIndex: profile.progression.selectedWorld,
+      levelIndex: profile.progression.selectedLevel,
+      characterId: null,
+    },
     performance: {
       frameMs: 16.7,
       fps: 60,
       qualityLevel: 0,
       debugEnabled: false,
       activeEnemyEffects: 0,
+      enemyEffectSoftCap: 0,
+      frameBudgets: {
+        lightningChains: 0,
+        vfxSpawns: 0,
+        damageNumbers: 0,
+        bulletsSpawned: 0,
+        dotTicks: 0,
+        splashDamageEvents: 0,
+        hitResolutions: 0,
+        statusVfx: 0,
+      },
     },
     ui: {
       activeMenuScreen: 'home',
       pickupNotices: [],
+    },
+    world: {
+      colliders: [],
+      playerCollisionRadius: 0.72,
+    },
+    input: {
+      move: null,
+      keys: null,
+      moveTouch: null,
+      shooting: false,
     },
     entities: {
       enemies: [],

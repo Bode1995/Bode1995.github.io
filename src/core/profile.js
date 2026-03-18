@@ -74,14 +74,27 @@ export function createProfileApi(profile) {
   return {
     profile,
     save: () => saveProfile(profile),
-    isLevelUnlocked(world, level) {
-      return level <= (profile.progression.unlockedLevels[world] || 0);
-    },
     getLevelKey(world, level) {
       return `${world}-${level}`;
     },
+    isLevelUnlocked(world, level) {
+      return level <= (profile.progression.unlockedLevels[world] || 0);
+    },
+    selectMission(world, level) {
+      profile.progression.selectedWorld = world;
+      profile.progression.selectedLevel = level;
+    },
+    getSelectedMission() {
+      return {
+        world: profile.progression.selectedWorld,
+        level: profile.progression.selectedLevel,
+      };
+    },
+    getUnlockedLevelCount() {
+      return Object.values(profile.progression.unlockedLevels).reduce((sum, count) => sum + Math.max(0, count || 0), 0);
+    },
     unlockNextMission(world, level) {
-      profile.progression.completedLevels[`${world}-${level}`] = true;
+      profile.progression.completedLevels[this.getLevelKey(world, level)] = true;
       if (level < LEVELS_PER_WORLD) {
         profile.progression.unlockedLevels[world] = Math.max(profile.progression.unlockedLevels[world] || 0, level + 1);
       } else if (world < WORLDS_COUNT) {
