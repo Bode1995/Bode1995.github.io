@@ -20,16 +20,31 @@ export function createEnemySystem({
     arm: new THREE.CapsuleGeometry(0.22, 0.8, 5, 8),
     cone: new THREE.ConeGeometry(0.5, 1, 6),
     visor: new THREE.BoxGeometry(0.35, 0.18, 0.08),
+    spike: new THREE.CylinderGeometry(0.08, 0.18, 0.7, 6),
     weaponBarrel: new THREE.CylinderGeometry(0.12, 0.12, 0.9, 8),
   };
 
-  const ENEMY_MATERIALS = {
-    shell: new THREE.MeshStandardMaterial({ color: 0xc94661, roughness: 0.52, metalness: 0.2 }),
-    dark: new THREE.MeshStandardMaterial({ color: 0x3e1020, roughness: 0.72, metalness: 0.08 }),
-    mech: new THREE.MeshStandardMaterial({ color: 0x647088, roughness: 0.42, metalness: 0.5 }),
-    glow: new THREE.MeshStandardMaterial({ color: 0x6ce6ff, emissive: 0x1f94a8, roughness: 0.35, metalness: 0.35 }),
-    bone: new THREE.MeshStandardMaterial({ color: 0xf2d3bb, roughness: 0.6, metalness: 0.06 }),
+  const enemyStyle = {
+    runner: { shell: 0xff6d78, dark: 0x30111d, main: 0x5d2030, glow: 0xffb39d },
+    tank: { shell: 0xffb85c, dark: 0x251918, main: 0x635349, glow: 0xffdf8d },
+    shooter: { shell: 0xa66bff, dark: 0x1e1332, main: 0x49516f, glow: 0x86dfff },
+    swarm: { shell: 0x35f3d1, dark: 0x0d2a27, main: 0x15534a, glow: 0xb1fff2 },
+    charger: { shell: 0xff8c5f, dark: 0x311711, main: 0x6a3123, glow: 0xffe3ae },
+    splitter: { shell: 0x7e8cff, dark: 0x1a1d39, main: 0x394165, glow: 0x73ffb0 },
+    bossHeavy: { shell: 0xff7b92, dark: 0x200f1b, main: 0x545f7a, glow: 0xffd470 },
+    bossAgile: { shell: 0x35f3d1, dark: 0x112437, main: 0x3f3f74, glow: 0xc6b7ff },
   };
+
+  function createMaterials(type) {
+    const style = enemyStyle[type] || enemyStyle.runner;
+    return {
+      shell: new THREE.MeshStandardMaterial({ color: style.shell, emissive: style.shell, emissiveIntensity: 0.14, roughness: 0.38, metalness: 0.24 }),
+      dark: new THREE.MeshStandardMaterial({ color: style.dark, roughness: 0.7, metalness: 0.1 }),
+      main: new THREE.MeshStandardMaterial({ color: style.main, roughness: 0.46, metalness: 0.34 }),
+      glow: new THREE.MeshStandardMaterial({ color: style.glow, emissive: style.glow, emissiveIntensity: 0.32, roughness: 0.2, metalness: 0.34 }),
+      bone: new THREE.MeshStandardMaterial({ color: 0xf1d6bf, roughness: 0.6, metalness: 0.06 }),
+    };
+  }
 
   function addMesh(parent, geometry, material, position, rotation = [0, 0, 0], scale = [1, 1, 1]) {
     const mesh = new THREE.Mesh(geometry, material);
@@ -43,6 +58,7 @@ export function createEnemySystem({
   }
 
   function createEnemyModel(type) {
+    const mats = createMaterials(type);
     const root = new THREE.Group();
     const body = new THREE.Group();
     root.add(body);
@@ -51,101 +67,114 @@ export function createEnemySystem({
 
     if (type === 'runner') {
       body.rotation.x = -0.22;
-      add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 0.95, 0], [0, 0, 0], [0.92, 0.58, 1.55]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 1.02, 0.65], [0.15, 0, 0], [0.5, 0.2, 0.45]);
-      const left = new THREE.Group(); const right = new THREE.Group();
-      left.position.set(-0.3, 0.7, 0.08); right.position.set(0.3, 0.7, 0.08); body.add(left, right);
-      add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.45, 0], [0.35, 0, 0], [0.58, 1.25, 0.58], left);
-      add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.45, 0], [0.35, 0, 0], [0.58, 1.25, 0.58], right);
-      anim.legs.push(left, right);
+      add(sharedGeometries.box, mats.shell, [0, 0.98, 0], [0, 0, 0], [0.92, 0.58, 1.65]);
+      add(sharedGeometries.box, mats.main, [0, 1.14, -0.08], [0.14, 0, 0], [0.74, 0.26, 1.15]);
+      add(sharedGeometries.box, mats.glow, [0, 1.04, 0.72], [0.15, 0, 0], [0.54, 0.22, 0.52]);
+      for (const side of [-1, 1]) {
+        add(sharedGeometries.spike, mats.glow, [side * 0.42, 1.18, 0.28], [Math.PI * 0.45, 0, side * 0.18], [0.8, 1, 0.8]);
+        const leg = new THREE.Group();
+        leg.position.set(side * 0.3, 0.7, 0.08);
+        body.add(leg);
+        add(sharedGeometries.leg, mats.dark, [0, -0.45, 0], [0.35, 0, 0], [0.58, 1.25, 0.58], leg);
+        anim.legs.push(leg);
+      }
     } else if (type === 'tank') {
-      add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 1.2, 0], [0, 0, 0], [1.8, 1.15, 1.55]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 1.95, -0.08], [0.12, 0, 0], [1.35, 0.45, 1.2]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 1.45, 0.75], [0, 0, 0], [0.58, 0.25, 0.35]);
+      add(sharedGeometries.box, mats.main, [0, 1.2, 0], [0, 0, 0], [1.8, 1.15, 1.55]);
+      add(sharedGeometries.box, mats.dark, [0, 1.95, -0.08], [0.12, 0, 0], [1.35, 0.45, 1.2]);
+      add(sharedGeometries.box, mats.shell, [0, 1.42, 0.74], [0, 0, 0], [0.68, 0.26, 0.4]);
+      add(sharedGeometries.visor, mats.glow, [0, 2.05, 0.58], [0, 0, 0], [2.4, 1.2, 1.2]);
       for (const side of [-1, 1]) {
         const leg = new THREE.Group();
         leg.position.set(side * 0.82, 0.72, 0);
         body.add(leg);
-        add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.52, 0], [0.05, 0, 0], [1.2, 1, 1.2], leg);
+        add(sharedGeometries.leg, mats.dark, [0, -0.52, 0], [0.05, 0, 0], [1.2, 1, 1.2], leg);
         anim.legs.push(leg);
       }
     } else if (type === 'shooter') {
-      add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 1.05, 0], [0, 0.1, 0], [1.05, 0.86, 1.05]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 1.62, -0.12], [0.18, 0, 0], [0.82, 0.35, 0.8]);
+      add(sharedGeometries.box, mats.main, [0, 1.05, 0], [0, 0.1, 0], [1.05, 0.86, 1.05]);
+      add(sharedGeometries.box, mats.shell, [0, 1.62, -0.12], [0.18, 0, 0], [0.82, 0.35, 0.8]);
+      add(sharedGeometries.visor, mats.glow, [0, 1.28, 0.56], [0, 0, 0], [2.1, 1.1, 1.2]);
       const gun = new THREE.Group();
       gun.position.set(0, 1.2, 0.92);
       body.add(gun);
-      add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 0, 0], [0, 0, 0], [0.3, 0.25, 1.35], gun);
-      add(sharedGeometries.weaponBarrel, ENEMY_MATERIALS.glow, [0, -0.03, 0.84], [Math.PI / 2, 0, 0], [1, 1, 0.88], gun);
+      add(sharedGeometries.box, mats.dark, [0, 0, 0], [0, 0, 0], [0.3, 0.25, 1.35], gun);
+      add(sharedGeometries.weaponBarrel, mats.glow, [0, -0.03, 0.84], [Math.PI / 2, 0, 0], [1, 1, 0.88], gun);
       anim.extras.push(gun);
       for (const side of [-1, 1]) {
         const leg = new THREE.Group();
         leg.position.set(side * 0.36, 0.64, 0);
         body.add(leg);
-        add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.45, 0], [0, 0, 0], [0.65, 1, 0.65], leg);
+        add(sharedGeometries.leg, mats.dark, [0, -0.45, 0], [0, 0, 0], [0.65, 1, 0.65], leg);
         anim.legs.push(leg);
       }
     } else if (type === 'swarm') {
-      add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 0.5, 0], [0, 0.5, 0], [0.48, 0.42, 0.62]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 0.55, 0.25], [0.2, 0, 0], [0.3, 0.14, 0.2]);
+      add(sharedGeometries.box, mats.shell, [0, 0.5, 0], [0, 0.5, 0], [0.48, 0.42, 0.62]);
+      add(sharedGeometries.box, mats.glow, [0, 0.55, 0.25], [0.2, 0, 0], [0.3, 0.14, 0.2]);
+      add(sharedGeometries.spike, mats.glow, [0, 0.68, 0.06], [Math.PI * 0.45, 0, 0], [0.7, 0.8, 0.7]);
       for (const side of [-1, 1]) {
         const leg = new THREE.Group();
         leg.position.set(side * 0.16, 0.33, 0);
         body.add(leg);
-        add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.18, 0], [0.45, 0, 0], [0.24, 0.7, 0.24], leg);
+        add(sharedGeometries.leg, mats.dark, [0, -0.18, 0], [0.45, 0, 0], [0.24, 0.7, 0.24], leg);
         anim.legs.push(leg);
       }
     } else if (type === 'charger') {
       body.rotation.x = -0.1;
-      add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 1.05, 0], [0.1, 0, 0], [1.08, 0.7, 1.48]);
-      add(sharedGeometries.cone, ENEMY_MATERIALS.bone, [0, 1.18, 0.92], [Math.PI / 2, 0, 0], [0.62, 0.75, 0.62]);
+      add(sharedGeometries.box, mats.shell, [0, 1.05, 0], [0.1, 0, 0], [1.08, 0.7, 1.48]);
+      add(sharedGeometries.cone, mats.bone, [0, 1.18, 0.92], [Math.PI / 2, 0, 0], [0.62, 0.75, 0.62]);
+      add(sharedGeometries.box, mats.main, [0, 1.18, -0.18], [0.14, 0, 0], [0.78, 0.28, 1.08]);
       for (const side of [-1, 1]) {
-        add(sharedGeometries.cone, ENEMY_MATERIALS.dark, [side * 0.62, 1.05, 0.66], [Math.PI / 2, side * 0.3, 0], [0.38, 0.55, 0.38]);
+        add(sharedGeometries.cone, mats.dark, [side * 0.62, 1.05, 0.66], [Math.PI / 2, side * 0.3, 0], [0.38, 0.55, 0.38]);
         const leg = new THREE.Group();
         leg.position.set(side * 0.4, 0.66, 0.1);
         body.add(leg);
-        add(sharedGeometries.leg, ENEMY_MATERIALS.dark, [0, -0.4, 0], [0.18, 0, 0], [0.7, 1.05, 0.7], leg);
+        add(sharedGeometries.leg, mats.dark, [0, -0.4, 0], [0.18, 0, 0], [0.7, 1.05, 0.7], leg);
         anim.legs.push(leg);
       }
     } else if (type === 'splitter') {
-      add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 1.02, 0], [0, 0.25, 0], [0.84, 0.76, 1.15]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 1.02, 0], [0, -0.2, 0], [0.82, 0.2, 1.25]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 1.15, 0.72], [0, 0, 0], [0.34, 0.2, 0.26]);
+      add(sharedGeometries.box, mats.main, [0, 1.02, 0], [0, 0.25, 0], [0.84, 0.76, 1.15]);
+      add(sharedGeometries.box, mats.shell, [0, 1.02, 0], [0, -0.2, 0], [0.82, 0.2, 1.25]);
+      add(sharedGeometries.box, mats.glow, [0, 1.15, 0.72], [0, 0, 0], [0.34, 0.2, 0.26]);
       for (const side of [-1, 1]) {
         const segment = new THREE.Group();
         segment.position.set(side * 0.5, 0.84, 0);
         body.add(segment);
-        add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 0, 0], [0, side * 0.35, 0], [0.34, 0.68, 0.5], segment);
+        add(sharedGeometries.box, mats.dark, [0, 0, 0], [0, side * 0.35, 0], [0.34, 0.68, 0.5], segment);
+        add(sharedGeometries.visor, mats.glow, [0, 0.14, 0.28], [0, 0, 0], [0.85, 0.7, 0.7], segment);
         anim.extras.push(segment);
       }
     } else if (type === 'bossHeavy') {
-      add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 1.85, 0], [0, 0, 0], [2.85, 1.8, 2.25]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 3.1, -0.2], [0.18, 0, 0], [2.25, 0.65, 1.85]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 2.45, 1.32], [0.2, 0, 0], [1.2, 0.95, 0.8]);
+      add(sharedGeometries.box, mats.main, [0, 1.85, 0], [0, 0, 0], [2.85, 1.8, 2.25]);
+      add(sharedGeometries.box, mats.dark, [0, 3.1, -0.2], [0.18, 0, 0], [2.25, 0.65, 1.85]);
+      add(sharedGeometries.box, mats.shell, [0, 2.45, 1.32], [0.2, 0, 0], [1.2, 0.95, 0.8]);
+      add(sharedGeometries.visor, mats.glow, [0, 2.18, 1.26], [0, 0, 0], [2.8, 1.3, 1.1]);
       for (const side of [-1, 1]) {
         const tower = new THREE.Group();
         tower.position.set(side * 1.35, 2.62, 0.2);
         body.add(tower);
-        add(sharedGeometries.box, ENEMY_MATERIALS.dark, [0, 0, 0], [0, 0, 0], [0.62, 1.15, 0.62], tower);
-        add(sharedGeometries.visor, ENEMY_MATERIALS.glow, [0, 0.38, 0.24], [0, 0, 0], [1.2, 1, 1.3], tower);
+        add(sharedGeometries.box, mats.dark, [0, 0, 0], [0, 0, 0], [0.62, 1.15, 0.62], tower);
+        add(sharedGeometries.visor, mats.glow, [0, 0.38, 0.24], [0, 0, 0], [1.2, 1, 1.3], tower);
+        add(sharedGeometries.spike, mats.shell, [0, 0.88, 0.18], [0, 0, 0], [1.1, 1.2, 1.1], tower);
         anim.extras.push(tower);
       }
     } else if (type === 'bossAgile') {
-      add(sharedGeometries.box, ENEMY_MATERIALS.shell, [0, 1.6, 0], [0.08, 0, 0], [1.8, 1.2, 1.7]);
-      add(sharedGeometries.box, ENEMY_MATERIALS.glow, [0, 2.4, -0.2], [0.18, 0, 0], [1.05, 0.55, 1.18]);
+      add(sharedGeometries.box, mats.shell, [0, 1.6, 0], [0.08, 0, 0], [1.8, 1.2, 1.7]);
+      add(sharedGeometries.box, mats.glow, [0, 2.4, -0.2], [0.18, 0, 0], [1.05, 0.55, 1.18]);
+      add(sharedGeometries.visor, mats.main, [0, 1.9, 0.96], [0, 0, 0], [2.4, 1.2, 1.1]);
       for (const side of [-1, 1]) {
         const limb = new THREE.Group();
         limb.position.set(side * 1.05, 1.5, 0.1);
         body.add(limb);
-        add(sharedGeometries.arm, ENEMY_MATERIALS.dark, [0, -0.35, 0], [0.2, 0, side * 0.25], [0.9, 1.4, 0.9], limb);
-        add(sharedGeometries.cone, ENEMY_MATERIALS.bone, [0, -1, 0.25], [Math.PI, 0, 0], [0.34, 0.55, 0.34], limb);
+        add(sharedGeometries.arm, mats.dark, [0, -0.35, 0], [0.2, 0, side * 0.25], [0.9, 1.4, 0.9], limb);
+        add(sharedGeometries.cone, mats.bone, [0, -1, 0.25], [Math.PI, 0, 0], [0.34, 0.55, 0.34], limb);
         anim.legs.push(limb);
       }
       const rotor = new THREE.Group();
       rotor.position.set(0, 2.95, 0);
       body.add(rotor);
-      add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 0, 0], [0, 0, 0], [1.85, 0.1, 0.2], rotor);
-      add(sharedGeometries.box, ENEMY_MATERIALS.mech, [0, 0, 0], [0, Math.PI / 2, 0], [1.85, 0.1, 0.2], rotor);
+      add(sharedGeometries.box, mats.main, [0, 0, 0], [0, 0, 0], [1.85, 0.1, 0.2], rotor);
+      add(sharedGeometries.box, mats.main, [0, 0, 0], [0, Math.PI / 2, 0], [1.85, 0.1, 0.2], rotor);
+      add(sharedGeometries.box, mats.glow, [0, 0, 0], [0, Math.PI / 4, 0], [1.1, 0.08, 0.12], rotor);
       anim.extras.push(rotor);
     }
 

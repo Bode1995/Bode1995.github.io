@@ -12,19 +12,27 @@ export function setupCharacterSelection({
   function createCharacterCard(def) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'character-card';
+    button.className = 'character-card card-surface';
     button.dataset.characterId = def.id;
+
+    const meta = document.createElement('div');
+    meta.className = 'character-meta';
+    meta.innerHTML = `<span class="card-chip">${def.roleLabel || 'Pilot'}</span><span class="character-accent-dot"></span>`;
 
     const label = document.createElement('div');
     label.className = 'character-name';
     label.textContent = def.name;
 
+    const subline = document.createElement('div');
+    subline.className = 'character-subline';
+    subline.textContent = def.tagline || 'Adaptive combat frame';
+
     const previewCanvas = document.createElement('canvas');
     previewCanvas.className = 'character-preview';
-    previewCanvas.width = 180;
-    previewCanvas.height = 140;
+    previewCanvas.width = 220;
+    previewCanvas.height = 160;
 
-    button.append(previewCanvas, label);
+    button.append(meta, previewCanvas, label, subline);
     ui.characterGrid.append(button);
 
     const previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
@@ -32,24 +40,35 @@ export function setupCharacterSelection({
     previewRenderer.setSize(previewCanvas.width, previewCanvas.height, false);
 
     const previewScene = new THREE.Scene();
-    const previewCamera = new THREE.PerspectiveCamera(50, previewCanvas.width / previewCanvas.height, 0.1, 30);
-    previewCamera.position.set(0, 3.3, 5.2);
-    previewCamera.lookAt(0, 1.2, 0);
+    const previewCamera = new THREE.PerspectiveCamera(48, previewCanvas.width / previewCanvas.height, 0.1, 30);
+    previewCamera.position.set(0, 3.25, 5.6);
+    previewCamera.lookAt(0, 1.45, 0);
 
-    previewScene.add(new THREE.HemisphereLight(0xbfe9ff, 0x10223a, 0.8));
-    const pDir = new THREE.DirectionalLight(0xffffff, 0.9);
-    pDir.position.set(3, 6, 3);
-    previewScene.add(pDir);
+    previewScene.add(new THREE.HemisphereLight(0xa8bfff, 0x150f22, 0.72));
+    const key = new THREE.DirectionalLight(def.accent || 0xffffff, 1.05);
+    key.position.set(3.2, 5.8, 3.6);
+    previewScene.add(key);
+    const fill = new THREE.DirectionalLight(0x8fffea, 0.4);
+    fill.position.set(-3.5, 2.5, 1.4);
+    previewScene.add(fill);
 
     const floor = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.1, 2.1, 0.2, 24),
-      new THREE.MeshStandardMaterial({ color: 0x15324b, roughness: 0.85, metalness: 0.05 })
+      new THREE.CylinderGeometry(2.25, 2.45, 0.24, 32),
+      new THREE.MeshStandardMaterial({ color: 0x130f22, emissive: def.emissive, emissiveIntensity: 0.22, roughness: 0.78, metalness: 0.15 })
     );
-    floor.position.y = -0.1;
+    floor.position.y = -0.08;
     previewScene.add(floor);
 
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(1.55, 0.05, 12, 40),
+      new THREE.MeshBasicMaterial({ color: def.accent, transparent: true, opacity: 0.9 })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.03;
+    previewScene.add(ring);
+
     const rig = createCharacterRig(def);
-    rig.root.position.y = 0.1;
+    rig.root.position.y = 0.08;
     previewScene.add(rig.root);
 
     button.addEventListener('click', () => {
@@ -60,7 +79,7 @@ export function setupCharacterSelection({
     button.addEventListener('pointerenter', () => button.classList.add('is-hovered'));
     button.addEventListener('pointerleave', () => button.classList.remove('is-hovered'));
 
-    return { def, button, previewRenderer, previewScene, previewCamera, rig };
+    return { def, button, previewRenderer, previewScene, previewCamera, rig, ring };
   }
 
   function refresh() {
@@ -78,8 +97,10 @@ export function setupCharacterSelection({
     refresh,
     renderPreviews(elapsed) {
       for (const [index, card] of previewCards.entries()) {
-        card.rig.root.rotation.y = elapsed * 0.5;
-        animateCharacterRig(card.rig, 0.12, elapsed + index, true);
+        card.ring.rotation.z = elapsed * 0.26;
+        card.ring.material.opacity = 0.55 + Math.sin(elapsed * 2.4 + index) * 0.18;
+        card.rig.root.rotation.y = elapsed * 0.52;
+        animateCharacterRig(card.rig, 0.18, elapsed + index, true);
         card.previewRenderer.render(card.previewScene, card.previewCamera);
       }
     },
