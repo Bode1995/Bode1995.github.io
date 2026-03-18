@@ -219,13 +219,19 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     const budgets = state.performance.frameBudgets;
     const existing = enemyData.damageNumberRef;
     const roundedAmount = Math.max(1, Math.round(amount));
+    const nextAmount = enemyData.damageWindowTimer < DAMAGE_NUMBER_IDLE_WINDOW
+      ? enemyData.damageWindowTotal + roundedAmount
+      : roundedAmount;
+
+    enemyData.damageWindowTotal = nextAmount;
+    enemyData.damageWindowTimer = 0;
+
     if (existing && state.entities.damageNumbers.includes(existing)) {
       if (existing.expiring) {
         disposeDamageNumber(existing);
         state.entities.damageNumbers.splice(state.entities.damageNumbers.indexOf(existing), 1);
         enemyData.damageNumberRef = null;
       } else {
-        const nextAmount = existing.amountTotal + roundedAmount;
         existing.hitCount = (existing.hitCount || 1) + 1;
         existing.lastHitAt = 0;
         existing.idleTimer = 0;
@@ -266,7 +272,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       canvas,
       ctx,
       amount: roundedAmount,
-      amountTotal: roundedAmount,
+      amountTotal: nextAmount,
       enemy,
       lastHitAt: 0,
       idleTimer: 0,
@@ -289,7 +295,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       strokePx: 24,
       hitCount: 1,
     };
-    applyDamageNumberVisualConfig(entry, roundedAmount);
+    applyDamageNumberVisualConfig(entry, nextAmount);
     triggerDamageNumberPulse(entry, 0.95);
     updateDamageNumberTexture(entry);
     sprite.scale.set(entry.baseSpriteWidth * entry.spawnScale, entry.baseSpriteHeight * entry.spawnScale, 1);
