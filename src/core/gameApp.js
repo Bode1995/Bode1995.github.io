@@ -79,11 +79,11 @@ export function startGameApp() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.04;
+  renderer.toneMappingExposure = 1.16;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x090c16);
-  scene.fog = new THREE.Fog(0x090c16, 24, 128);
+  scene.background = new THREE.Color(0xc7d7dc);
+  scene.fog = new THREE.Fog(0xc7d7dc, 54, 155);
 
   const camera = new THREE.PerspectiveCamera(gameplayConfig.camera.fov, window.innerWidth / window.innerHeight, 0.1, 220);
   const clock = new THREE.Clock();
@@ -102,145 +102,62 @@ export function startGameApp() {
     SAFETY_LIMITS,
   };
 
-  const hemi = new THREE.HemisphereLight(0x7a93ff, 0x100d16, 0.68);
+  const hemi = new THREE.HemisphereLight(0xe7f2ff, 0x8b745f, 1.12);
   scene.add(hemi);
 
-  const keyLight = new THREE.DirectionalLight(0xffe2b2, 1.22);
-  keyLight.position.set(12, 22, 6);
+  const keyLight = new THREE.DirectionalLight(0xfff1cf, 2.05);
+  keyLight.position.set(24, 34, 18);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.mapSize.set(1536, 1536);
   keyLight.shadow.camera.near = 0.1;
-  keyLight.shadow.camera.far = 92;
-  keyLight.shadow.camera.left = -42;
-  keyLight.shadow.camera.right = 42;
-  keyLight.shadow.camera.top = 42;
-  keyLight.shadow.camera.bottom = -42;
-  keyLight.shadow.bias = -0.00025;
+  keyLight.shadow.camera.far = 130;
+  keyLight.shadow.camera.left = -58;
+  keyLight.shadow.camera.right = 58;
+  keyLight.shadow.camera.top = 58;
+  keyLight.shadow.camera.bottom = -58;
+  keyLight.shadow.bias = -0.00018;
   scene.add(keyLight);
 
-  const fillLight = new THREE.DirectionalLight(0x74ffe0, 0.38);
-  fillLight.position.set(-18, 12, -11);
+  const fillLight = new THREE.DirectionalLight(0xbfd8ff, 0.72);
+  fillLight.position.set(-26, 18, -14);
   scene.add(fillLight);
 
-  const accentLight = new THREE.PointLight(0xa66bff, 0.68, 78, 2);
-  accentLight.position.set(0, 18, -8);
-  scene.add(accentLight);
+  const warmBounceLight = new THREE.DirectionalLight(0xf4c998, 0.36);
+  warmBounceLight.position.set(8, 10, -26);
+  scene.add(warmBounceLight);
 
   const arenaRoot = new THREE.Group();
   const arenaBase = new THREE.Mesh(
-    new THREE.CylinderGeometry(gameplayConfig.arena.size * 0.54, gameplayConfig.arena.size * 0.56, 1.8, 56),
-    new THREE.MeshStandardMaterial({ color: 0x141b2a, roughness: 0.86, metalness: 0.18 }),
+    new THREE.CylinderGeometry(gameplayConfig.arena.size * 0.58, gameplayConfig.arena.size * 0.6, 2.4, 64),
+    new THREE.MeshStandardMaterial({ color: 0x7c735f, roughness: 0.97, metalness: 0.02 }),
   );
-  arenaBase.position.y = -0.92;
+  arenaBase.position.y = -1.18;
   arenaBase.receiveShadow = true;
   arenaRoot.add(arenaBase);
 
+  const arenaUnderside = new THREE.Mesh(
+    new THREE.CylinderGeometry(gameplayConfig.arena.size * 0.54, gameplayConfig.arena.size * 0.56, 1.2, 64),
+    new THREE.MeshStandardMaterial({ color: 0x5a5245, roughness: 1, metalness: 0.01 }),
+  );
+  arenaUnderside.position.y = -2;
+  arenaUnderside.receiveShadow = true;
+  arenaRoot.add(arenaUnderside);
+
   const arena = new THREE.Mesh(
     new THREE.PlaneGeometry(gameplayConfig.arena.size, gameplayConfig.arena.size, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x151c2b, emissive: 0x070a12, emissiveIntensity: 0.18, metalness: 0.22, roughness: 0.84 }),
+    new THREE.MeshStandardMaterial({ color: 0x66675f, metalness: 0.02, roughness: 0.98 }),
   );
   arena.rotation.x = -Math.PI / 2;
   arena.receiveShadow = true;
   arenaRoot.add(arena);
 
-  const floorDecalMaterial = (color, opacity) => new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-
-  const addFlat = (mesh, y = 0.014) => {
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.y = y;
-    arenaRoot.add(mesh);
-    return mesh;
-  };
-
-  addFlat(new THREE.Mesh(
-    new THREE.CircleGeometry(11.5, 40),
-    floorDecalMaterial(0x1c2538, 0.8),
-  ));
-
-  addFlat(new THREE.Mesh(
-    new THREE.RingGeometry(11.8, 19, 56),
-    floorDecalMaterial(0x28324d, 0.34),
-  ), 0.015);
-
-  addFlat(new THREE.Mesh(
-    new THREE.RingGeometry(20, 34, 64),
-    floorDecalMaterial(0x20273d, 0.28),
-  ), 0.016);
-
-  addFlat(new THREE.Mesh(
-    new THREE.RingGeometry(35.5, gameplayConfig.arena.size * 0.475, 80),
-    floorDecalMaterial(0x1f2b3b, 0.42),
-  ), 0.015);
-
-  const centerHalo = addFlat(new THREE.Mesh(
-    new THREE.RingGeometry(8.8, 9.5, 48),
-    floorDecalMaterial(0xffb56a, 0.18),
-  ), 0.022);
-  centerHalo.material.blending = THREE.AdditiveBlending;
-
-  for (let i = 0; i < 8; i++) {
-    const arc = addFlat(new THREE.Mesh(
-      new THREE.RingGeometry(12.6, 17.4, 18, 1, (Math.PI / 4) * i + 0.08, Math.PI / 4 - 0.16),
-      floorDecalMaterial(i % 2 === 0 ? 0x2c3953 : 0x181f31, 0.34),
-    ), 0.018);
-    arc.rotation.z = (Math.PI / 8) * (i % 2);
-  }
-
-  for (let i = 0; i < 4; i++) {
-    const wedge = addFlat(new THREE.Mesh(
-      new THREE.RingGeometry(40, 52, 24, 1, i * (Math.PI / 2) + 0.12, Math.PI / 2 - 0.24),
-      floorDecalMaterial(i % 2 === 0 ? 0x1a2334 : 0x222e46, 0.46),
-    ), 0.014);
-    wedge.rotation.z = i * 0.03;
-  }
-
-  for (let i = -4; i <= 4; i++) {
-    const band = new THREE.Mesh(
-      new THREE.BoxGeometry(gameplayConfig.arena.size * (i === 0 ? 0.74 : 0.68), 0.014, i === 0 ? 0.34 : 0.18),
-      new THREE.MeshBasicMaterial({
-        color: i === 0 ? 0xffb56a : 0x39cdbc,
-        transparent: true,
-        opacity: i === 0 ? 0.16 : 0.08,
-        depthWrite: false,
-      }),
-    );
-    band.position.set(0, 0.024, i * 12);
-    arenaRoot.add(band);
-
-    const crossBand = band.clone();
-    crossBand.rotation.y = Math.PI / 2;
-    crossBand.position.set(i * 12, 0.024, 0);
-    arenaRoot.add(crossBand);
-  }
-
-  for (let i = -3; i <= 3; i++) {
-    const padX = i * 16;
-    const strip = new THREE.Mesh(
-      new THREE.BoxGeometry(6.4, 0.018, 2.2),
-      new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0x25324a : 0x1b2233, transparent: true, opacity: 0.52, depthWrite: false }),
-    );
-    strip.position.set(padX, 0.02, -gameplayConfig.arena.size * 0.33);
-    arenaRoot.add(strip);
-
-    const stripMirror = strip.clone();
-    stripMirror.position.z *= -1;
-    arenaRoot.add(stripMirror);
-
-    const sideStrip = strip.clone();
-    sideStrip.rotation.y = Math.PI / 2;
-    sideStrip.position.set(-gameplayConfig.arena.size * 0.33, 0.02, padX);
-    arenaRoot.add(sideStrip);
-
-    const sideStripMirror = sideStrip.clone();
-    sideStripMirror.position.x *= -1;
-    arenaRoot.add(sideStripMirror);
-  }
+  const skirtRing = new THREE.Mesh(
+    new THREE.RingGeometry(gameplayConfig.arena.size * 0.42, gameplayConfig.arena.size * 0.52, 72),
+    new THREE.MeshBasicMaterial({ color: 0x4f4a40, transparent: true, opacity: 0.34, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  skirtRing.rotation.x = -Math.PI / 2;
+  skirtRing.position.y = 0.012;
+  arenaRoot.add(skirtRing);
 
   scene.add(arenaRoot);
 
