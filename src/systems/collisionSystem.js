@@ -1,3 +1,5 @@
+import { getEnemyData, logInvalidEnemyReference, removeInvalidEnemiesFromList } from './enemyRuntimeUtils.js';
+
 export function createCollisionSystem({ THREE, gameplayConfig, state, getPlayerPosition, SAFETY_LIMITS }) {
   const enemySpatialGrid = new Map();
 
@@ -72,16 +74,22 @@ export function createCollisionSystem({ THREE, gameplayConfig, state, getPlayerP
 
   function rebuildEnemySpatialGrid() {
     enemySpatialGrid.clear();
+    removeInvalidEnemiesFromList(state.entities.enemies, state, 'collision.rebuildEnemySpatialGrid');
     for (const enemy of state.entities.enemies) {
-      if (enemy.userData.dead) continue;
+      const data = getEnemyData(enemy);
+      if (!data) {
+        logInvalidEnemyReference(state, 'collision.rebuildEnemySpatialGrid.loop', enemy);
+        continue;
+      }
+      if (data.dead) continue;
       const cellX = getGridCellCoord(enemy.position.x);
       const cellZ = getGridCellCoord(enemy.position.z);
       const key = `${cellX}:${cellZ}`;
       const bucket = enemySpatialGrid.get(key);
       if (bucket) bucket.push(enemy);
       else enemySpatialGrid.set(key, [enemy]);
-      enemy.userData.gridCellX = cellX;
-      enemy.userData.gridCellZ = cellZ;
+      data.gridCellX = cellX;
+      data.gridCellZ = cellZ;
     }
   }
 
@@ -97,9 +105,17 @@ export function createCollisionSystem({ THREE, gameplayConfig, state, getPlayerP
         if (visitedCells > maxCells) return;
         const bucket = enemySpatialGrid.get(`${cellX}:${cellZ}`);
         if (!bucket) continue;
-        for (const enemy of bucket) {
+        for (let idx = bucket.length - 1; idx >= 0; idx--) {
+          const enemy = bucket[idx];
+          const data = getEnemyData(enemy);
+          if (!data || data.dead) {
+            if (!data) logInvalidEnemyReference(state, 'collision.forEachEnemyNearPosition.bucket', enemy);
+            bucket.splice(idx, 1);
+            continue;
+          }
           if (callback(enemy) === false) return;
         }
+        if (bucket.length === 0) enemySpatialGrid.delete(`${cellX}:${cellZ}`);
       }
     }
   }

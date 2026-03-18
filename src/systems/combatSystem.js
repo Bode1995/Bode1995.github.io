@@ -1,3 +1,5 @@
+import { getEnemyData, isValidEnemyReference, logInvalidEnemyReference } from './enemyRuntimeUtils.js';
+
 export function createCombatSystem({
   state,
   profile,
@@ -81,36 +83,45 @@ export function createCombatSystem({
   }
 
   function canSpawnStatusEffects(enemy) {
+    const data = getEnemyData(enemy);
+    if (!data) return false;
     if (state.performance.activeEnemyEffects < state.performance.enemyEffectSoftCap) return true;
-    return enemy.userData.fireDot > 0 || enemy.userData.poisonDot > 0 || enemy.userData.iceSlowTimer > 0 || enemy.userData.shockTimer > 0;
+    return data.fireDot > 0 || data.poisonDot > 0 || data.iceSlowTimer > 0 || data.shockTimer > 0;
   }
 
   function markEnemyImpactVisuals(enemy, effects = null) {
-    if (!enemy?.userData) return;
-    enemy.userData.impactVisualTimer = vfx.MAX_IMPACT_VISUAL_LIFETIME;
-    enemy.userData.impactVisualEffects = effects || enemy.userData.impactVisualEffects || null;
+    const data = getEnemyData(enemy);
+    if (!data) return;
+    data.impactVisualTimer = vfx.MAX_IMPACT_VISUAL_LIFETIME;
+    data.impactVisualEffects = effects || data.impactVisualEffects || null;
   }
 
   function damageEnemy(enemy, amount, options = {}) {
-    if (enemy.userData.dead) return;
+    const data = getEnemyData(enemy);
+    if (!data) {
+      logInvalidEnemyReference(state, 'combat.damageEnemy', enemy);
+      return;
+    }
+    if (data.dead) return;
     const { allowLightningChain = true, isSecondaryEffect = false, impactEffects = null } = options;
-    enemy.userData.hp -= amount;
+    data.hp -= amount;
     state.damageDealt += amount;
     profile.stats.damageDealt += amount;
     if (!isSecondaryEffect || impactEffects) vfx.spawnDamageNumber(enemy, amount);
     if (impactEffects) markEnemyImpactVisuals(enemy, impactEffects);
 
     if (runPowers.stacks.lightning > 0) {
-      enemy.userData.shockTimer = Math.max(enemy.userData.shockTimer, 0.18 + runPowers.stacks.lightning * 0.04);
+      data.shockTimer = Math.max(data.shockTimer, 0.18 + runPowers.stacks.lightning * 0.04);
       if (impactEffects && state.performance.frameBudgets.statusVfx < performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxStatusVfxPerFrame, 0.55, 0.28)) {
         temp.vec3A.copy(enemy.position).setY(enemy.position.y + 1.1);
         vfx.spawnImpactBurst(temp.vec3A, vfx.EFFECT_COLORS.lightning, isSecondaryEffect ? 1 : 3, 2.2, 0.2, 0.7);
       }
     }
 
-    if (enemy.userData.hp <= 0) {
+    if (data.hp <= 0) {
       const idx = state.entities.enemies.indexOf(enemy);
       if (idx >= 0) api.destroyEnemy(enemy, idx);
+      else data.dead = true;
       return;
     }
 
@@ -127,7 +138,12 @@ export function createCombatSystem({
       let nearestDistSq = lightningRange * lightningRange;
 
       collision.forEachEnemyNearPosition(source.position, lightningRange, (candidate) => {
-        if (candidate.userData.dead || visited.has(candidate)) return;
+        const candidateData = getEnemyData(candidate);
+        if (!candidateData) {
+          logInvalidEnemyReference(state, 'combat.damageEnemy.lightningChain', candidate);
+          return;
+        }
+        if (candidateData.dead || visited.has(candidate)) return;
         const dx = source.position.x - candidate.position.x;
         const dz = source.position.z - candidate.position.z;
         const dSq = dx * dx + dz * dz;
@@ -148,6 +164,11 @@ export function createCombatSystem({
   }
 
   function applyProjectilePower(enemy, bullet) {
+    const data = getEnemyData(enemy);
+    if (!data) {
+      logInvalidEnemyReference(state, 'combat.applyProjectilePower', enemy);
+      return;
+    }
     const hitPos = temp.vec3A.copy(bullet.position);
     const volleyWeight = Math.max(1, bullet.userData.volleyWeight || 1);
     const weightBoost = 1 + Math.log2(volleyWeight) * 0.18;
@@ -156,15 +177,15 @@ export function createCombatSystem({
     markEnemyImpactVisuals(enemy, impactEffects);
 
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.fire > 0) {
-      enemy.userData.fireDot = Math.min(14, enemy.userData.fireDot + runPowers.stacks.fire * 0.55 * (1 + getUpgradeLevel('burnDamage') * 0.18) * Math.min(3.2, volleyWeight));
+      data.fireDot = Math.min(14, data.fireDot + runPowers.stacks.fire * 0.55 * (1 + getUpgradeLevel('burnDamage') * 0.18) * Math.min(3.2, volleyWeight));
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.22, 0.35, (Math.random() - 0.5) * 0.22), vfx.EFFECT_COLORS.fire, 0.22, 0.72);
     }
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.poison > 0) {
-      enemy.userData.poisonDot = Math.min(16, enemy.userData.poisonDot + runPowers.stacks.poison * 0.7 * (1 + getUpgradeLevel('poisonDamage') * 0.18) * Math.min(3.2, volleyWeight));
+      data.poisonDot = Math.min(16, data.poisonDot + runPowers.stacks.poison * 0.7 * (1 + getUpgradeLevel('poisonDamage') * 0.18) * Math.min(3.2, volleyWeight));
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.14, 0.16, (Math.random() - 0.5) * 0.14), 0x7dff74, 0.28, 0.88);
     }
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.ice > 0) {
-      enemy.userData.iceSlowTimer = Math.max(enemy.userData.iceSlowTimer, (1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2) * Math.min(2.1, weightBoost));
+      data.iceSlowTimer = Math.max(data.iceSlowTimer, (1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2) * Math.min(2.1, weightBoost));
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.15, 0.18, (Math.random() - 0.5) * 0.15), vfx.EFFECT_COLORS.ice, 0.22, 0.72);
     }
 
@@ -178,7 +199,10 @@ export function createCombatSystem({
 
     let splashTargets = 0;
     collision.forEachEnemyNearPosition(hitPos, radius, (other) => {
-      if (other.userData.dead) return;
+      if (!isValidEnemyReference(other, { allowDead: false })) {
+        if (!getEnemyData(other)) logInvalidEnemyReference(state, 'combat.applyProjectilePower.splash', other);
+        return;
+      }
       if (state.performance.frameBudgets.splashDamageEvents >= splashBudget) return false;
       const dx = other.position.x - hitPos.x;
       const dz = other.position.z - hitPos.z;

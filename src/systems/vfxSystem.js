@@ -1,3 +1,5 @@
+import { getEnemyData, logInvalidEnemyReference } from './enemyRuntimeUtils.js';
+
 export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMITS, temp, sceneResources }) {
   const VFX = {
     maxParticles: 340,
@@ -98,13 +100,19 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
 
   function disposeDamageNumber(entry) {
     if (!entry) return;
-    if (entry.enemy?.userData?.damageNumberRef === entry) entry.enemy.userData.damageNumberRef = null;
+    const enemyData = getEnemyData(entry.enemy);
+    if (enemyData?.damageNumberRef === entry) enemyData.damageNumberRef = null;
     scene.remove(entry.sprite);
     entry.texture?.dispose?.();
     entry.sprite.material.dispose();
   }
 
   function spawnDamageNumber(enemy, amount) {
+    const enemyData = getEnemyData(enemy);
+    if (!enemyData) {
+      logInvalidEnemyReference(state, 'vfx.spawnDamageNumber', enemy);
+      return;
+    }
     const budgets = state.performance.frameBudgets;
     const maxPerFrame = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbersPerFrame, 0.6, 0.25);
     const maxTotal = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers, 0.62, 0.34);
@@ -117,7 +125,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     }
 
     const roundedAmount = Math.max(1, Math.round(amount));
-    const existing = enemy.userData.damageNumberRef;
+    const existing = enemyData.damageNumberRef;
     if (existing && state.entities.damageNumbers.includes(existing) && existing.life > 0.08) {
       existing.amount += roundedAmount;
       existing.life = Math.max(existing.life, DAMAGE_NUMBER_LIFETIME * 0.78);
@@ -138,7 +146,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     const sprite = new THREE.Sprite(material);
     sprite.scale.set(1.4, 0.7, 1);
     sprite.position.copy(enemy.position);
-    sprite.position.y += enemy.userData.hitboxCenterOffsetY + enemy.userData.hitboxHalfHeight + 0.3;
+    sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.3;
     scene.add(sprite);
 
     const entry = {
@@ -153,7 +161,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       riseSpeed: 0.9,
     };
     updateDamageNumberTexture(entry);
-    enemy.userData.damageNumberRef = entry;
+    enemyData.damageNumberRef = entry;
     state.entities.damageNumbers.push(entry);
   }
 
@@ -254,9 +262,10 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       const alpha = THREE.MathUtils.clamp(entry.life / Math.max(0.001, entry.maxLife), 0, 1);
       const progress = 1 - alpha;
       const enemy = entry.enemy;
-      if (enemy && !enemy.userData.dead) {
+      const enemyData = getEnemyData(enemy);
+      if (enemyData && !enemyData.dead) {
         entry.sprite.position.copy(enemy.position);
-        entry.sprite.position.y += enemy.userData.hitboxCenterOffsetY + enemy.userData.hitboxHalfHeight + 0.3 + progress * entry.riseSpeed;
+        entry.sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.3 + progress * entry.riseSpeed;
       } else {
         entry.sprite.position.y += dt * entry.riseSpeed * 0.7;
       }

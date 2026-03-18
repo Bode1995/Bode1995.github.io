@@ -1,3 +1,5 @@
+import { getEnemyData, logInvalidEnemyReference } from './enemyRuntimeUtils.js';
+
 export function createProjectileSystem({
   THREE,
   scene,
@@ -136,6 +138,10 @@ export function createProjectileSystem({
 
     for (let i = state.entities.bullets.length - 1; i >= 0; i--) {
       const bullet = state.entities.bullets[i];
+      if (!bullet?.userData?.vel) {
+        removeBulletAtIndex(i);
+        continue;
+      }
       const prevX = bullet.position.x;
       const prevZ = bullet.position.z;
       bullet.userData.life -= dt;
@@ -179,12 +185,20 @@ export function createProjectileSystem({
     for (let i = state.entities.bullets.length - 1; i >= 0; i--) {
       if (state.performance.frameBudgets.hitResolutions >= hitBudget) break;
       const bullet = state.entities.bullets[i];
+      if (!bullet?.userData) {
+        removeBulletAtIndex(i);
+        continue;
+      }
       let hitEnemy = null;
       let bestDistSq = Infinity;
       const queryRadius = bullet.userData.effects?.rockets ? 2.6 : 1.9;
       collision.forEachEnemyNearPosition(bullet.position, queryRadius, (enemy) => {
-        if (enemy.userData.dead) return;
-        const data = enemy.userData;
+        const data = getEnemyData(enemy);
+        if (!data) {
+          logInvalidEnemyReference(state, 'projectile.hitResolution', enemy);
+          return;
+        }
+        if (data.dead) return;
         const dx = enemy.position.x - bullet.position.x;
         const dz = enemy.position.z - bullet.position.z;
         const horizontalDistSq = dx * dx + dz * dz;

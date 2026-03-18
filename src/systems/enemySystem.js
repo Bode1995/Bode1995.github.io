@@ -1,3 +1,5 @@
+import { getEnemyData, logInvalidEnemyReference, removeInvalidEnemiesFromList } from './enemyRuntimeUtils.js';
+
 export function createEnemySystem({
   THREE,
   scene,
@@ -207,12 +209,21 @@ export function createEnemySystem({
   }
 
   function destroyEnemy(enemy, index) {
-    if (enemy.userData.dead) return;
-    enemy.userData.dead = true;
+    const data = getEnemyData(enemy);
+    if (!data) {
+      logInvalidEnemyReference(state, 'enemy.destroyEnemy', enemy);
+      return;
+    }
+    if (data.dead) return;
+    data.dead = true;
     scene.remove(enemy);
-    state.entities.enemies.splice(index, 1);
-    if (enemy.userData.type === 'splitter') {
-      for (let i = 0; i < enemy.userData.splitCount; i++) {
+    const resolvedIndex = Number.isInteger(index) && state.entities.enemies[index] === enemy
+      ? index
+      : state.entities.enemies.indexOf(enemy);
+    if (resolvedIndex >= 0) state.entities.enemies.splice(resolvedIndex, 1);
+    if (data.damageNumberRef) data.damageNumberRef.enemy = null;
+    if (data.type === 'splitter') {
+      for (let i = 0; i < data.splitCount; i++) {
         const angle = Math.random() * Math.PI * 2;
         const dist = 0.9 + Math.random() * 1.4;
         spawnEnemy('swarm', angle, dist, Math.max(1, state.wave * 0.5)).position.add(enemy.position);
@@ -220,19 +231,25 @@ export function createEnemySystem({
     }
     state.totalKills += 1;
     state.waveKills += 1;
-    state.score += enemy.userData.score || 10;
+    state.score += data.score || 10;
     profile.stats.totalKills += 1;
-    if (enemy.userData.role === 'boss') profile.stats.bossesDefeated += 1;
-    state.runCredits += enemy.userData.role === 'boss' ? 25 : 3;
+    if (data.role === 'boss') profile.stats.bossesDefeated += 1;
+    state.runCredits += data.role === 'boss' ? 25 : 3;
   }
 
   function update(dt, elapsed, runPowers) {
     state.performance.activeEnemyEffects = 0;
     const dotBudget = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDotTicksPerFrame, 0.62, 0.38);
+    removeInvalidEnemiesFromList(state.entities.enemies, state, 'enemy.update.prepass');
 
     for (let i = state.entities.enemies.length - 1; i >= 0; i--) {
       const enemy = state.entities.enemies[i];
-      const data = enemy.userData;
+      const data = getEnemyData(enemy);
+      if (!data) {
+        logInvalidEnemyReference(state, 'enemy.update.loop', enemy);
+        state.entities.enemies.splice(i, 1);
+        continue;
+      }
       if (data.dead) continue;
 
       temp.vec3A.set(temp.player.position.x - enemy.position.x, 0, temp.player.position.z - enemy.position.z);
@@ -277,6 +294,7 @@ export function createEnemySystem({
           data.fireTickTimer += tickInterval;
           state.performance.frameBudgets.dotTicks += 1;
           temp.callbacks.damageEnemy(enemy, Math.max(1, Math.round(data.fireDot * 0.72)), { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { fire: true } });
+          if (data.dead) continue;
         }
       }
 
@@ -288,6 +306,7 @@ export function createEnemySystem({
           data.poisonTickTimer += tickInterval;
           state.performance.frameBudgets.dotTicks += 1;
           temp.callbacks.damageEnemy(enemy, Math.max(1, Math.round(data.poisonDot * 0.58)), { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { poison: true } });
+          if (data.dead) continue;
         }
       }
 
@@ -335,7 +354,11 @@ export function createEnemySystem({
   }
 
   function clear() {
-    state.entities.enemies.forEach((enemy) => scene.remove(enemy));
+    state.entities.enemies.forEach((enemy) => {
+      if (enemy) scene.remove(enemy);
+      const data = getEnemyData(enemy);
+      if (data?.damageNumberRef) data.damageNumberRef.enemy = null;
+    });
     state.entities.enemies.length = 0;
   }
 
