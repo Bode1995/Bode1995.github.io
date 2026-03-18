@@ -217,12 +217,17 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     }
     const budgets = state.performance.frameBudgets;
     const existing = enemyData.damageNumberRef;
+    const hasActiveExisting = existing && state.entities.damageNumbers.includes(existing) && !existing.expiring;
     const roundedAmount = Math.max(1, Math.round(amount));
     const withinDamageWindow = enemyData.damageWindowTimer < DAMAGE_NUMBER_IDLE_WINDOW;
-    const nextHitCount = withinDamageWindow ? enemyData.damageWindowHitCount + 1 : 1;
-    const nextAmount = withinDamageWindow
-      ? enemyData.damageWindowTotal + roundedAmount
-      : roundedAmount;
+    const previousHitCount = withinDamageWindow
+      ? Math.max(enemyData.damageWindowHitCount, hasActiveExisting ? existing.hitCount || 0 : 0)
+      : 0;
+    const previousAmount = withinDamageWindow
+      ? Math.max(enemyData.damageWindowTotal, hasActiveExisting ? existing.amountTotal || 0 : 0)
+      : 0;
+    const nextHitCount = previousHitCount + 1;
+    const nextAmount = previousAmount + roundedAmount;
 
     enemyData.damageWindowHitCount = nextHitCount;
     enemyData.damageWindowTotal = nextAmount;
