@@ -230,6 +230,7 @@ export function startGameApp() {
     collision,
     vfx,
     runPowers: state.runPowers,
+    synergySystem,
     getUpgradeLevel,
     getShieldPickupCapacity,
     getBaseMoveSpeedMultiplier,
