@@ -21,6 +21,14 @@ export function createGameState(profile, helpers) {
     pickupSpawnInterval: 10,
     moveSpeedMultiplier: helpers.getBaseMoveSpeedMultiplier(),
     projectileCount: 1,
+    weaponState: {
+      burstShotsRemaining: 0,
+      burstTimer: 0,
+    },
+    movement: {
+      velocityX: 0,
+      velocityZ: 0,
+    },
     runCredits: 0,
     damageDealt: 0,
     elapsedRunTime: 0,
