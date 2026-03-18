@@ -87,6 +87,7 @@ export function createGameState(profile, helpers) {
     entities: {
       enemies: [],
       bullets: [],
+      enemyProjectiles: [],
       damageNumbers: [],
       vfxParticles: [],
       chainBeams: [],

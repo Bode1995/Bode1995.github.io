@@ -95,6 +95,7 @@ export function startGameApp() {
     vec3A: new THREE.Vector3(),
     vec3B: new THREE.Vector3(),
     vec3C: new THREE.Vector3(),
+    vec3D: new THREE.Vector3(),
     vec2A: new THREE.Vector2(),
     quatA: new THREE.Quaternion(),
     player: { position: new THREE.Vector3() },
@@ -194,6 +195,7 @@ export function startGameApp() {
     SAFETY_LIMITS,
     getCounts: () => ({
       bullets: state.entities.bullets.length,
+      enemyProjectiles: state.entities.enemyProjectiles.length,
       enemies: state.entities.enemies.length,
       vfx: state.entities.vfxParticles.length,
       damageNumbers: state.entities.damageNumbers.length,
@@ -954,6 +956,7 @@ export function startGameApp() {
       snapshot() {
         return {
           bullets: state.entities.bullets.length,
+          enemyProjectiles: state.entities.enemyProjectiles.length,
           enemies: state.entities.enemies.length,
           vfx: state.entities.vfxParticles.length,
           damageNumbers: state.entities.damageNumbers.length,

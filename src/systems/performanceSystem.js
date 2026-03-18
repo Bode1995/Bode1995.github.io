@@ -40,7 +40,7 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
 
     const counts = getCounts();
     const pressureScore =
-      (counts.bullets / Math.max(1, SAFETY_LIMITS.maxActiveBulletsSoft)) +
+      ((counts.bullets + (counts.enemyProjectiles || 0)) / Math.max(1, SAFETY_LIMITS.maxActiveBulletsSoft)) +
       (counts.vfx / Math.max(1, maxParticles)) * 0.55 +
       (counts.chainBeams / Math.max(1, SAFETY_LIMITS.maxChainBeams)) * 0.45;
 
@@ -59,6 +59,7 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
       `FPS ${state.performance.fps.toFixed(1)} · ${state.performance.frameMs.toFixed(1)} ms`,
       `Quality ${state.performance.qualityLevel}`,
       `Bullets ${counts.bullets}/${getAdaptiveLimit(SAFETY_LIMITS.maxActiveBullets)}`,
+      `Enemy shots ${counts.enemyProjectiles || 0}`,
       `Enemies ${counts.enemies}`,
       `VFX ${counts.vfx}/${getAdaptiveLimit(maxParticles)}`,
       `Damage # ${counts.damageNumbers}/${getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers)}`,
