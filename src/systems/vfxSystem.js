@@ -9,7 +9,10 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     chainGeometry: new THREE.CylinderGeometry(0.07, 0.07, 1, 6),
   };
   const MAX_IMPACT_VISUAL_LIFETIME = 0.5;
-  const DAMAGE_NUMBER_LIFETIME = 0.42;
+  const DAMAGE_NUMBER_LIFETIME = 0.54;
+  const DAMAGE_NUMBER_POP_DURATION = 0.22;
+  const DAMAGE_NUMBER_REFRESH_PULSE = 0.16;
+  const DAMAGE_NUMBER_BASE_FONT_PX = 192;
   const EFFECT_COLORS = {
     fire: 0xff8a4f,
     ice: 0x97e8ff,
@@ -107,21 +110,83 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     }
   }
 
+  function getDamageNumberVisualConfig(amount) {
+    const safeAmount = Math.max(1, Math.round(amount));
+    const digits = String(safeAmount).length;
+    const logAmount = Math.log10(safeAmount + 1);
+    const normalized = THREE.MathUtils.clamp(logAmount / 3.4, 0, 1);
+    const eased = 1 - Math.pow(1 - normalized, 2.2);
+    const fontScale = 1 + eased * 0.95;
+    const fontPx = Math.round(THREE.MathUtils.clamp(DAMAGE_NUMBER_BASE_FONT_PX * fontScale, DAMAGE_NUMBER_BASE_FONT_PX, 364));
+    const strokePx = Math.round(THREE.MathUtils.clamp(fontPx * 0.14, 18, 40));
+    const widthEstimate = fontPx * (0.88 + digits * 0.68) + strokePx * 6;
+    const heightEstimate = fontPx * 1.7 + strokePx * 4;
+    const canvasWidth = THREE.MathUtils.clamp(Math.ceil(widthEstimate / 64) * 64, 512, 1024);
+    const canvasHeight = THREE.MathUtils.clamp(Math.ceil(heightEstimate / 64) * 64, 256, 512);
+    const targetScale = 1 + eased * 0.18;
+    const spawnScale = targetScale + 0.34 + eased * 0.18;
+    const popStrength = 0.55 + eased * 0.65;
+    const spriteHeight = 2.28 * fontScale;
+    const spriteWidth = spriteHeight * (canvasWidth / canvasHeight) * 0.72;
+
+    return {
+      amount: safeAmount,
+      digits,
+      fontScale,
+      fontPx,
+      strokePx,
+      canvasWidth,
+      canvasHeight,
+      spriteWidth,
+      spriteHeight,
+      targetScale,
+      spawnScale,
+      popStrength,
+    };
+  }
+
+  function applyDamageNumberVisualConfig(entry, amount) {
+    const visual = getDamageNumberVisualConfig(amount);
+    entry.amount = visual.amount;
+    entry.fontScale = visual.fontScale;
+    entry.fontPx = visual.fontPx;
+    entry.strokePx = visual.strokePx;
+    entry.targetScale = visual.targetScale;
+    entry.spawnScale = visual.spawnScale;
+    entry.popStrength = visual.popStrength;
+    entry.baseSpriteWidth = visual.spriteWidth;
+    entry.baseSpriteHeight = visual.spriteHeight;
+    if (entry.canvas.width !== visual.canvasWidth) entry.canvas.width = visual.canvasWidth;
+    if (entry.canvas.height !== visual.canvasHeight) entry.canvas.height = visual.canvasHeight;
+  }
+
+  function triggerDamageNumberPulse(entry, intensity = 1) {
+    entry.age = 0;
+    entry.pulseTime = 0;
+    entry.spawnScale = Math.max(entry.targetScale + 0.2, entry.spawnScale * (0.8 + intensity * 0.22));
+    entry.popStrength = Math.min(1.45, entry.popStrength + DAMAGE_NUMBER_REFRESH_PULSE * intensity);
+  }
+
   function updateDamageNumberTexture(entry) {
     if (!entry?.ctx) return;
-    const { canvas, ctx, amount, texture } = entry;
+    const { canvas, ctx, amount, texture, fontPx, strokePx } = entry;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '700 64px Inter, Arial, sans-serif';
+    ctx.font = `800 ${fontPx}px Inter, Arial, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.lineWidth = 10;
-    ctx.strokeStyle = 'rgba(20, 10, 30, 0.9)';
-    ctx.strokeText(String(amount), canvas.width / 2, canvas.height / 2);
-    const gradient = ctx.createLinearGradient(0, 16, canvas.width, canvas.height - 16);
-    gradient.addColorStop(0, '#fff0b5');
-    gradient.addColorStop(1, '#ff8e64');
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+    ctx.lineWidth = strokePx;
+    ctx.strokeStyle = 'rgba(20, 10, 30, 0.92)';
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    ctx.strokeText(String(amount), centerX, centerY);
+    const gradient = ctx.createLinearGradient(0, strokePx, canvas.width, canvas.height - strokePx);
+    gradient.addColorStop(0, '#fff4bf');
+    gradient.addColorStop(0.55, '#ffd16a');
+    gradient.addColorStop(1, '#ff8c5a');
     ctx.fillStyle = gradient;
-    ctx.fillText(String(amount), canvas.width / 2, canvas.height / 2);
+    ctx.fillText(String(amount), centerX, centerY);
     texture.needsUpdate = true;
   }
 
@@ -154,24 +219,22 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     const roundedAmount = Math.max(1, Math.round(amount));
     const existing = enemyData.damageNumberRef;
     if (existing && state.entities.damageNumbers.includes(existing) && existing.life > 0.08) {
-      existing.amount += roundedAmount;
-      existing.life = Math.max(existing.life, DAMAGE_NUMBER_LIFETIME * 0.78);
+      applyDamageNumberVisualConfig(existing, existing.amount + roundedAmount);
+      existing.life = Math.max(existing.life, DAMAGE_NUMBER_LIFETIME * 0.92);
       existing.maxLife = DAMAGE_NUMBER_LIFETIME;
+      triggerDamageNumberPulse(existing, 0.72);
       updateDamageNumberTexture(existing);
       return;
     }
 
     budgets.damageNumbers += 1;
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 128;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(1.45, 0.76, 1);
     sprite.position.copy(enemy.position);
     sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.3;
     scene.add(sprite);
@@ -185,9 +248,21 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       enemy,
       life: DAMAGE_NUMBER_LIFETIME,
       maxLife: DAMAGE_NUMBER_LIFETIME,
-      riseSpeed: 0.9,
+      riseSpeed: 1.05,
+      age: 0,
+      pulseTime: 0,
+      targetScale: 1,
+      spawnScale: 1.35,
+      popStrength: 0.7,
+      baseSpriteWidth: 4.4,
+      baseSpriteHeight: 2.28,
+      fontScale: 1,
+      fontPx: DAMAGE_NUMBER_BASE_FONT_PX,
+      strokePx: 24,
     };
+    applyDamageNumberVisualConfig(entry, roundedAmount);
     updateDamageNumberTexture(entry);
+    sprite.scale.set(entry.baseSpriteWidth * entry.spawnScale, entry.baseSpriteHeight * entry.spawnScale, 1);
     enemyData.damageNumberRef = entry;
     state.entities.damageNumbers.push(entry);
   }
@@ -285,6 +360,8 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) {
       const entry = state.entities.damageNumbers[i];
       entry.life -= dt;
+      entry.age += dt;
+      entry.pulseTime += dt;
       if (entry.life <= 0) {
         disposeDamageNumber(entry);
         state.entities.damageNumbers.splice(i, 1);
@@ -296,12 +373,21 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       const enemyData = getEnemyData(enemy);
       if (enemyData && !enemyData.dead) {
         entry.sprite.position.copy(enemy.position);
-        entry.sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.3 + progress * entry.riseSpeed;
+        entry.sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.34 + progress * entry.riseSpeed;
       } else {
-        entry.sprite.position.y += dt * entry.riseSpeed * 0.7;
+        entry.sprite.position.y += dt * entry.riseSpeed * 0.78;
       }
-      entry.sprite.material.opacity = alpha;
-      entry.sprite.scale.set(1.4 + progress * 0.22, 0.7 + progress * 0.1, 1);
+
+      const fadeAlpha = alpha > 0.28 ? 1 : alpha / 0.28;
+      entry.sprite.material.opacity = fadeAlpha;
+
+      const pulseProgress = THREE.MathUtils.clamp(entry.pulseTime / DAMAGE_NUMBER_POP_DURATION, 0, 1);
+      const settle = 1 - Math.pow(1 - pulseProgress, 3);
+      const ringing = Math.sin(pulseProgress * Math.PI * 2.35) * Math.exp(-3.8 * pulseProgress) * entry.popStrength * 0.16;
+      const pulseScale = THREE.MathUtils.lerp(entry.spawnScale, entry.targetScale, settle) + ringing;
+      const lifeDrift = 1 + Math.min(progress, 0.65) * 0.07;
+      const scale = Math.max(entry.targetScale * 0.92, pulseScale) * lifeDrift;
+      entry.sprite.scale.set(entry.baseSpriteWidth * scale, entry.baseSpriteHeight * scale, 1);
     }
   }
 
