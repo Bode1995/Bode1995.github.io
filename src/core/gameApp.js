@@ -113,14 +113,16 @@ export function startGameApp() {
   const keyLight = new THREE.DirectionalLight(0xfff0d2, 2.1);
   keyLight.position.set(28, 36, 16);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(1536, 1536);
+  keyLight.shadow.mapSize.set(2048, 2048);
   keyLight.shadow.camera.near = 0.1;
-  keyLight.shadow.camera.far = 130;
-  keyLight.shadow.camera.left = -58;
-  keyLight.shadow.camera.right = 58;
-  keyLight.shadow.camera.top = 58;
-  keyLight.shadow.camera.bottom = -58;
-  keyLight.shadow.bias = -0.00018;
+  keyLight.shadow.camera.far = 118;
+  keyLight.shadow.camera.left = -50;
+  keyLight.shadow.camera.right = 50;
+  keyLight.shadow.camera.top = 50;
+  keyLight.shadow.camera.bottom = -50;
+  keyLight.shadow.bias = -0.00008;
+  keyLight.shadow.normalBias = 0.024;
+  keyLight.shadow.radius = 1.75;
   scene.add(keyLight);
 
   const fillLight = new THREE.DirectionalLight(0xc6dcff, 0.62);

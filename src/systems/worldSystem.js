@@ -76,13 +76,13 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
 
   const GROUND_SURFACE_Y = Object.freeze({
     soilBase: 0,
-    backdrop: 0.028,
-    zoneSoft: 0.048,
-    zonePrimary: 0.066,
-    zoneAccent: 0.084,
-    zoneFocus: 0.102,
-    scatter: 0.126,
-    scatterDetail: 0.14,
+    backdrop: 0.016,
+    zoneSoft: 0.072,
+    zonePrimary: 0.096,
+    zoneAccent: 0.12,
+    zoneFocus: 0.144,
+    scatter: 0.162,
+    scatterDetail: 0.176,
   });
 
   const createLayeredSurfaceMaterial = (material, x = 0, z = 0, salt = 0, layer = 0, options = {}) => {
@@ -136,12 +136,12 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     return mesh;
   };
 
-  const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = GROUND_SURFACE_Y.zonePrimary, height = 0.08, material, rotation = 0, materialSalt = 0, layer = 0, source = 'ground-patch' }) => {
+  const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = GROUND_SURFACE_Y.zonePrimary, height = 0.08, material, rotation = 0, materialSalt = 0, layer = 0, receiveShadow = true, source = 'ground-patch' }) => {
     const patchHeight = Math.max(height, 0.06);
     const patch = new THREE.Mesh(new THREE.BoxGeometry(sx, patchHeight, sz), createLayeredSurfaceMaterial(material, x, z, materialSalt, layer));
     patch.position.set(x, y - (patchHeight * 0.5), z);
     patch.rotation.y = rotation;
-    patch.receiveShadow = true;
+    patch.receiveShadow = receiveShadow;
     patch.renderOrder = layer;
     mapRoot.add(patch);
     registerWorldObject({ mesh: patch, source, blocking: false, footprint: { type: 'rect', x, z, width: sx, depth: sz, rotation } });
@@ -334,7 +334,7 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
   const buildableHalf = half - gameplayConfig.arena.padding - 2;
 
   addGroundPatch({ x: 0, z: 0, sx: gameplayConfig.arena.size, sz: gameplayConfig.arena.size, y: GROUND_SURFACE_Y.soilBase, height: 0.16, material: shared.soil, materialSalt: 30, layer: 0, source: 'terrain-soil-base' });
-  addGroundPatch({ x: -6, z: 3, sx: 94, sz: 86, y: GROUND_SURFACE_Y.backdrop, height: 0.12, material: shared.grassDark, rotation: -0.03, materialSalt: 31, layer: 1, source: 'terrain-grass-backdrop' });
+  addGroundPatch({ x: -6, z: -4, sx: 90, sz: 64, y: GROUND_SURFACE_Y.backdrop, height: 0.12, material: shared.grassDark, rotation: 0, materialSalt: 31, layer: 1, receiveShadow: false, source: 'terrain-grass-backdrop' });
 
   addGroundPatch({ x: 3, z: 5, sx: 76, sz: 60, y: GROUND_SURFACE_Y.zonePrimary, height: 0.1, material: shared.asphalt, rotation: -0.04, materialSalt: 32, layer: 3, source: 'zone-asphalt-main' });
   addGroundPatch({ x: -18, z: -18, sx: 30, sz: 24, y: GROUND_SURFACE_Y.zoneAccent, height: 0.09, material: shared.concrete, rotation: 0.07, materialSalt: 33, layer: 4, source: 'zone-concrete-southwest' });
