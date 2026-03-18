@@ -1,41 +1,46 @@
 export function getUI() {
   return {
     canvas: document.getElementById('game'),
-    menu: document.getElementById('menu'),
-    gameOver: document.getElementById('gameOver'),
     hud: document.getElementById('hud'),
     controls: document.getElementById('controls'),
-    waveEl: document.getElementById('wave'),
-    scoreEl: document.getElementById('score'),
+    menu: document.getElementById('menu'),
+    gameOver: document.getElementById('gameOver'),
+    startBtn: document.getElementById('startBtn'),
+    quickWorldsBtn: document.getElementById('quickWorldsBtn'),
+    startSelectedLevelBtn: document.getElementById('startSelectedLevelBtn'),
+    restartBtn: document.getElementById('restartBtn'),
+    menuBtn: document.getElementById('menuBtn'),
+    nextLevelBtn: document.getElementById('nextLevelBtn'),
+    wave: document.getElementById('wave'),
+    score: document.getElementById('score'),
     hpBar: document.getElementById('hpBar'),
+    shieldValue: document.getElementById('shieldValue'),
+    powerSummary: document.getElementById('powerSummary'),
+    pickupFeed: document.getElementById('pickupFeed'),
+    missionLabel: document.getElementById('missionLabel'),
+    creditsValue: document.getElementById('creditsValue'),
+    menuCredits: document.getElementById('menuCredits'),
+    menuHighestWave: document.getElementById('menuHighestWave'),
+    selectedMissionLabel: document.getElementById('selectedMissionLabel'),
+    selectedMissionStatus: document.getElementById('selectedMissionStatus'),
+    selectedCharacterLabel: document.getElementById('selectedCharacterLabel'),
+    unlockedSummary: document.getElementById('unlockedSummary'),
+    worldGrid: document.getElementById('worldGrid'),
+    levelGrid: document.getElementById('levelGrid'),
+    upgradeGroups: document.getElementById('upgradeGroups'),
+    upgradeCredits: document.getElementById('upgradeCredits'),
+    statsGrid: document.getElementById('statsGrid'),
+    menuTabs: Array.from(document.querySelectorAll('.menu-tab')),
+    menuScreens: Array.from(document.querySelectorAll('.menu-screen')),
     finalWave: document.getElementById('finalWave'),
     finalScore: document.getElementById('finalScore'),
+    finalCredits: document.getElementById('finalCredits'),
+    resultEyebrow: document.getElementById('resultEyebrow'),
+    resultTitle: document.getElementById('resultTitle'),
+    resultSummary: document.getElementById('resultSummary'),
     moveZone: document.getElementById('moveZone'),
-    aimZone: document.getElementById('aimZone'),
     moveStick: document.getElementById('moveStick'),
-    aimStick: document.getElementById('aimStick'),
     moveKnob: document.getElementById('moveKnob'),
-    aimKnob: document.getElementById('aimKnob'),
-    startBtn: document.getElementById('startBtn'),
-    restartBtn: document.getElementById('restartBtn'),
+    characterGrid: document.getElementById('characterGrid'),
   };
-}
-
-export function showInGameUI(ui) {
-  ui.menu.classList.add('hidden');
-  ui.gameOver.classList.add('hidden');
-  ui.hud.classList.remove('hidden');
-  ui.controls.classList.remove('hidden');
-}
-
-export function showGameOverUI(ui, state) {
-  ui.finalWave.textContent = String(state.wave);
-  ui.finalScore.textContent = String(state.score);
-  ui.gameOver.classList.remove('hidden');
-}
-
-export function syncHUD(ui, state) {
-  ui.waveEl.textContent = String(state.wave);
-  ui.scoreEl.textContent = String(state.score);
-  ui.hpBar.style.width = `${state.player?.hp ?? 0}%`;
 }
