@@ -326,6 +326,7 @@ export function createEnemySystem({
       impactVisualEffects: null,
       damageNumberRef: null,
       damageWindowTotal: 0,
+      damageWindowHitCount: 0,
       damageWindowTimer: 0,
     };
     scene.add(enemy);
@@ -348,6 +349,7 @@ export function createEnemySystem({
     if (resolvedIndex >= 0) state.entities.enemies.splice(resolvedIndex, 1);
     if (data.damageNumberRef) data.damageNumberRef.enemy = null;
     data.damageWindowTotal = 0;
+    data.damageWindowHitCount = 0;
     data.damageWindowTimer = 0;
     if (data.type === 'splitter') {
       for (let i = 0; i < data.splitCount; i++) {
@@ -383,6 +385,7 @@ export function createEnemySystem({
       data.damageWindowTimer += dt;
       if (data.damageWindowTimer >= DAMAGE_NUMBER_WINDOW_SECONDS && data.damageWindowTotal > 0) {
         data.damageWindowTotal = 0;
+        data.damageWindowHitCount = 0;
       }
 
       temp.vec3A.set(temp.player.position.x - enemy.position.x, 0, temp.player.position.z - enemy.position.z);
@@ -497,6 +500,7 @@ export function createEnemySystem({
       if (data?.damageNumberRef) data.damageNumberRef.enemy = null;
       if (data) {
         data.damageWindowTotal = 0;
+        data.damageWindowHitCount = 0;
         data.damageWindowTimer = 0;
       }
     });
