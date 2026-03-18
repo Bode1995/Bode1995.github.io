@@ -15,43 +15,39 @@
   <canvas id="game"></canvas>
 
   <div class="hud hidden" id="hud">
-    <div class="hud-topbar">
-      <div class="hud-cluster hud-cluster--mission">
-        <article class="hud-chip hud-chip--mission">
-          <span class="hud-chip__icon">⚑</span>
-          <span class="hud-chip__value" id="missionLabel">W1 · L1</span>
-        </article>
-        <article class="hud-chip hud-chip--wave">
-          <span class="hud-chip__icon">◎</span>
-          <span class="hud-chip__value" id="wave">1/10</span>
-        </article>
-      </div>
+    <div class="hud-header">
+      <article class="hud-chip hud-chip--mission" aria-label="Mission und Welle">
+        <span class="hud-chip__icon">⚑</span>
+        <span class="hud-chip__content">
+          <span class="hud-chip__label">Mission</span>
+          <strong class="hud-chip__value" id="missionLabel">W1 · L1</strong>
+          <span class="hud-chip__subline"><span class="hud-chip__subicon">◎</span><span id="wave">1/10</span></span>
+        </span>
+      </article>
 
       <article class="hud-health" aria-label="Leben und Schild">
         <div class="hud-health__stats">
           <span class="hud-stat-pill hud-stat-pill--hp"><span class="hud-stat-pill__icon">❤</span><strong id="hpValue">100</strong></span>
+          <div class="bar bar--health hud-health__bar"><div id="hpBar"></div></div>
           <span class="hud-stat-pill hud-stat-pill--shield"><span class="hud-stat-pill__icon">🛡</span><strong id="shieldValue">0</strong></span>
         </div>
-        <div class="bar bar--health hud-health__bar"><div id="hpBar"></div></div>
       </article>
 
-      <div class="hud-cluster hud-cluster--powers">
-        <div class="hud-power-summary" id="powerSummary">⟐ 0</div>
+      <div class="hud-actions" aria-label="Run Status und Pause">
+        <button class="hud-pause-btn" id="pauseBtn" type="button" aria-label="Spiel pausieren">❚❚</button>
+        <article class="hud-badge hud-badge--score">
+          <span class="hud-badge__icon">✦</span>
+          <strong class="hud-badge__value" id="score">0</strong>
+        </article>
+        <article class="hud-badge hud-badge--credits">
+          <span class="hud-badge__icon">¤</span>
+          <strong class="hud-badge__value" id="creditsValue">0</strong>
+        </article>
         <div class="power-stack" id="activePowers" aria-label="Aktive Power-ups"></div>
       </div>
     </div>
 
-    <aside class="hud-side hud-side--right" aria-label="Statusleiste">
-      <article class="hud-chip hud-chip--score">
-        <span class="hud-chip__icon">✦</span>
-        <span class="hud-chip__value" id="score">0</span>
-      </article>
-      <article class="hud-chip hud-chip--credits">
-        <span class="hud-chip__icon">¤</span>
-        <span class="hud-chip__value" id="creditsValue">0</span>
-      </article>
-      <div class="pickup-feed" id="pickupFeed" aria-label="Pickup Feed"></div>
-    </aside>
+    <div class="pickup-feed" id="pickupFeed" aria-label="Pickup Feed"></div>
   </div>
 
   <div class="controls hidden" id="controls">
@@ -169,6 +165,19 @@
         </section>
 
         <div class="hint">Desktop: WASD bewegen (invertiert), Leertaste/Linksklick feuern. Mobile/PWA: Drag auf dem Feld zum Bewegen und Auto-Fire.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="pauseOverlay">
+    <div class="panel pause-panel">
+      <div class="eyebrow">RUN PAUSIERT</div>
+      <h2>Mission angehalten</h2>
+      <p id="pauseDescription">Das Spiel bleibt stehen, bis du fortsetzt.</p>
+      <div class="result-actions">
+        <button class="btn" id="pauseResumeBtn">Fortsetzen</button>
+        <button class="ghost-btn" id="pauseRestartBtn">Neustart</button>
+        <button class="ghost-btn" id="pauseMenuBtn">Zum Menü</button>
       </div>
     </div>
   </div>

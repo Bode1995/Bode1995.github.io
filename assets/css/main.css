@@ -470,33 +470,22 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   font-weight: 700;
 }
 
-.hud-topbar,
-.hud-side {
+.hud-header {
   position: absolute;
-  display: flex;
-  gap: 8px;
-}
-
-.hud-topbar {
   top: max(10px, env(safe-area-inset-top));
   left: max(10px, env(safe-area-inset-left));
   right: max(10px, env(safe-area-inset-right));
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(180px, 320px) minmax(0, max-content);
+  align-items: start;
   justify-content: space-between;
+  gap: 10px;
 }
 
-.hud-side--right {
-  top: calc(max(10px, env(safe-area-inset-top)) + 58px);
-  right: max(10px, env(safe-area-inset-right));
-  flex-direction: column;
-  align-items: flex-end;
-  width: min(150px, 34vw);
-}
-
-.hud-cluster,
-.hud-health,
 .hud-chip,
-.hud-power-summary,
+.hud-health,
+.hud-badge,
+.hud-pause-btn,
 .power-badge,
 .pickup-line {
   border-radius: 14px;
@@ -506,29 +495,16 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
-.hud-cluster {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px;
-  max-width: min(34vw, 320px);
-}
-
-.hud-cluster--mission {
-  justify-content: flex-start;
-}
-
-.hud-cluster--powers {
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  max-width: min(38vw, 380px);
+.hud-chip,
+.hud-badge,
+.hud-pause-btn {
+  min-height: 36px;
 }
 
 .hud-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
+  gap: 10px;
   padding: 8px 12px;
   color: var(--text);
   line-height: 1;
@@ -536,6 +512,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 
 .hud-chip__icon,
 .hud-stat-pill__icon,
+.hud-badge__icon,
 .power-badge__icon,
 .pickup-line__icon {
   display: inline-flex;
@@ -544,11 +521,25 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   flex: 0 0 auto;
 }
 
-.hud-chip__icon {
-  width: 20px;
-  height: 20px;
+.hud-chip__icon,
+.hud-badge__icon {
+  width: 18px;
+  height: 18px;
   color: var(--teal);
-  font-size: 14px;
+  font-size: 13px;
+}
+
+.hud-chip__content {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.hud-chip__label {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .hud-chip__value {
@@ -557,19 +548,29 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   white-space: nowrap;
 }
 
+.hud-chip__subline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.hud-chip__subicon {
+  color: var(--gold);
+}
+
 .hud-health {
-  display: grid;
-  gap: 7px;
-  min-width: min(36vw, 320px);
-  max-width: min(42vw, 360px);
-  padding: 8px 10px 10px;
+  justify-self: center;
+  width: min(42vw, 320px);
+  padding: 8px 12px;
 }
 
 .hud-health__stats {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(110px, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 
 .hud-stat-pill {
@@ -577,11 +578,12 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   align-items: center;
   gap: 6px;
   color: var(--text);
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .hud-stat-pill strong {
-  font-size: 14px;
+  font-size: 13px;
   letter-spacing: 0.04em;
 }
 
@@ -594,7 +596,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 }
 
 .hud-health__bar {
-  margin-top: 0;
   height: 8px;
 }
 
@@ -613,15 +614,46 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   box-shadow: 0 0 22px rgba(255, 184, 92, 0.3);
 }
 
-.hud-power-summary {
+.hud-actions {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: min(40vw, 360px);
+}
+
+.hud-badge,
+.hud-pause-btn {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
+  justify-content: center;
+  gap: 6px;
   padding: 8px 10px;
-  color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--text);
+  line-height: 1;
+}
+
+.hud-badge__value {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.hud-pause-btn {
+  pointer-events: auto;
+  border-color: rgba(166, 107, 255, 0.24);
+  color: var(--text);
+  cursor: pointer;
+  min-width: 36px;
+}
+
+.hud-pause-btn:hover {
+  transform: translateY(-1px);
+}
+
+.hud-pause-btn[aria-pressed='true'] {
+  border-color: rgba(255, 184, 92, 0.38);
+  color: var(--gold);
 }
 
 .power-stack {
@@ -629,6 +661,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
+  max-width: 100%;
 }
 
 .power-badge,
@@ -640,15 +673,15 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 .power-badge {
   position: relative;
   min-width: 0;
-  padding: 6px;
+  padding: 5px;
 }
 
 .power-badge__icon,
 .pickup-line__icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-  font-size: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  font-size: 11px;
   color: #fff;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
@@ -676,9 +709,12 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 }
 
 .pickup-feed {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top)) + 46px);
+  right: max(10px, env(safe-area-inset-right));
   display: grid;
   gap: 5px;
-  width: 100%;
+  width: min(180px, 42vw);
 }
 
 .pickup-line {
@@ -704,19 +740,34 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   white-space: nowrap;
 }
 
+.pause-panel {
+  width: min(420px, 92vw);
+  display: grid;
+  gap: 14px;
+  text-align: center;
+}
+
+.pause-panel h2 {
+  margin: 0;
+}
+
+.pause-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
 @media (max-width: 960px) {
-  .hud-topbar {
-    gap: 6px;
+  .hud-header {
+    grid-template-columns: minmax(0, max-content) minmax(160px, 280px) minmax(0, max-content);
+    gap: 8px;
   }
 
-  .hud-cluster,
-  .hud-health {
-    max-width: min(33vw, 280px);
-    min-width: 0;
+  .hud-actions {
+    max-width: min(44vw, 300px);
   }
 
-  .hud-cluster--powers {
-    max-width: min(34vw, 320px);
+  .pickup-feed {
+    width: min(156px, 38vw);
   }
 }
 
@@ -737,26 +788,25 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   .btn, .ghost-btn, .menu-tab { width: 100%; justify-content: center; }
   .hero-actions, .result-actions, .menu-hero-actions { flex-direction: column; }
 
-  .hud-topbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  .hud-header {
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      'mission powers'
+      'mission actions'
       'health health';
     align-items: start;
   }
 
-  .hud-cluster--mission { grid-area: mission; }
-  .hud-health { grid-area: health; max-width: none; }
-  .hud-cluster--powers {
-    grid-area: powers;
+  .hud-chip--mission { grid-area: mission; justify-self: start; }
+  .hud-health { grid-area: health; width: min(78vw, 300px); }
+  .hud-actions {
+    grid-area: actions;
     justify-self: end;
-    max-width: min(42vw, 220px);
+    max-width: min(48vw, 220px);
   }
 
-  .hud-side--right {
-    top: calc(max(10px, env(safe-area-inset-top)) + 102px);
-    width: min(132px, 36vw);
+  .pickup-feed {
+    top: calc(max(10px, env(safe-area-inset-top)) + 92px);
+    width: min(150px, 40vw);
   }
 }
 
@@ -774,39 +824,59 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
     grid-template-columns: 1fr;
   }
 
-  .hud-topbar {
+  .hud-header {
     top: max(6px, env(safe-area-inset-top));
     left: max(6px, env(safe-area-inset-left));
     right: max(6px, env(safe-area-inset-right));
-    gap: 5px;
+    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .hud-cluster {
-    padding: 5px;
-    gap: 5px;
-    max-width: min(48vw, 180px);
-  }
-
-  .hud-chip,
-  .hud-power-summary {
-    min-height: 34px;
+  .hud-chip {
+    gap: 8px;
     padding: 7px 9px;
   }
 
+  .hud-chip__label {
+    font-size: 9px;
+  }
+
   .hud-chip__value,
+  .hud-badge__value,
   .hud-stat-pill strong {
     font-size: 12px;
   }
 
-  .hud-health {
-    padding: 7px 9px 9px;
+  .hud-chip__subline,
+  .hud-stat-pill {
+    font-size: 10px;
   }
 
-  .hud-side--right {
-    top: calc(max(6px, env(safe-area-inset-top)) + 90px);
-    right: max(6px, env(safe-area-inset-right));
+  .hud-health {
+    width: min(82vw, 280px);
+    padding: 7px 10px;
+  }
+
+  .hud-health__stats {
+    gap: 7px;
+    grid-template-columns: auto minmax(90px, 1fr) auto;
+  }
+
+  .hud-badge,
+  .hud-pause-btn {
+    padding: 7px 8px;
+  }
+
+  .hud-actions {
     gap: 5px;
-    width: min(116px, 34vw);
+    max-width: min(46vw, 174px);
+  }
+
+  .pickup-feed {
+    top: calc(max(6px, env(safe-area-inset-top)) + 82px);
+    right: max(6px, env(safe-area-inset-right));
+    width: min(132px, 38vw);
+    gap: 4px;
   }
 
   .pickup-line {

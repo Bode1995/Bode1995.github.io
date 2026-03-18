@@ -30,9 +30,9 @@ import { registerServiceWorker } from '../pwa/register-sw.js';
 export function startGameApp() {
   const ui = getUI();
   const REQUIRED_UI_KEYS = [
-    'canvas', 'hud', 'controls', 'menu', 'gameOver', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
-    'restartBtn', 'menuBtn', 'nextLevelBtn', 'wave', 'score', 'hpBar', 'hpValue', 'shieldValue', 'powerSummary',
-    'activePowers', 'pickupFeed', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
+    'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
+    'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
+    'wave', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'pickupFeed', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
     'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
@@ -417,6 +417,13 @@ export function startGameApp() {
     return `W${world} · L${level}`;
   }
 
+  function getPauseDescription(reason = state.pauseReason) {
+    if (reason === 'hidden') return 'Automatisch pausiert, weil die App im Hintergrund oder ausgeblendet war.';
+    if (reason === 'pagehide') return 'Automatisch pausiert, weil die Seite verlassen oder eingefroren wurde.';
+    if (reason === 'blur') return 'Automatisch pausiert, weil das Fenster den Fokus verloren hat.';
+    return 'Das Spiel bleibt stehen, bis du fortsetzt.';
+  }
+
   function formatPowerBadge(def, count) {
     const colorHex = `#${def.color.toString(16).padStart(6, '0')}`;
     return `
@@ -554,9 +561,10 @@ export function startGameApp() {
     ui.hpValue.textContent = String(roundedHp);
     ui.hpBar.style.width = `${hpPercent}%`;
     ui.shieldValue.textContent = String(roundedShield);
-    ui.powerSummary.textContent = `⟐ ${activePowerEntries.length}`;
     ui.missionLabel.textContent = getMissionLabel();
     ui.creditsValue.textContent = String(profile.credits + state.runCredits);
+    ui.pauseBtn.setAttribute('aria-label', state.paused ? 'Spiel ist pausiert' : 'Spiel pausieren');
+    ui.pauseBtn.setAttribute('aria-pressed', state.paused ? 'true' : 'false');
 
     ui.activePowers.innerHTML = '';
     for (const [def, count] of activePowerEntries) {
@@ -580,6 +588,52 @@ export function startGameApp() {
       el.innerHTML = formatPickupNotice(notice);
       ui.pickupFeed.appendChild(el);
     }
+  }
+
+  function syncPauseOverlay() {
+    ui.pauseDescription.textContent = getPauseDescription();
+    ui.pauseOverlay.classList.toggle('hidden', !state.paused);
+  }
+
+  function pauseRun(reason = 'manual') {
+    if (!state.running || state.paused) return false;
+    state.paused = true;
+    state.pauseReason = reason;
+    resetTransientInputState();
+    ui.controls.classList.add('hidden');
+    syncPauseOverlay();
+    updateHUD();
+    return true;
+  }
+
+  function resumeRun() {
+    if (!state.running || !state.paused) return false;
+    state.paused = false;
+    state.pauseReason = null;
+    resetTransientInputState();
+    ui.pauseOverlay.classList.add('hidden');
+    ui.controls.classList.remove('hidden');
+    updateHUD();
+    return true;
+  }
+
+  function abandonRunToMenu(screenId = 'home') {
+    state.running = false;
+    state.paused = false;
+    state.pauseReason = null;
+    resetTransientInputState();
+    clearRunObjects();
+    combat.resetRunPowerUps();
+    ui.pauseOverlay.classList.add('hidden');
+    ui.controls.classList.add('hidden');
+    ui.hud.classList.add('hidden');
+    ui.gameOver.classList.add('hidden');
+    menuController.openMenu(screenId);
+  }
+
+  function autoPauseGame(reason) {
+    if (!state.running || state.paused) return;
+    pauseRun(reason);
   }
 
   function clearRunObjects() {
@@ -628,6 +682,8 @@ export function startGameApp() {
   finishRun = function finishRunImpl(success) {
     if (!state.running) return;
     state.running = false;
+    state.paused = false;
+    state.pauseReason = null;
     if (success) profileApi.unlockNextMission(state.worldIndex, state.levelIndex);
     profile.credits += state.runCredits + (success ? 40 + state.levelIndex * 10 + state.worldIndex * 15 : 0);
     profile.stats.timePlayed += Math.max(0, state.elapsedRunTime - state.savedRunTime);
@@ -641,6 +697,7 @@ export function startGameApp() {
     clearRunObjects();
     ui.controls.classList.add('hidden');
     ui.hud.classList.add('hidden');
+    ui.pauseOverlay.classList.add('hidden');
     menuController.showRunResult(success);
     ui.gameOver.classList.remove('hidden');
   };
@@ -666,9 +723,12 @@ export function startGameApp() {
 
   function handleRunCrash(context, err, extra = null) {
     state.running = false;
+    state.paused = false;
+    state.pauseReason = null;
     resetTransientInputState();
     ui.controls.classList.add('hidden');
     ui.hud.classList.add('hidden');
+    ui.pauseOverlay.classList.add('hidden');
     ui.gameOver.classList.add('hidden');
     ui.menu.classList.remove('hidden');
     menuController.setMenuScreen('home');
@@ -690,6 +750,8 @@ export function startGameApp() {
       profileApi.save();
 
       state.running = true;
+      state.paused = false;
+      state.pauseReason = null;
       state.worldIndex = world;
       state.levelIndex = level;
       state.hp = getPlayerMaxHp();
@@ -717,6 +779,7 @@ export function startGameApp() {
       updateHUD();
       ui.menu.classList.add('hidden');
       ui.gameOver.classList.add('hidden');
+      ui.pauseOverlay.classList.add('hidden');
       ui.controls.classList.remove('hidden');
       ui.hud.classList.remove('hidden');
     } catch (err) {
@@ -840,12 +903,13 @@ export function startGameApp() {
   function animate() {
     const dt = Math.min(clock.getDelta(), 0.033);
     const elapsed = clock.elapsedTime;
+    const simulationActive = state.running && !state.paused;
 
-    vfx.update(dt);
-    performance.update(dt, vfx.VFX.maxParticles);
+    if (simulationActive) vfx.update(dt);
+    performance.update(simulationActive ? dt : 0, vfx.VFX.maxParticles);
     performance.resetFrameBudgets();
 
-    if (state.running) {
+    if (simulationActive) {
       try {
         updatePlayer(dt);
         state.elapsedRunTime += dt;
@@ -879,7 +943,7 @@ export function startGameApp() {
       } catch (err) {
         handleRunCrash('Game loop failed', err, `wave=${state.wave}, enemies=${state.entities.enemies.length}, bullets=${state.entities.bullets.length}`);
       }
-    } else if (playerRig) {
+    } else if (playerRig && !state.paused) {
       characterModule.animateCharacterRig(playerRig, 0, elapsed);
     }
 
@@ -953,6 +1017,23 @@ export function startGameApp() {
     }
     startGame(nextMission.world, nextMission.level);
   });
+  ui.pauseBtn.addEventListener('click', () => pauseRun('manual'));
+  ui.pauseResumeBtn.addEventListener('click', () => resumeRun());
+  ui.pauseRestartBtn.addEventListener('click', () => startGame(state.worldIndex, state.levelIndex));
+  ui.pauseMenuBtn.addEventListener('click', () => abandonRunToMenu('home'));
+
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'Escape' || !state.running) return;
+    event.preventDefault();
+    if (state.paused) resumeRun();
+    else pauseRun('manual');
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') autoPauseGame('hidden');
+  });
+  window.addEventListener('pagehide', () => autoPauseGame('pagehide'));
+  window.addEventListener('blur', () => autoPauseGame('blur'));
 
   menuController.renderMenu();
   updateHUD();
