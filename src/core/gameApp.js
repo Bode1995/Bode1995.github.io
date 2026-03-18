@@ -8,6 +8,7 @@ import {
   SAFETY_LIMITS,
   UPGRADE_DEFS,
   WAVES_PER_LEVEL,
+  WAVE_INTERVAL_SECONDS,
   WORLDS_COUNT,
   gameplayConfig,
 } from '../config/gameConfig.js';
@@ -680,7 +681,7 @@ export function startGameApp() {
       state.wave = getDifficultyIndex(world, level, 1);
       state.spawnLeft = 0;
       state.fireCooldown = 0;
-      state.wavePause = 0;
+      state.waveTimer = WAVE_INTERVAL_SECONDS;
       state.totalKills = 0;
       state.waveKills = 0;
       state.pickupSpawnTimer = 3.5;
@@ -841,15 +842,13 @@ export function startGameApp() {
         enemySystem.update(dt, elapsed, state.runPowers);
         projectileSystem.update(dt, { damageEnemy: combat.damageEnemy, applyProjectilePower: combat.applyProjectilePower });
 
-        if (state.entities.enemies.length === 0) {
-          state.wavePause -= dt;
-          if (state.wavePause <= 0) {
-            if (state.waveInLevel >= WAVES_PER_LEVEL) finishRun(true);
-            else {
-              state.waveInLevel += 1;
-              state.wavePause = 1;
-              spawnWave();
-            }
+        state.waveTimer -= dt;
+        if (state.waveTimer <= 0) {
+          if (state.waveInLevel >= WAVES_PER_LEVEL) finishRun(true);
+          else {
+            state.waveInLevel += 1;
+            state.waveTimer = WAVE_INTERVAL_SECONDS;
+            spawnWave();
           }
         }
 

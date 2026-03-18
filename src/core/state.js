@@ -1,3 +1,5 @@
+import { WAVE_INTERVAL_SECONDS } from '../config/gameConfig.js';
+
 export function createGameState(profile, helpers) {
   return {
     running: false,
@@ -11,7 +13,7 @@ export function createGameState(profile, helpers) {
     levelIndex: profile.progression.selectedLevel,
     spawnLeft: 0,
     fireCooldown: 0,
-    wavePause: 1,
+    waveTimer: WAVE_INTERVAL_SECONDS,
     yaw: 0,
     totalKills: 0,
     waveKills: 0,
