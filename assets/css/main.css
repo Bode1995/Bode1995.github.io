@@ -790,6 +790,18 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   display: none;
 }
 
+
+.power-badge--synergy {
+  border-color: rgba(255, 220, 115, 0.32);
+  background: linear-gradient(180deg, rgba(40, 30, 12, 0.92), rgba(18, 16, 28, 0.96));
+  box-shadow: 0 0 0 1px rgba(255, 220, 115, 0.08), 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.power-badge--synergy .power-badge__icon {
+  color: #22170a;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 0 18px rgba(255, 220, 115, 0.24);
+}
+
 .pickup-feed {
   position: absolute;
   top: calc(max(10px, env(safe-area-inset-top)) + 46px);

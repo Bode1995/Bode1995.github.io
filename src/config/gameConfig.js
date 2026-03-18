@@ -29,6 +29,14 @@ export const CHARACTER_DEFS = [
     weapon: 'rifle',
     combatProfile: {
       weaponType: 'rifle',
+      weaponTag: 'rifle',
+      statusApplicationMode: 'precision',
+      reactionBias: 1.18,
+      aoeBias: 0.82,
+      chainBias: 1.08,
+      dotBias: 0.94,
+      burstBias: 1.16,
+      precisionBias: 1.22,
       weaponProfile: {
         shotPattern: 'single',
         patternProjectiles: 1,
@@ -86,6 +94,14 @@ export const CHARACTER_DEFS = [
     weapon: 'carbine',
     combatProfile: {
       weaponType: 'burstCarbine',
+      weaponTag: 'carbine',
+      statusApplicationMode: 'burst',
+      reactionBias: 1.08,
+      aoeBias: 0.92,
+      chainBias: 1.1,
+      dotBias: 0.98,
+      burstBias: 1.04,
+      precisionBias: 1.12,
       weaponProfile: {
         shotPattern: 'single',
         patternProjectiles: 1,
@@ -143,6 +159,14 @@ export const CHARACTER_DEFS = [
     weapon: 'cannon',
     combatProfile: {
       weaponType: 'heavyCannon',
+      weaponTag: 'cannon',
+      statusApplicationMode: 'impact',
+      reactionBias: 0.88,
+      aoeBias: 1.34,
+      chainBias: 0.84,
+      dotBias: 0.9,
+      burstBias: 1.3,
+      precisionBias: 0.86,
       weaponProfile: {
         shotPattern: 'single',
         patternProjectiles: 1,
@@ -201,6 +225,14 @@ export const CHARACTER_DEFS = [
     weapon: 'bladegun',
     combatProfile: {
       weaponType: 'arcBladegun',
+      weaponTag: 'bladegun',
+      statusApplicationMode: 'fan',
+      reactionBias: 1,
+      aoeBias: 1.16,
+      chainBias: 1.02,
+      dotBias: 1,
+      burstBias: 0.96,
+      precisionBias: 0.94,
       weaponProfile: {
         shotPattern: 'fan',
         patternProjectiles: 3,
@@ -259,6 +291,14 @@ export const CHARACTER_DEFS = [
     weapon: 'smg',
     combatProfile: {
       weaponType: 'dualSmg',
+      weaponTag: 'smg',
+      statusApplicationMode: 'rapid',
+      reactionBias: 0.92,
+      aoeBias: 0.9,
+      chainBias: 0.96,
+      dotBias: 1.24,
+      burstBias: 0.88,
+      precisionBias: 0.82,
       weaponProfile: {
         shotPattern: 'dual',
         patternProjectiles: 2,
@@ -373,6 +413,155 @@ export const POWER_UP_DEFS = {
   shield: { kind: 'player', label: 'Shield', color: 0x79d7ff, icon: '🛡️', symbol: 'SH', shortLabel: 'Aegis' },
 };
 
+
+
+export const POWER_STACK_THRESHOLDS = {
+  fire: {
+    threshold_1: { stacks: 2, unlocks: ['synergy:thermal_conductor'], hudLabel: 'Fire II · Thermoleitung' },
+    threshold_2: { stacks: 4, flags: { fireCatalyst: true }, hudLabel: 'Fire IV · Brandbeschleuniger' },
+    threshold_3: { stacks: 6, flags: { infernoPulse: true }, hudLabel: 'Fire VI · Inferno-Puls' },
+  },
+  ice: {
+    threshold_1: { stacks: 2, unlocks: ['synergy:cryo_venom'], hudLabel: 'Ice II · Kryo-Gift' },
+    threshold_2: { stacks: 4, flags: { shatterPrep: true }, hudLabel: 'Ice IV · Splitterfrost' },
+    threshold_3: { stacks: 6, unlocks: ['synergy:frostfire_rupture'], hudLabel: 'Ice VI · Frostbrand' },
+  },
+  lightning: {
+    threshold_1: { stacks: 2, unlocks: ['synergy:thermal_conductor'], hudLabel: 'Lightning II · Leitbogen' },
+    threshold_2: { stacks: 4, flags: { chainOverload: true }, hudLabel: 'Lightning IV · Kettenüberladung' },
+    threshold_3: { stacks: 6, flags: { stormEcho: true }, hudLabel: 'Lightning VI · Sturmecho' },
+  },
+  poison: {
+    threshold_1: { stacks: 2, unlocks: ['synergy:cryo_venom'], hudLabel: 'Poison II · Kryotoxin' },
+    threshold_2: { stacks: 4, flags: { corrosionSpread: true }, hudLabel: 'Poison IV · Korrosionswolke' },
+    threshold_3: { stacks: 6, flags: { plagueCascade: true }, hudLabel: 'Poison VI · Pestkaskade' },
+  },
+  rockets: {
+    threshold_1: { stacks: 2, unlocks: ['synergy:volatile_payload'], hudLabel: 'Rockets II · Volatile Payload' },
+    threshold_2: { stacks: 4, flags: { blastPrime: true }, hudLabel: 'Rockets IV · Sprengkopf+' },
+    threshold_3: { stacks: 6, flags: { blastTransfer: true }, hudLabel: 'Rockets VI · Nachbrenner' },
+  },
+  doubler: {
+    threshold_1: { stacks: 1, flags: { multiThreaded: true }, hudLabel: 'Doubler I · Reaktionsdichte' },
+    threshold_2: { stacks: 2, flags: { multiCascade: true }, hudLabel: 'Doubler II · Split-Reaktion' },
+    threshold_3: { stacks: 3, flags: { multiStability: true }, hudLabel: 'Doubler III · Stabiler Schwarm' },
+  },
+};
+
+export const POWER_SYNERGY_DEFS = {
+  thermal_conductor: {
+    id: 'thermal_conductor',
+    hudLabel: 'Thermal Conductor',
+    priority: 90,
+    requiredPowers: ['fire', 'lightning'],
+    requiredStacks: { fire: 2, lightning: 2 },
+    requiredFlags: ['fireCatalyst'],
+    triggerType: 'onHit',
+    weaponTags: ['rifle', 'carbine', 'bladegun', 'smg', 'cannon'],
+    effectConfig: {
+      requiresTargetStatuses: ['fireDot'],
+      bonusDamage: 2.5,
+      bonusDamagePerStack: 0.42,
+      statusAmplify: { shockTimer: 0.28, fireDot: 0.18 },
+      consumeStatuses: { fireDot: 0.2 },
+      cooldownFrames: 5,
+      maxChainDepth: 1,
+      reactionVfx: 'lightning',
+    },
+  },
+  cryo_venom: {
+    id: 'cryo_venom',
+    hudLabel: 'Cryo Venom',
+    priority: 80,
+    requiredPowers: ['ice', 'poison'],
+    requiredStacks: { ice: 2, poison: 2 },
+    triggerType: 'onStatusApply',
+    weaponTags: ['rifle', 'carbine', 'bladegun', 'smg', 'cannon'],
+    effectConfig: {
+      requiresTargetStatuses: ['poisonDot', 'iceSlowTimer'],
+      bonusDamage: 1.8,
+      bonusDamagePerStack: 0.3,
+      statusAmplify: { poisonDot: 0.4, iceSlowTimer: 0.22 },
+      addPrimedEffect: 'cryo_venom',
+      reactionVfx: 'poison',
+    },
+  },
+  frostfire_rupture: {
+    id: 'frostfire_rupture',
+    hudLabel: 'Frostfire Rupture',
+    priority: 100,
+    requiredPowers: ['fire', 'ice'],
+    requiredStacks: { fire: 3, ice: 2 },
+    requiredFlags: ['shatterPrep'],
+    triggerType: 'onHit',
+    weaponTags: ['rifle', 'carbine', 'bladegun', 'smg', 'cannon'],
+    effectConfig: {
+      requiresTargetStatuses: ['fireDot', 'iceSlowTimer'],
+      bonusDamage: 3.6,
+      bonusDamagePerStack: 0.52,
+      statusAmplify: { fireDot: 0.25, iceSlowTimer: 0.3 },
+      consumeStatuses: { iceSlowTimer: 0.35 },
+      splashRadius: 2.6,
+      splashDamage: 2.2,
+      reactionVfx: 'fire',
+    },
+  },
+  volatile_payload: {
+    id: 'volatile_payload',
+    hudLabel: 'Volatile Payload',
+    priority: 70,
+    requiredPowers: ['rockets', 'fire'],
+    requiredStacks: { rockets: 2, fire: 1 },
+    triggerType: 'onExplosion',
+    weaponTags: ['rifle', 'carbine', 'bladegun', 'smg', 'cannon'],
+    effectConfig: {
+      requiresTargetStatuses: ['fireDot'],
+      bonusDamage: 2.2,
+      bonusDamagePerStack: 0.35,
+      splashRadius: 3.4,
+      splashDamage: 2.8,
+      igniteNearby: 1.4,
+      reactionVfx: 'rockets',
+    },
+  },
+  plague_burst: {
+    id: 'plague_burst',
+    hudLabel: 'Plague Burst',
+    priority: 60,
+    requiredPowers: ['poison', 'lightning'],
+    requiredStacks: { poison: 3, lightning: 2 },
+    requiredFlags: ['corrosionSpread'],
+    triggerType: 'onKill',
+    weaponTags: ['rifle', 'carbine', 'bladegun', 'smg', 'cannon'],
+    effectConfig: {
+      requiresTargetStatuses: ['poisonDot'],
+      radius: 4.4,
+      burstDamage: 3.2,
+      transferStatus: { poisonDot: 3.2, shockTimer: 0.32 },
+      maxTargets: 5,
+      reactionVfx: 'poison',
+    },
+  },
+  static_ice_burst: {
+    id: 'static_ice_burst',
+    hudLabel: 'Static Ice Burst',
+    priority: 65,
+    requiredPowers: ['ice', 'lightning'],
+    requiredStacks: { ice: 3, lightning: 2 },
+    requiredFlags: ['chainOverload'],
+    triggerType: 'onDeathBurst',
+    weaponTags: ['rifle', 'carbine', 'bladegun', 'smg', 'cannon'],
+    effectConfig: {
+      requiresTargetStatuses: ['iceSlowTimer', 'shockTimer'],
+      radius: 4.8,
+      burstDamage: 2.6,
+      transferStatus: { iceSlowTimer: 0.9, shockTimer: 0.22 },
+      maxTargets: 6,
+      reactionVfx: 'ice',
+    },
+  },
+};
+
 export const RUN_BASE = {
   moveSpeedMultiplier: 1,
   projectileCount: 1,
@@ -390,6 +579,13 @@ export const ENEMY_TYPES = {
 };
 
 export const SAFETY_LIMITS = {
+  maxSynergyReactionsPerHit: 3,
+  maxSynergyEventsPerFrame: 24,
+  maxKillSynergyEventsPerFrame: 12,
+  maxDeathBurstTargets: 8,
+  maxStatusPropagationPerEvent: 6,
+  maxSynergyChainDepth: 2,
+  reactionInternalCooldownFrames: 5,
   maxProjectileCount: 4096,
   maxVisualProjectilesPerShot: 10,
   maxVisualProjectilesPerShotLowQuality: 6,

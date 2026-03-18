@@ -13,6 +13,7 @@ export function createProjectileSystem({
   getBaseDamage,
   getCharacterCombatProfile,
   getProjectileEffects,
+  getWeaponSynergyProfile,
   sceneResources,
 }) {
   const bulletAssets = {
@@ -168,6 +169,7 @@ export function createProjectileSystem({
     const baseYaw = state.yaw;
     const fx = getProjectileEffects();
     const perFrameSpawnCap = performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxBulletsSpawnPerFrame, 0.7, 0.4);
+    const projectileSynergy = getWeaponSynergyProfile(combatProfile, fx);
     const remainingFrameBudget = Math.max(0, perFrameSpawnCap - state.performance.frameBudgets.bulletsSpawned);
     const maxActiveBullets = performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxActiveBullets, 0.68, 0.42);
     const softActiveBullets = performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxActiveBulletsSoft, 0.72, 0.48);
@@ -219,6 +221,13 @@ export function createProjectileSystem({
       bullet.userData.hitRadius = weaponProfile.hitRadius || 0.18;
       bullet.userData.pierceRemaining = weaponProfile.pierce || 0;
       bullet.userData.hitEnemies = new Set();
+      bullet.userData.weaponTag = projectileSynergy.weaponTag;
+      bullet.userData.statusBias = projectileSynergy.statusBias;
+      bullet.userData.reactionBias = projectileSynergy.reactionBias;
+      bullet.userData.secondaryTriggerRules = projectileSynergy.secondaryTriggerRules;
+      bullet.userData.synergyProfile = projectileSynergy.synergyProfile;
+      bullet.userData.weaponCombatProfile = combatProfile;
+      bullet.userData.secondaryChainDepth = 0;
       scene.add(bullet);
       state.entities.bullets.push(bullet);
       state.performance.frameBudgets.bulletsSpawned += 1;

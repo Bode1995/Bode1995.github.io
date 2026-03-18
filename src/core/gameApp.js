@@ -25,6 +25,7 @@ import { createEnemySystem } from '../systems/enemySystem.js';
 import { createInputSystem } from '../systems/inputSystem.js';
 import { createPerformanceSystem } from '../systems/performanceSystem.js';
 import { createProjectileSystem } from '../systems/projectileSystem.js';
+import { createSynergySystem } from '../systems/synergySystem.js';
 import { createVfxSystem } from '../systems/vfxSystem.js';
 import { registerServiceWorker } from '../pwa/register-sw.js';
 
@@ -211,6 +212,16 @@ export function startGameApp() {
     sceneResources,
   });
 
+  const synergySystem = createSynergySystem({
+    state,
+    runPowers: state.runPowers,
+    collision,
+    performance,
+    vfx,
+    sceneResources,
+  });
+  synergySystem.applyThresholdUnlocks();
+
   let finishRun = () => {};
   const combat = createCombatSystem({
     state,
@@ -224,6 +235,7 @@ export function startGameApp() {
     getBaseMoveSpeedMultiplier,
     getPlayerMaxHp,
     getSafeProjectileCountFromDoublers: (stacks) => projectileSystem.getSafeProjectileCountFromDoublers(stacks),
+    getCharacterCombatProfile,
     finishRun: (success) => finishRun(success),
     sceneResources,
     temp,
@@ -257,6 +269,7 @@ export function startGameApp() {
     getBaseDamage,
     getCharacterCombatProfile,
     getProjectileEffects: combat.getProjectileEffects,
+    getWeaponSynergyProfile: synergySystem.getWeaponSynergyProfile,
     sceneResources,
   });
 
@@ -296,6 +309,8 @@ export function startGameApp() {
     state.moveSpeedMultiplier = getBaseMoveSpeedMultiplier() + state.runPowers.stacks.movementSpeed * 0.05;
     state.weaponState.burstShotsRemaining = 0;
     state.weaponState.burstTimer = 0;
+    state.runPowers.lastWeaponTag = characterDef.combatProfile.weaponTag;
+    synergySystem.rebuildActiveSynergies(characterDef.combatProfile);
     ui.selectedCharacterLabel.textContent = characterDef.name;
   }
 
@@ -373,8 +388,9 @@ export function startGameApp() {
   function formatPickupNotice(notice) {
     const def = POWER_UP_DEFS[notice.type];
     const colorHex = def ? `#${def.color.toString(16).padStart(6, '0')}` : '#ffffff';
+    const icon = notice.category === 'synergy' || notice.category === 'reaction' || notice.type === 'synergy' ? '∞' : (def?.symbol || def?.icon || '+');
     return `
-      <span class="pickup-line__icon" style="background:${colorHex}">${def?.symbol || def?.icon || '+'}</span>
+      <span class="pickup-line__icon" style="background:${colorHex}">${icon}</span>
       <span class="pickup-line__meta">
         <span class="pickup-line__name">${notice.text}</span>
       </span>
@@ -488,8 +504,19 @@ export function startGameApp() {
     const roundedShield = Math.max(0, Math.round(state.runPowers.shieldHp));
     const activePowerEntries = Object.entries(state.runPowers.stacks)
       .filter(([, count]) => count > 0)
-      .map(([key, count]) => [POWER_UP_DEFS[key], count])
+      .map(([key, count]) => [POWER_UP_DEFS[key], count, false])
       .filter(([def]) => !!def);
+    const activeSynergyEntries = (state.runPowers.activeSynergies || [])
+      .map((entry) => [
+        {
+          label: entry.hudLabel,
+          shortLabel: entry.hudLabel,
+          symbol: '∞',
+          color: 0xffdc73,
+        },
+        entry.priority || 1,
+        true,
+      ]);
 
     ui.wave.textContent = `${state.waveInLevel}/${WAVES_PER_LEVEL}`;
     ui.score.textContent = String(state.score);
@@ -502,10 +529,11 @@ export function startGameApp() {
     ui.pauseBtn.setAttribute('aria-pressed', state.paused ? 'true' : 'false');
 
     ui.activePowers.innerHTML = '';
-    for (const [def, count] of activePowerEntries) {
+    for (const [def, count, isSynergy] of [...activePowerEntries, ...activeSynergyEntries]) {
       const badge = document.createElement('div');
       badge.className = 'power-badge';
       badge.innerHTML = formatPowerBadge(def, count);
+      if (isSynergy) badge.classList.add('power-badge--synergy');
       ui.activePowers.appendChild(badge);
     }
     if (!ui.activePowers.children.length) {
@@ -717,6 +745,8 @@ export function startGameApp() {
       resetTransientInputState();
       clearRunObjects();
       combat.resetRunPowerUps();
+      synergySystem.applyThresholdUnlocks();
+      synergySystem.rebuildActiveSynergies(getCharacterCombatProfile());
       spawnWave();
       if (state.entities.enemies.length === 0) throw new Error('Wave spawn returned no enemies.');
       updateHUD();
@@ -938,6 +968,8 @@ export function startGameApp() {
         for (const key of ['fire', 'ice', 'lightning', 'poison', 'rockets', 'doubler']) state.runPowers.stacks[key] = Math.max(state.runPowers.stacks[key], stacks);
         state.projectileCount = projectileSystem.getSafeProjectileCountFromDoublers(state.runPowers.stacks.doubler);
         state.moveSpeedMultiplier = getBaseMoveSpeedMultiplier() + state.runPowers.stacks.movementSpeed * 0.05;
+        synergySystem.applyThresholdUnlocks();
+        synergySystem.rebuildActiveSynergies(getCharacterCombatProfile());
         updateHUD();
         return this.snapshot();
       },

@@ -7,11 +7,13 @@ export function createCombatSystem({
   collision,
   vfx,
   runPowers,
+  synergySystem,
   getUpgradeLevel,
   getShieldPickupCapacity,
   getBaseMoveSpeedMultiplier,
   getPlayerMaxHp,
   getSafeProjectileCountFromDoublers,
+  getCharacterCombatProfile,
   finishRun,
   sceneResources,
   temp,
@@ -38,12 +40,20 @@ export function createCombatSystem({
       const count = runPowers.stacks[key];
       if (count > 0) active.push(`${POWER_UP_DEFS[key].label} x${count}`);
     }
+    const synergyLabels = (runPowers.activeSynergies || []).map((entry) => entry.hudLabel);
+    if (synergyLabels.length) active.push(`Synergien: ${synergyLabels.join(', ')}`);
     return active.length ? active.join(' · ') : 'none';
   }
 
-  function showPickupNotice(type, POWER_UP_DEFS) {
+  function showPickupNotice(type, POWER_UP_DEFS, text = null, category = 'pickup') {
     const def = POWER_UP_DEFS[type];
-    state.ui.pickupNotices.push({ type, text: `${def.label} +1`, life: 1.4, maxLife: 1.4 });
+    state.ui.pickupNotices.push({
+      type,
+      text: text || `${def.label} +1`,
+      category,
+      life: 1.4,
+      maxLife: 1.4,
+    });
   }
 
   function applyRunPower(type, POWER_UP_DEFS) {
@@ -63,11 +73,17 @@ export function createCombatSystem({
       runPowers.shieldHp += getShieldPickupCapacity();
     }
     showPickupNotice(type, POWER_UP_DEFS);
+    synergySystem.applyThresholdUnlocks();
   }
 
   function resetRunPowerUps() {
     for (const key of Object.keys(runPowers.stacks)) runPowers.stacks[key] = 0;
     runPowers.shieldHp = 0;
+    runPowers.activeSynergies = [];
+    runPowers.synergyFlags = {};
+    runPowers.synergyCounters = { frameEvents: 0, killFrameEvents: 0, totalReactions: 0 };
+    runPowers.recentReactionCache.clear();
+    runPowers.thresholdUnlocks = {};
     state.moveSpeedMultiplier = getBaseMoveSpeedMultiplier();
     state.projectileCount = 1;
   }
@@ -96,6 +112,14 @@ export function createCombatSystem({
     data.impactVisualEffects = effects || data.impactVisualEffects || null;
   }
 
+  function buildKillContext(options = {}) {
+    const weaponProfile = options.weaponProfile || getCharacterCombatProfile();
+    return {
+      damageEnemy,
+      weaponProfile,
+    };
+  }
+
   function damageEnemy(enemy, amount, options = {}) {
     const data = getEnemyData(enemy);
     if (!data) {
@@ -103,14 +127,24 @@ export function createCombatSystem({
       return;
     }
     if (data.dead) return;
-    const { allowLightningChain = true, isSecondaryEffect = false, impactEffects = null } = options;
+    const {
+      allowLightningChain = true,
+      isSecondaryEffect = false,
+      isSynergyEffect = false,
+      synergyId = null,
+      impactEffects = null,
+      secondaryChainDepth = 0,
+      weaponProfile = null,
+    } = options;
+    if (secondaryChainDepth > sceneResources.SAFETY_LIMITS.maxSynergyChainDepth) return;
+
     data.hp -= amount;
     state.damageDealt += amount;
     profile.stats.damageDealt += amount;
     if (!isSecondaryEffect || impactEffects) vfx.spawnDamageNumber(enemy, amount);
     if (impactEffects) markEnemyImpactVisuals(enemy, impactEffects);
 
-    if (runPowers.stacks.lightning > 0) {
+    if (runPowers.stacks.lightning > 0 && !isSynergyEffect) {
       data.shockTimer = Math.max(data.shockTimer, 0.18 + runPowers.stacks.lightning * 0.04);
       if (impactEffects && state.performance.frameBudgets.statusVfx < performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxStatusVfxPerFrame, 0.55, 0.28)) {
         temp.vec3A.copy(enemy.position).setY(enemy.position.y + 1.1);
@@ -119,13 +153,14 @@ export function createCombatSystem({
     }
 
     if (data.hp <= 0) {
+      synergySystem.resolveKillSynergies(enemy, buildKillContext({ weaponProfile: weaponProfile || getCharacterCombatProfile() }));
       const idx = state.entities.enemies.indexOf(enemy);
       if (idx >= 0) api.destroyEnemy(enemy, idx);
       else data.dead = true;
       return;
     }
 
-    if (!allowLightningChain || runPowers.stacks.lightning <= 0) return;
+    if (!allowLightningChain || runPowers.stacks.lightning <= 0 || isSynergyEffect) return;
 
     let chains = Math.min(runPowers.stacks.lightning, performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxLightningChainsPerHit, 0.66, 0.34));
     const lightningRange = 6.5 + getUpgradeLevel('lightningRange') * 0.45;
@@ -155,45 +190,56 @@ export function createCombatSystem({
 
       if (!nearest) break;
       visited.add(nearest);
+      state.performance.frameBudgets.lightningChains += 1;
       if (!vfx.createChainBeam(source.position, nearest.position)) break;
       const chainDamage = Math.max(1, Math.round(0.7 + runPowers.stacks.lightning * 0.8));
-      damageEnemy(nearest, chainDamage, { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { lightning: true } });
+      damageEnemy(nearest, chainDamage, {
+        allowLightningChain: false,
+        isSecondaryEffect: true,
+        impactEffects: { lightning: true },
+        secondaryChainDepth: secondaryChainDepth + 1,
+        weaponProfile,
+      });
       source = nearest;
       chains -= 1;
     }
   }
 
-  function applyProjectilePower(enemy, bullet) {
-    const data = getEnemyData(enemy);
-    if (!data) {
-      logInvalidEnemyReference(state, 'combat.applyProjectilePower', enemy);
-      return;
-    }
-    const hitPos = temp.vec3A.copy(bullet.position);
-    const volleyWeight = Math.max(1, bullet.userData.volleyWeight || 1);
-    const weightBoost = 1 + Math.log2(volleyWeight) * 0.18;
-    const impactEffects = bullet.userData.effects || getProjectileEffects();
-    vfx.spawnImpactEffects(hitPos, impactEffects);
-    markEnemyImpactVisuals(enemy, impactEffects);
-
+  function applyProjectileStatuses(enemy, bullet, data, impactEffects, hitPos, volleyWeight, weightBoost) {
+    const statusBias = bullet.userData.statusBias || {};
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.fire > 0) {
-      data.fireDot = Math.min(14, data.fireDot + runPowers.stacks.fire * 0.55 * (1 + getUpgradeLevel('burnDamage') * 0.18) * Math.min(3.2, volleyWeight));
+      const amount = Math.min(14, data.fireDot + runPowers.stacks.fire * 0.55 * (1 + getUpgradeLevel('burnDamage') * 0.18) * Math.min(3.2, volleyWeight) * Math.max(0.75, statusBias.fire || 1));
+      data.fireDot = amount;
+      synergySystem.applyStatusMetadata(data, bullet, 'fireDot', amount);
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.22, 0.35, (Math.random() - 0.5) * 0.22), vfx.EFFECT_COLORS.fire, 0.22, 0.72);
     }
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.poison > 0) {
-      data.poisonDot = Math.min(16, data.poisonDot + runPowers.stacks.poison * 0.7 * (1 + getUpgradeLevel('poisonDamage') * 0.18) * Math.min(3.2, volleyWeight));
+      const amount = Math.min(16, data.poisonDot + runPowers.stacks.poison * 0.7 * (1 + getUpgradeLevel('poisonDamage') * 0.18) * Math.min(3.2, volleyWeight) * Math.max(0.75, statusBias.poison || 1));
+      data.poisonDot = amount;
+      synergySystem.applyStatusMetadata(data, bullet, 'poisonDot', amount);
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.14, 0.16, (Math.random() - 0.5) * 0.14), 0x7dff74, 0.28, 0.88);
     }
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.ice > 0) {
-      data.iceSlowTimer = Math.max(data.iceSlowTimer, (1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2) * Math.min(2.1, weightBoost));
+      const amount = Math.max(data.iceSlowTimer, (1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2) * Math.min(2.1, weightBoost) * Math.max(0.75, statusBias.ice || 1));
+      data.iceSlowTimer = amount;
+      synergySystem.applyStatusMetadata(data, bullet, 'iceSlowTimer', amount);
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.15, 0.18, (Math.random() - 0.5) * 0.15), vfx.EFFECT_COLORS.ice, 0.22, 0.72);
     }
+    if (runPowers.stacks.lightning > 0) {
+      const amount = Math.max(data.shockTimer, (0.18 + runPowers.stacks.lightning * 0.04) * Math.max(0.8, statusBias.lightning || 1));
+      data.shockTimer = amount;
+      synergySystem.applyStatusMetadata(data, bullet, 'shockTimer', amount);
+    }
+    markEnemyImpactVisuals(enemy, impactEffects);
+  }
 
+  function applyRocketSplash(enemy, bullet, hitPos, weightBoost, volleyWeight) {
     if (runPowers.stacks.rockets <= 0) return;
     const splashBudget = performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxSplashDamageEventsPerFrame, 0.55, 0.34);
     if (state.performance.frameBudgets.splashDamageEvents >= splashBudget) return;
 
-    const radius = (1.8 + getUpgradeLevel('rocketRadius') * 0.18 + runPowers.stacks.rockets * 0.55) * Math.min(2.1, weightBoost);
+    const aoeBias = bullet.userData.synergyProfile?.aoeBias || 1;
+    const radius = (1.8 + getUpgradeLevel('rocketRadius') * 0.18 + runPowers.stacks.rockets * 0.55) * Math.min(2.1, weightBoost) * aoeBias;
     const splash = Math.max(1, Math.round((0.45 + runPowers.stacks.rockets * 0.7) * Math.min(3, volleyWeight)));
     vfx.spawnExplosionRing(hitPos, radius);
 
@@ -209,9 +255,33 @@ export function createCombatSystem({
       if ((dx * dx) + (dz * dz) > radius * radius) return;
       state.performance.frameBudgets.splashDamageEvents += 1;
       splashTargets += 1;
-      damageEnemy(other, splash, { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { rockets: true } });
+      damageEnemy(other, splash, {
+        allowLightningChain: false,
+        isSecondaryEffect: true,
+        impactEffects: { rockets: true },
+        weaponProfile: bullet.userData.weaponCombatProfile,
+      });
       if (splashTargets >= performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxRocketSplashTargets, 0.7, 0.45)) return false;
     }, sceneResources.SAFETY_LIMITS.maxRocketSplashSearchCells);
+
+    synergySystem.resolveHitSynergies(enemy, bullet, { damageEnemy, triggerTypes: ['onExplosion'] });
+  }
+
+  function applyProjectilePower(enemy, bullet) {
+    const data = getEnemyData(enemy);
+    if (!data) {
+      logInvalidEnemyReference(state, 'combat.applyProjectilePower', enemy);
+      return;
+    }
+    const hitPos = temp.vec3A.copy(bullet.position);
+    const volleyWeight = Math.max(1, bullet.userData.volleyWeight || 1);
+    const weightBoost = 1 + Math.log2(volleyWeight) * 0.18;
+    const impactEffects = bullet.userData.effects || getProjectileEffects();
+    vfx.spawnImpactEffects(hitPos, impactEffects);
+
+    applyProjectileStatuses(enemy, bullet, data, impactEffects, hitPos, volleyWeight, weightBoost);
+    synergySystem.resolveHitSynergies(enemy, bullet, { damageEnemy, triggerTypes: ['onStatusApply', 'onHit'] });
+    applyRocketSplash(enemy, bullet, hitPos, weightBoost, volleyWeight);
   }
 
   return {

@@ -17,6 +17,7 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
   }
 
   function resetFrameBudgets() {
+    state.performance.frameIndex += 1;
     const budgets = state.performance.frameBudgets;
     budgets.lightningChains = 0;
     budgets.vfxSpawns = 0;
@@ -26,6 +27,10 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
     budgets.splashDamageEvents = 0;
     budgets.hitResolutions = 0;
     budgets.statusVfx = 0;
+    if (state.runPowers?.synergyCounters) {
+      state.runPowers.synergyCounters.frameEvents = 0;
+      state.runPowers.synergyCounters.killFrameEvents = 0;
+    }
   }
 
   function update(dt, maxParticles) {
