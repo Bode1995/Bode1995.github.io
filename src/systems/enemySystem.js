@@ -322,6 +322,9 @@ export function createEnemySystem({
       statusPulse: Math.random() * Math.PI * 2,
       impactVisualTimer: 0,
       impactVisualEffects: null,
+      damageNumberTotal: 0,
+      damageNumberTimer: 0,
+      damageNumberEntry: null,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
@@ -336,6 +339,9 @@ export function createEnemySystem({
     }
     if (data.dead) return;
     data.dead = true;
+    data.damageNumberTotal = 0;
+    data.damageNumberTimer = 0;
+    data.damageNumberEntry = null;
     vfx.removeEnemyDamageNumber(enemy);
     scene.remove(enemy);
     const resolvedIndex = Number.isInteger(index) && state.entities.enemies[index] === enemy
@@ -372,6 +378,16 @@ export function createEnemySystem({
         continue;
       }
       if (data.dead) continue;
+
+      if (data.damageNumberTotal > 0 || data.damageNumberEntry) {
+        data.damageNumberTimer += dt;
+        if (data.damageNumberTimer >= 3) {
+          data.damageNumberTotal = 0;
+          data.damageNumberTimer = 0;
+          data.damageNumberEntry = null;
+          vfx.removeEnemyDamageNumber(enemy);
+        }
+      }
 
       temp.vec3A.set(temp.player.position.x - enemy.position.x, 0, temp.player.position.z - enemy.position.z);
       const dist = Math.max(0.0001, temp.vec3A.length());
@@ -480,8 +496,16 @@ export function createEnemySystem({
     });
     state.entities.enemyProjectiles.length = 0;
     state.entities.enemies.forEach((enemy) => {
-      if (enemy) scene.remove(enemy);
-      if (enemy) vfx.removeEnemyDamageNumber(enemy);
+      if (enemy) {
+        const data = getEnemyData(enemy);
+        if (data) {
+          data.damageNumberTotal = 0;
+          data.damageNumberTimer = 0;
+          data.damageNumberEntry = null;
+        }
+        scene.remove(enemy);
+        vfx.removeEnemyDamageNumber(enemy);
+      }
     });
     state.entities.enemies.length = 0;
   }

@@ -144,7 +144,9 @@ export function createCombatSystem({
     data.hp -= resolvedAmount;
     state.damageDealt += resolvedAmount;
     profile.stats.damageDealt += resolvedAmount;
-    vfx.recordEnemyDamage(enemy, resolvedAmount);
+    data.damageNumberTotal += resolvedAmount;
+    data.damageNumberTimer = 0;
+    vfx.upsertEnemyDamageNumber(enemy, data.damageNumberTotal);
     if (impactEffects) markEnemyImpactVisuals(enemy, impactEffects);
 
     if (runPowers.stacks.lightning > 0 && !isSynergyEffect) {
