@@ -34,9 +34,9 @@ export function startGameApp() {
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
-    'wave', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'pickupFeed', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
+    'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
-    'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
+    'upgradeGroups', 'upgradeDetail', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
   ];
   const missingUi = REQUIRED_UI_KEYS.filter((key) => !ui[key]);
@@ -113,16 +113,16 @@ export function startGameApp() {
   const keyLight = new THREE.DirectionalLight(0xfff0d2, 2.1);
   keyLight.position.set(28, 36, 16);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(2048, 2048);
-  keyLight.shadow.camera.near = 6;
-  keyLight.shadow.camera.far = 84;
-  keyLight.shadow.camera.left = -36;
-  keyLight.shadow.camera.right = 36;
-  keyLight.shadow.camera.top = 36;
-  keyLight.shadow.camera.bottom = -36;
-  keyLight.shadow.bias = -0.00035;
-  keyLight.shadow.normalBias = 0.075;
-  keyLight.shadow.radius = 1.5;
+  keyLight.shadow.mapSize.set(3072, 3072);
+  keyLight.shadow.camera.near = 4;
+  keyLight.shadow.camera.far = 132;
+  keyLight.shadow.camera.left = -58;
+  keyLight.shadow.camera.right = 58;
+  keyLight.shadow.camera.top = 58;
+  keyLight.shadow.camera.bottom = -58;
+  keyLight.shadow.bias = -0.00018;
+  keyLight.shadow.normalBias = 0.028;
+  keyLight.shadow.radius = 1.9;
   scene.add(keyLight);
 
   const fillLight = new THREE.DirectionalLight(0xc6dcff, 0.62);
@@ -326,10 +326,27 @@ export function startGameApp() {
     return profile.upgrades[id] || 0;
   }
 
+  function getUpgradeDef(id) {
+    return UPGRADE_DEFS.find((entry) => entry.id === id) || null;
+  }
+
+  function getUpgradeCapBonus() {
+    return getUpgradeLevel('upgradeLimit');
+  }
+
+  function getUpgradeMaxLevel(id) {
+    const def = getUpgradeDef(id);
+    if (!def) return null;
+    if (def.isLimitExtender) return null;
+    return (def.maxLevel ?? 0) + getUpgradeCapBonus();
+  }
+
   function getUpgradeCost(id) {
-    const def = UPGRADE_DEFS.find((entry) => entry.id === id);
+    const def = getUpgradeDef(id);
     const level = getUpgradeLevel(id);
-    if (!def || level >= def.maxLevel) return null;
+    const maxLevel = getUpgradeMaxLevel(id);
+    if (!def || (maxLevel != null && level >= maxLevel)) return null;
+    if (def.isLimitExtender) return Math.round(def.baseCost + level * def.costStep + level * level * 22);
     return def.baseCost + level * def.costStep;
   }
 
@@ -379,18 +396,6 @@ export function startGameApp() {
         <span class="power-badge__name">${def.shortLabel || def.label}</span>
       </span>
       <span class="power-badge__count">${count}</span>
-    `;
-  }
-
-  function formatPickupNotice(notice) {
-    const def = POWER_UP_DEFS[notice.type];
-    const colorHex = def ? `#${def.color.toString(16).padStart(6, '0')}` : '#ffffff';
-    const icon = notice.category === 'synergy' || notice.category === 'reaction' || notice.type === 'synergy' ? '∞' : (def?.symbol || def?.icon || '+');
-    return `
-      <span class="pickup-line__icon" style="background:${colorHex}">${icon}</span>
-      <span class="pickup-line__meta">
-        <span class="pickup-line__name">${notice.text}</span>
-      </span>
     `;
   }
 
@@ -468,12 +473,17 @@ export function startGameApp() {
     if (token) token.position.y = 0.02;
     mesh.add(halo, shell, beacon);
     if (token) mesh.add(token);
+    mesh.traverse((child) => {
+      if (!child.isMesh) return;
+      child.castShadow = true;
+      child.receiveShadow = true;
+    });
     mesh.userData.halo = halo;
     mesh.userData.shell = shell;
     mesh.userData.token = token;
     mesh.position.copy(position).setY(0.92);
     scene.add(mesh);
-    state.entities.powerPickups.push({ mesh, type, pulse: Math.random() * Math.PI * 2, radius: 0.98 });
+    state.entities.powerPickups.push({ mesh, type, pulse: Math.random() * Math.PI * 2, radius: 1.42 });
   }
 
   function randomPowerKey() {
@@ -516,6 +526,7 @@ export function startGameApp() {
       ]);
 
     ui.wave.textContent = `${state.waveInLevel}/${WAVES_PER_LEVEL}`;
+    ui.enemyCount.textContent = String(state.entities.enemies.length);
     ui.score.textContent = String(state.score);
     ui.hpValue.textContent = String(roundedHp);
     ui.hpBar.style.width = `${hpPercent}%`;
@@ -538,15 +549,6 @@ export function startGameApp() {
       emptyBadge.className = 'power-badge';
       emptyBadge.innerHTML = '<span class="power-badge__icon" style="background:#2a3044" title="Keine aktiven Power-ups">+</span><span class="power-badge__count">0</span>';
       ui.activePowers.appendChild(emptyBadge);
-    }
-
-    ui.pickupFeed.innerHTML = '';
-    for (const notice of state.ui.pickupNotices.slice(0, 3)) {
-      const el = document.createElement('div');
-      el.className = 'pickup-line';
-      el.style.opacity = `${Math.max(0, notice.life / notice.maxLife)}`;
-      el.innerHTML = formatPickupNotice(notice);
-      ui.pickupFeed.appendChild(el);
     }
   }
 
@@ -602,12 +604,11 @@ export function startGameApp() {
     vfx.clear();
     collision.clearEnemySpatialGrid();
     removeAllPickups();
-    state.ui.pickupNotices.length = 0;
     state.performance.activeEnemyEffects = 0;
   }
 
   function purchaseUpgrade(upgradeId) {
-    const def = UPGRADE_DEFS.find((entry) => entry.id === upgradeId);
+    const def = getUpgradeDef(upgradeId);
     const cost = getUpgradeCost(upgradeId);
     if (!def || cost == null || profile.credits < cost) return;
     profile.credits -= cost;
@@ -770,6 +771,7 @@ export function startGameApp() {
     state,
     helpers: {
       getUpgradeLevel,
+      getUpgradeMaxLevel,
       getUpgradeCost,
       isLevelUnlocked: profileApi.isLevelUnlocked,
       getLevelKey: profileApi.getLevelKey,
@@ -879,11 +881,6 @@ export function startGameApp() {
         disposePickupMesh(pickup.mesh);
         state.entities.powerPickups.splice(i, 1);
       }
-    }
-
-    for (let i = state.ui.pickupNotices.length - 1; i >= 0; i--) {
-      state.ui.pickupNotices[i].life -= dt;
-      if (state.ui.pickupNotices[i].life <= 0) state.ui.pickupNotices.splice(i, 1);
     }
   }
 
