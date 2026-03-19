@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sky-blaster-3d-v4';
+const CACHE_NAME = 'sky-blaster-3d-v5';
 const ASSETS = [
   './',
   './index.html',
