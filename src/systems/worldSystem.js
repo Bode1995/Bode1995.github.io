@@ -162,10 +162,11 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     salt = 0,
     layer = 0,
     excludeRects = [],
+    flat = false,
+    lift = 0.01,
     source = 'surface-scatter',
   }) => {
     const scatterHeight = Math.max(height, 0.028);
-    const scatterLift = 0.01;
     for (let i = 0; i < count; i++) {
       const px = x + ((hash(i + salt, z, salt + 10) - 0.5) * sx * 0.84);
       const pz = z + ((hash(x, i + salt, salt + 20) - 0.5) * sz * 0.84);
@@ -181,9 +182,15 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
       overlayMaterial.transparent = false;
       overlayMaterial.depthWrite = true;
       overlayMaterial.opacity = 1;
-      const stain = new THREE.Mesh(new THREE.BoxGeometry(width, scatterHeight, depth), overlayMaterial);
-      stain.position.set(px, y + scatterLift - (scatterHeight * 0.5), pz);
-      stain.rotation.y = rotation;
+      const stainGeometry = flat ? new THREE.PlaneGeometry(width, depth) : new THREE.BoxGeometry(width, scatterHeight, depth);
+      const stain = new THREE.Mesh(stainGeometry, overlayMaterial);
+      if (flat) {
+        stain.position.set(px, y + lift, pz);
+        stain.rotation.set(-Math.PI * 0.5, rotation, 0);
+      } else {
+        stain.position.set(px, y + lift - (scatterHeight * 0.5), pz);
+        stain.rotation.y = rotation;
+      }
       stain.castShadow = false;
       stain.receiveShadow = false;
       stain.renderOrder = layer;
@@ -369,7 +376,23 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
   addGroundPatch({ x: -42, z: -3, sx: 13, sz: 54, y: GROUND_SURFACE_Y.zonePrimary, height: 0.09, material: shared.gravel, rotation: 0.02, materialSalt: 40, layer: 3, source: 'zone-gravel-west' });
 
   addSurfaceScatter({ x: 3, z: 5, sx: 76, sz: 60, count: 14, material: shared.asphaltDark, y: GROUND_SURFACE_Y.scatter, height: 0.024, maxSize: 6.5, opacity: 0.22, salt: 41, layer: 6, source: 'scatter-asphalt' });
-  addSurfaceScatter({ x: -18, z: -18, sx: 30, sz: 24, count: 8, material: shared.concreteLight, y: GROUND_SURFACE_Y.scatterDetail, height: 0.024, maxSize: 4.6, opacity: 0.2, salt: 42, layer: 7, source: 'scatter-concrete' });
+  addSurfaceScatter({
+    x: -18,
+    z: -18,
+    sx: 30,
+    sz: 24,
+    count: 8,
+    material: shared.concreteLight,
+    y: GROUND_SURFACE_Y.scatterDetail,
+    height: 0.024,
+    maxSize: 4.6,
+    opacity: 0.2,
+    salt: 42,
+    layer: 7,
+    flat: true,
+    lift: 0.006,
+    source: 'scatter-concrete',
+  });
   addSurfaceScatter({
     x: 23,
     z: 16,
@@ -384,6 +407,8 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     salt: 43,
     layer: 7,
     excludeRects: [{ x: 26.75, z: 15.75, width: 5.5, depth: 5.5 }],
+    flat: true,
+    lift: 0.006,
     source: 'scatter-paver',
   });
   addSurfaceScatter({ x: 31, z: -21, sx: 24, sz: 20, count: 8, material: shared.soil, y: GROUND_SURFACE_Y.scatter, height: 0.024, maxSize: 3.4, opacity: 0.18, salt: 44, layer: 6, source: 'scatter-gravel' });
