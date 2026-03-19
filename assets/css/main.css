@@ -931,32 +931,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   max-width: 100%;
 }
 
-.pickup-feed {
-  position: absolute;
-  top: calc(max(10px, env(safe-area-inset-top)) + 58px);
-  right: max(10px, env(safe-area-inset-right));
-  display: grid;
-  gap: 6px;
-  justify-items: end;
-  width: min(32vw, 260px);
-  pointer-events: none;
-}
-
-.pickup-feed:empty {
-  display: none;
-}
-
-.pickup-feed > * {
-  width: 100%;
-  border-radius: 12px;
-  border: 1px solid rgba(53, 243, 209, 0.24);
-  background: rgba(10, 14, 25, 0.72);
-  color: var(--text);
-  padding: 8px 10px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
-}
-
 .power-badge {
   display: inline-flex;
   align-items: center;
@@ -1035,10 +1009,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   .hud-actions {
     max-width: min(44vw, 300px);
   }
-
-  .pickup-feed {
-    width: min(38vw, 300px);
-  }
 }
 
 @media (max-width: 720px) {
@@ -1077,11 +1047,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
     grid-area: actions;
     justify-self: end;
     max-width: min(48vw, 220px);
-  }
-
-  .pickup-feed {
-    top: calc(max(10px, env(safe-area-inset-top)) + 116px);
-    width: min(48vw, 220px);
   }
 }
 
@@ -1141,15 +1106,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   .hud-badge,
   .hud-pause-btn {
     padding: 7px 8px;
-  }
-
-  .pickup-feed {
-    top: auto;
-    right: 12px;
-    left: 12px;
-    bottom: max(104px, calc(env(safe-area-inset-bottom) + 84px));
-    width: auto;
-    justify-items: stretch;
   }
 
   .hud-actions {
