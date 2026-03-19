@@ -322,7 +322,6 @@ export function createEnemySystem({
       statusPulse: Math.random() * Math.PI * 2,
       impactVisualTimer: 0,
       impactVisualEffects: null,
-      damageNumberRef: null,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
