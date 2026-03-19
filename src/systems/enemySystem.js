@@ -337,12 +337,12 @@ export function createEnemySystem({
     }
     if (data.dead) return;
     data.dead = true;
+    vfx.removeEnemyDamageNumber(enemy);
     scene.remove(enemy);
     const resolvedIndex = Number.isInteger(index) && state.entities.enemies[index] === enemy
       ? index
       : state.entities.enemies.indexOf(enemy);
     if (resolvedIndex >= 0) state.entities.enemies.splice(resolvedIndex, 1);
-    if (data.damageNumberRef) data.damageNumberRef.enemy = null;
     if (data.type === 'splitter') {
       for (let i = 0; i < data.splitCount; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -482,8 +482,7 @@ export function createEnemySystem({
     state.entities.enemyProjectiles.length = 0;
     state.entities.enemies.forEach((enemy) => {
       if (enemy) scene.remove(enemy);
-      const data = getEnemyData(enemy);
-      if (data?.damageNumberRef) data.damageNumberRef.enemy = null;
+      if (enemy) vfx.removeEnemyDamageNumber(enemy);
     });
     state.entities.enemies.length = 0;
   }

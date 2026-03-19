@@ -225,37 +225,12 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     }
   }
 
-  function spawnDamageNumber(enemy, amount) {
-    const enemyData = getEnemyData(enemy);
-    if (!enemyData) {
-      logInvalidEnemyReference(state, 'vfx.spawnDamageNumber', enemy);
-      return;
-    }
+  function createDamageNumberEntry(enemy, enemyData, roundedAmount) {
     const budgets = state.performance.frameBudgets;
-    const existing = enemyData.damageNumberRef;
-    const roundedAmount = Math.max(1, Math.round(amount));
-    const hasTrackedEntry = existing && state.entities.damageNumbers.includes(existing);
-
-    if (hasTrackedEntry) {
-      existing.amountTotal += roundedAmount;
-      existing.hitCount = (existing.hitCount || 0) + 1;
-      existing.lastHitAt = 0;
-      existing.idleTimer = 0;
-      existing.fadeTimer = 0;
-      existing.expiring = false;
-      applyDamageNumberVisualConfig(existing, existing.amountTotal);
-      triggerDamageNumberPulse(existing, Math.min(1.45, 0.75 + Math.log10(existing.amountTotal + 1) * 0.22));
-      updateDamageNumberTexture(existing);
-      removeStaleDamageNumbersForEnemy(enemy, existing);
-      return;
-    }
-
-    removeStaleDamageNumbersForEnemy(enemy);
-
     const maxPerFrame = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbersPerFrame, 0.6, 0.25);
     const maxTotal = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers, 0.62, 0.34);
-    if (budgets.damageNumbers >= maxPerFrame) return;
-    if (state.performance.qualityLevel >= 2 && Math.random() > 0.45) return;
+    if (budgets.damageNumbers >= maxPerFrame) return null;
+    if (state.performance.qualityLevel >= 2 && Math.random() > 0.45) return null;
 
     if (state.entities.damageNumbers.length >= maxTotal) {
       const oldest = state.entities.damageNumbers.shift();
@@ -265,7 +240,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     budgets.damageNumbers += 1;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return null;
 
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
@@ -308,19 +283,56 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     sprite.scale.set(entry.baseSpriteWidth * entry.spawnScale, entry.baseSpriteHeight * entry.spawnScale, 1);
     enemyData.damageNumberRef = entry;
     state.entities.damageNumbers.push(entry);
+    return entry;
   }
 
-  function beginDamageNumberExpiry(entry) {
-    if (!entry || entry.expiring) return;
-    entry.expiring = true;
-    entry.fadeTimer = DAMAGE_NUMBER_FADE_DURATION;
-    const enemyData = getEnemyData(entry.enemy);
-    if (enemyData?.damageNumberRef === entry) enemyData.damageNumberRef = null;
+  function recordEnemyDamage(enemy, amount) {
+    const enemyData = getEnemyData(enemy);
+    if (!enemyData) {
+      logInvalidEnemyReference(state, 'vfx.recordEnemyDamage', enemy);
+      return;
+    }
+    const existing = enemyData.damageNumberRef;
+    const roundedAmount = Math.max(1, Math.round(amount));
+    const hasTrackedEntry = existing && state.entities.damageNumbers.includes(existing);
+
+    if (hasTrackedEntry) {
+      existing.amountTotal += roundedAmount;
+      existing.hitCount = (existing.hitCount || 0) + 1;
+      existing.lastHitAt = 0;
+      existing.idleTimer = 0;
+      existing.fadeTimer = 0;
+      existing.expiring = false;
+      applyDamageNumberVisualConfig(existing, existing.amountTotal);
+      triggerDamageNumberPulse(existing, Math.min(1.45, 0.75 + Math.log10(existing.amountTotal + 1) * 0.22));
+      updateDamageNumberTexture(existing);
+      removeStaleDamageNumbersForEnemy(enemy, existing);
+      return;
+    }
+
+    removeStaleDamageNumbersForEnemy(enemy);
+    createDamageNumberEntry(enemy, enemyData, roundedAmount);
   }
 
   function getDamageNumberAlpha(entry) {
     if (!entry.expiring) return 1;
     return THREE.MathUtils.clamp(entry.fadeTimer / DAMAGE_NUMBER_FADE_DURATION, 0, 1);
+  }
+
+  function removeEnemyDamageNumber(enemy) {
+    if (!enemy) return;
+    let removed = false;
+    for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) {
+      const entry = state.entities.damageNumbers[i];
+      if (!entry || entry.enemy !== enemy) continue;
+      state.entities.damageNumbers.splice(i, 1);
+      disposeDamageNumber(entry);
+      removed = true;
+    }
+    if (!removed) {
+      const enemyData = getEnemyData(enemy);
+      if (enemyData?.damageNumberRef) enemyData.damageNumberRef = null;
+    }
   }
 
   function getDamageNumberScale(entry) {
@@ -429,14 +441,24 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
 
     for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) {
       const entry = state.entities.damageNumbers[i];
+      const enemy = entry.enemy;
+      const enemyData = getEnemyData(enemy);
+      if (!enemyData || enemyData.dead) {
+        removeDamageNumberEntry(entry);
+        continue;
+      }
+
       entry.age += dt;
       entry.pulseTime += dt;
       entry.lastHitAt += dt;
       entry.idleTimer += dt;
 
-      if (!entry.expiring && entry.idleTimer >= DAMAGE_NUMBER_IDLE_WINDOW) beginDamageNumberExpiry(entry);
-      if (entry.expiring) entry.fadeTimer -= dt;
+      if (entry.idleTimer >= DAMAGE_NUMBER_IDLE_WINDOW) {
+        removeDamageNumberEntry(entry);
+        continue;
+      }
 
+      if (entry.expiring) entry.fadeTimer -= dt;
       if (entry.expiring && entry.fadeTimer <= 0) {
         removeDamageNumberEntry(entry);
         continue;
@@ -445,14 +467,8 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       const progress = entry.expiring
         ? 1 + (1 - alpha)
         : THREE.MathUtils.clamp(entry.idleTimer / DAMAGE_NUMBER_IDLE_WINDOW, 0, 1) * 0.45;
-      const enemy = entry.enemy;
-      const enemyData = getEnemyData(enemy);
-      if (enemyData && !enemyData.dead) {
-        entry.sprite.position.copy(enemy.position);
-        entry.sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.34 + progress * entry.riseSpeed;
-      } else {
-        entry.sprite.position.y += dt * entry.riseSpeed * 0.78;
-      }
+      entry.sprite.position.copy(enemy.position);
+      entry.sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.34 + progress * entry.riseSpeed;
 
       const fadeAlpha = alpha > 0.28 ? 1 : alpha / 0.28;
       entry.sprite.material.opacity = fadeAlpha;
@@ -483,7 +499,8 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     spawnBurst,
     spawnImpactBurst,
     spawnImpactEffects,
-    spawnDamageNumber,
+    recordEnemyDamage,
+    removeEnemyDamageNumber,
     createChainBeam,
     spawnExplosionRing,
     disposeChainBeam,
