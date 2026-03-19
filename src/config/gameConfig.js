@@ -593,6 +593,7 @@ export const SAFETY_LIMITS = {
   maxActiveBullets: 180,
   maxActiveBulletsSoft: 132,
   maxChainBeams: 80,
+  maxDamageNumbers: 40,
   maxEnemyStatusEffects: 90,
   maxLightningChainsPerHit: 6,
   maxLightningChainsPerFrame: 20,

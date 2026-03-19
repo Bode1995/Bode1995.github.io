@@ -1,3 +1,5 @@
+import { getEnemyData } from './enemyRuntimeUtils.js';
+
 export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMITS, temp, sceneResources }) {
   const VFX = {
     maxParticles: 340,
@@ -7,6 +9,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     chainGeometry: new THREE.CylinderGeometry(0.07, 0.07, 1, 6),
   };
   const MAX_IMPACT_VISUAL_LIFETIME = 0.5;
+  const DAMAGE_NUMBER_LIFETIME = 2;
 
   const EFFECT_COLORS = {
     fire: 0xff8a4f,
@@ -159,6 +162,166 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     state.entities.chainBeams.push({ mesh: blastRing, life: ringLife, maxLife: ringLife, ring: true, baseScale: blastRing.scale.clone() });
   }
 
+  function removeDamageNumberAtIndex(index) {
+    const entry = state.entities.damageNumbers[index];
+    if (!entry) return;
+    scene.remove(entry.sprite);
+    entry.sprite.material.map?.dispose();
+    entry.sprite.material.dispose();
+    const enemyData = getEnemyData(entry.enemy);
+    if (enemyData?.damageNumberEntry === entry) enemyData.damageNumberEntry = null;
+    state.entities.damageNumbers.splice(index, 1);
+  }
+
+  function clearEnemyDamageNumber(enemy) {
+    const data = getEnemyData(enemy);
+    const entry = data?.damageNumberEntry;
+    if (!entry) return;
+    const index = state.entities.damageNumbers.indexOf(entry);
+    if (index >= 0) removeDamageNumberAtIndex(index);
+    else if (data) data.damageNumberEntry = null;
+  }
+
+  function createDamageNumberTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return { canvas, context, texture };
+  }
+
+  function formatDamageNumber(value) {
+    return Math.round(value).toLocaleString('de-DE');
+  }
+
+  function getDamageNumberScale(totalDamage) {
+    const emphasis = THREE.MathUtils.clamp(Math.log2(Math.max(1, totalDamage) + 1), 1, 8);
+    return 1.2 + emphasis * 0.22;
+  }
+
+  function redrawDamageNumber(entry) {
+    const { canvas, context, texture } = entry;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    const totalDamage = Math.max(1, Math.round(entry.totalDamage));
+    const text = formatDamageNumber(totalDamage);
+    const emphasis = THREE.MathUtils.clamp(Math.log2(totalDamage + 1), 1, 10);
+    const fontSize = Math.round(108 + emphasis * 12);
+    const y = canvas.height * 0.62;
+
+    const fill = context.createLinearGradient(0, 32, 0, canvas.height - 20);
+    fill.addColorStop(0, '#fff9ef');
+    fill.addColorStop(0.48, totalDamage >= 100 ? '#ffd27a' : '#fdf7ef');
+    fill.addColorStop(1, totalDamage >= 250 ? '#ff9870' : '#f0d7ff');
+
+    context.font = `900 ${fontSize}px Inter, Arial Black, Arial, sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.lineJoin = 'round';
+    context.shadowColor = totalDamage >= 250 ? 'rgba(255, 138, 92, 0.85)' : 'rgba(116, 66, 255, 0.7)';
+    context.shadowBlur = 28 + emphasis * 4;
+    context.strokeStyle = 'rgba(35, 18, 70, 0.96)';
+    context.lineWidth = 20 + emphasis * 1.2;
+    context.strokeText(text, canvas.width * 0.5, y);
+
+    context.shadowBlur = 0;
+    context.fillStyle = fill;
+    context.fillText(text, canvas.width * 0.5, y);
+
+    context.lineWidth = 4;
+    context.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    context.strokeText(text, canvas.width * 0.5, y - 4);
+    texture.needsUpdate = true;
+  }
+
+  function showEnemyDamageNumber(enemy, amount) {
+    const data = getEnemyData(enemy);
+    const resolvedAmount = Math.max(0, amount);
+    if (!data || data.dead || resolvedAmount <= 0) return;
+
+    let entry = data.damageNumberEntry;
+    if (!entry) {
+      const maxDamageNumbers = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers || 24, 0.75, 0.5);
+      if (state.entities.damageNumbers.length >= maxDamageNumbers) removeDamageNumberAtIndex(0);
+
+      const spriteData = createDamageNumberTexture();
+      const material = new THREE.SpriteMaterial({
+        map: spriteData.texture,
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+        opacity: 1,
+      });
+      const sprite = new THREE.Sprite(material);
+      sprite.renderOrder = 18;
+      scene.add(sprite);
+      entry = {
+        enemy,
+        sprite,
+        totalDamage: 0,
+        life: DAMAGE_NUMBER_LIFETIME,
+        maxLife: DAMAGE_NUMBER_LIFETIME,
+        pulse: 0,
+        pulseStrength: 0,
+        floatPhase: Math.random() * Math.PI * 2,
+        baseHeight: 0,
+        driftX: (Math.random() - 0.5) * 0.22,
+        driftZ: (Math.random() - 0.5) * 0.22,
+        ...spriteData,
+      };
+      state.entities.damageNumbers.push(entry);
+      data.damageNumberEntry = entry;
+    }
+
+    entry.totalDamage += resolvedAmount;
+    entry.life = DAMAGE_NUMBER_LIFETIME;
+    entry.maxLife = DAMAGE_NUMBER_LIFETIME;
+    entry.pulse = 0.22;
+    entry.pulseStrength = Math.min(1.45, 0.55 + Math.log10(entry.totalDamage + 10) * 0.48);
+    entry.baseHeight = data.hitboxCenterOffsetY + data.hitboxHalfHeight + Math.max(0.35, data.hitboxRadius * 0.5);
+    redrawDamageNumber(entry);
+  }
+
+  function updateDamageNumbers(dt) {
+    for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) {
+      const entry = state.entities.damageNumbers[i];
+      const data = getEnemyData(entry.enemy);
+      if (!data || data.dead) {
+        removeDamageNumberAtIndex(i);
+        continue;
+      }
+
+      entry.life -= dt;
+      if (entry.life <= 0) {
+        removeDamageNumberAtIndex(i);
+        continue;
+      }
+
+      entry.floatPhase += dt * 4.8;
+      entry.pulse = Math.max(0, entry.pulse - dt);
+      const alpha = THREE.MathUtils.clamp(entry.life / entry.maxLife, 0, 1);
+      const fade = alpha < 0.32 ? alpha / 0.32 : 1;
+      const pulseT = 1 - (entry.pulse / 0.22);
+      const pulseWave = entry.pulse > 0 ? Math.sin(pulseT * Math.PI) : 0;
+      const pulseBoost = 1 + pulseWave * entry.pulseStrength * 0.32;
+      const driftLift = (1 - alpha) * 0.55;
+      const hover = Math.sin(entry.floatPhase) * 0.12;
+      const scale = getDamageNumberScale(entry.totalDamage) * pulseBoost;
+
+      entry.sprite.position.set(
+        entry.enemy.position.x + entry.driftX,
+        entry.enemy.position.y + entry.baseHeight + driftLift + hover,
+        entry.enemy.position.z + entry.driftZ,
+      );
+      entry.sprite.material.opacity = THREE.MathUtils.clamp(0.25 + fade * 0.95, 0, 1);
+      entry.sprite.scale.set(1.85 * scale, 0.96 * scale, 1);
+    }
+  }
+
   function update(dt) {
     for (let i = state.entities.vfxParticles.length - 1; i >= 0; i--) {
       const fx = state.entities.vfxParticles[i];
@@ -195,6 +358,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       }
     }
 
+    updateDamageNumbers(dt);
   }
 
   function clear() {
@@ -203,14 +367,18 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       fx.mesh.material.dispose();
     });
     state.entities.chainBeams.forEach(disposeChainBeam);
+    for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) removeDamageNumberAtIndex(i);
     state.entities.vfxParticles.length = 0;
     state.entities.chainBeams.length = 0;
+    state.entities.damageNumbers.length = 0;
   }
 
   return {
     VFX,
     EFFECT_COLORS,
     MAX_IMPACT_VISUAL_LIFETIME,
+    showEnemyDamageNumber,
+    clearEnemyDamageNumber,
     spawnVfxParticle,
     maybeSpawnStatusVfx,
     maybeSpawnImpactVfx,

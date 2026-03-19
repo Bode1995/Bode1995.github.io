@@ -89,6 +89,7 @@ export function createGameState(profile, helpers) {
       enemyProjectiles: [],
       vfxParticles: [],
       chainBeams: [],
+      damageNumbers: [],
       powerPickups: [],
     },
     runPowers: {

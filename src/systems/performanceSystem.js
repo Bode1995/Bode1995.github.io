@@ -41,7 +41,8 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
     const pressureScore =
       ((counts.bullets + (counts.enemyProjectiles || 0)) / Math.max(1, SAFETY_LIMITS.maxActiveBulletsSoft)) +
       (counts.vfx / Math.max(1, maxParticles)) * 0.55 +
-      (counts.chainBeams / Math.max(1, SAFETY_LIMITS.maxChainBeams)) * 0.45;
+      (counts.chainBeams / Math.max(1, SAFETY_LIMITS.maxChainBeams)) * 0.45 +
+      ((counts.damageNumbers || 0) / Math.max(1, SAFETY_LIMITS.maxDamageNumbers || 1)) * 0.18;
 
     if (state.performance.frameMs > 37 || pressureScore > 2.1) state.performance.qualityLevel = 3;
     else if (state.performance.frameMs > 29 || pressureScore > 1.55) state.performance.qualityLevel = 2;
@@ -62,6 +63,7 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
       `Enemies ${counts.enemies}`,
       `VFX ${counts.vfx}/${getAdaptiveLimit(maxParticles)}`,
       `Chain beams ${counts.chainBeams}/${getAdaptiveLimit(SAFETY_LIMITS.maxChainBeams)}`,
+      `Damage numbers ${counts.damageNumbers || 0}/${getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers || 1)}`,
       `Enemy FX ${state.performance.activeEnemyEffects}/${state.performance.enemyEffectSoftCap}`,
     ];
     if (typeof getExtraDebugLines === 'function') lines.push(...getExtraDebugLines());
