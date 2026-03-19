@@ -76,18 +76,8 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     return mesh;
   };
 
-  const setShadowRecursive = (root, receive = true) => {
-    root.traverse((child) => {
-      if (!child.isMesh) return;
-      if (!child.userData.forceNoCastShadow) child.castShadow = true;
-      child.receiveShadow = receive;
-    });
-    return root;
-  };
-
   function registerWorldObject({ mesh, source, blocking = false, footprint = null, collider = null }) {
     if (mesh) {
-      setShadowRecursive(mesh, true);
       mesh.userData.worldSource = source;
       mesh.userData.blocking = blocking;
     }
@@ -291,7 +281,6 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     shared.ground,
   );
   ground.position.set(0, -(groundHeight * 0.5), 0);
-  ground.userData.forceNoCastShadow = true;
   ground.castShadow = false;
   ground.receiveShadow = true;
   mapRoot.add(ground);
