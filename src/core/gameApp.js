@@ -115,13 +115,13 @@ export function startGameApp() {
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
   keyLight.shadow.camera.near = 0.1;
-  keyLight.shadow.camera.far = 118;
-  keyLight.shadow.camera.left = -50;
-  keyLight.shadow.camera.right = 50;
-  keyLight.shadow.camera.top = 50;
-  keyLight.shadow.camera.bottom = -50;
-  keyLight.shadow.bias = -0.00008;
-  keyLight.shadow.normalBias = 0.024;
+  keyLight.shadow.camera.far = 96;
+  keyLight.shadow.camera.left = -42;
+  keyLight.shadow.camera.right = 42;
+  keyLight.shadow.camera.top = 42;
+  keyLight.shadow.camera.bottom = -42;
+  keyLight.shadow.bias = 0.00012;
+  keyLight.shadow.normalBias = 0.038;
   keyLight.shadow.radius = 1.75;
   scene.add(keyLight);
 

@@ -179,9 +179,9 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
       ));
       if (shouldSkip) continue;
       const overlayMaterial = createLayeredSurfaceMaterial(material, px, pz, salt + i, layer, { light: 0.1, sat: 0.04, hue: 0.008, roughness: 0.03 });
-      overlayMaterial.transparent = false;
-      overlayMaterial.depthWrite = true;
-      overlayMaterial.opacity = 1;
+      overlayMaterial.transparent = opacity < 0.999;
+      overlayMaterial.depthWrite = opacity >= 0.999;
+      overlayMaterial.opacity = opacity;
       const stainGeometry = flat ? new THREE.PlaneGeometry(width, depth) : new THREE.BoxGeometry(width, scatterHeight, depth);
       const stain = new THREE.Mesh(stainGeometry, overlayMaterial);
       if (flat) {
