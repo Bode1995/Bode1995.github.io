@@ -148,7 +148,22 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     return patch;
   };
 
-  const addSurfaceScatter = ({ x, z, sx, sz, count, material, y = GROUND_SURFACE_Y.scatter, height = 0.024, maxSize = 5.5, opacity = 0.26, salt = 0, layer = 0, source = 'surface-scatter' }) => {
+  const addSurfaceScatter = ({
+    x,
+    z,
+    sx,
+    sz,
+    count,
+    material,
+    y = GROUND_SURFACE_Y.scatter,
+    height = 0.024,
+    maxSize = 5.5,
+    opacity = 0.26,
+    salt = 0,
+    layer = 0,
+    excludeRects = [],
+    source = 'surface-scatter',
+  }) => {
     const scatterHeight = Math.max(height, 0.028);
     const scatterLift = 0.01;
     for (let i = 0; i < count; i++) {
@@ -157,6 +172,11 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
       const width = 1.2 + hash(px, pz, salt + 30) * maxSize;
       const depth = 1 + hash(pz, px, salt + 40) * maxSize * 0.7;
       const rotation = hash(px, pz, salt + 50) * Math.PI;
+      const shouldSkip = excludeRects.some((rect) => (
+        Math.abs(px - rect.x) <= rect.width * 0.5
+        && Math.abs(pz - rect.z) <= rect.depth * 0.5
+      ));
+      if (shouldSkip) continue;
       const overlayMaterial = createLayeredSurfaceMaterial(material, px, pz, salt + i, layer, { light: 0.1, sat: 0.04, hue: 0.008, roughness: 0.03 });
       overlayMaterial.transparent = false;
       overlayMaterial.depthWrite = true;
@@ -350,7 +370,22 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
 
   addSurfaceScatter({ x: 3, z: 5, sx: 76, sz: 60, count: 14, material: shared.asphaltDark, y: GROUND_SURFACE_Y.scatter, height: 0.024, maxSize: 6.5, opacity: 0.22, salt: 41, layer: 6, source: 'scatter-asphalt' });
   addSurfaceScatter({ x: -18, z: -18, sx: 30, sz: 24, count: 8, material: shared.concreteLight, y: GROUND_SURFACE_Y.scatterDetail, height: 0.024, maxSize: 4.6, opacity: 0.2, salt: 42, layer: 7, source: 'scatter-concrete' });
-  addSurfaceScatter({ x: 23, z: 16, sx: 28, sz: 18, count: 7, material: shared.concrete, y: GROUND_SURFACE_Y.scatterDetail, height: 0.024, maxSize: 3.8, opacity: 0.18, salt: 43, layer: 7, source: 'scatter-paver' });
+  addSurfaceScatter({
+    x: 23,
+    z: 16,
+    sx: 28,
+    sz: 18,
+    count: 7,
+    material: shared.concrete,
+    y: GROUND_SURFACE_Y.scatterDetail,
+    height: 0.024,
+    maxSize: 3.8,
+    opacity: 0.18,
+    salt: 43,
+    layer: 7,
+    excludeRects: [{ x: 26.75, z: 15.75, width: 5.5, depth: 5.5 }],
+    source: 'scatter-paver',
+  });
   addSurfaceScatter({ x: 31, z: -21, sx: 24, sz: 20, count: 8, material: shared.soil, y: GROUND_SURFACE_Y.scatter, height: 0.024, maxSize: 3.4, opacity: 0.18, salt: 44, layer: 6, source: 'scatter-gravel' });
 
   [
