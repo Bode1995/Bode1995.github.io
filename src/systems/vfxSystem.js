@@ -9,11 +9,9 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     chainGeometry: new THREE.CylinderGeometry(0.07, 0.07, 1, 6),
   };
   const MAX_IMPACT_VISUAL_LIFETIME = 0.5;
-  const DAMAGE_NUMBER_IDLE_WINDOW = 3;
   const DAMAGE_NUMBER_POP_DURATION = 0.22;
   const DAMAGE_NUMBER_REFRESH_PULSE = 0.16;
   const DAMAGE_NUMBER_BASE_FONT_PX = 192;
-  const damageNumberEntriesByEnemyId = new Map();
 
   const EFFECT_COLORS = {
     fire: 0xff8a4f,
@@ -201,16 +199,10 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     texture.needsUpdate = true;
   }
 
-  function getEnemyDamageKey(enemy) {
-    return enemy?.uuid || null;
-  }
-
   function disposeDamageNumber(entry) {
     if (!entry) return;
-    const enemyKey = getEnemyDamageKey(entry.enemy);
-    if (enemyKey && damageNumberEntriesByEnemyId.get(enemyKey) === entry) {
-      damageNumberEntriesByEnemyId.delete(enemyKey);
-    }
+    const enemyData = getEnemyData(entry.enemy);
+    if (enemyData && enemyData.damageNumberEntry === entry) enemyData.damageNumberEntry = null;
     scene.remove(entry.sprite);
     entry.texture?.dispose?.();
     entry.sprite.material.dispose();
@@ -223,37 +215,22 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     disposeDamageNumber(entry);
   }
 
-  function resetDamageNumberEntryState(entry) {
-    entry.idleTimer = 0;
+  function updateDamageNumberAnchor(entry, enemyData) {
+    const timerProgress = THREE.MathUtils.clamp(enemyData.damageNumberTimer / 3, 0, 1);
+    entry.sprite.position.copy(entry.enemy.position);
+    entry.sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.34 + timerProgress * entry.riseSpeed;
   }
 
-  function refreshDamageNumberEntry(entry, amount) {
-    entry.amountTotal += amount;
+  function refreshDamageNumberEntry(entry, totalAmount, enemyData) {
+    entry.amountTotal = Math.max(1, Math.round(totalAmount));
     entry.hitCount = (entry.hitCount || 0) + 1;
-    resetDamageNumberEntryState(entry);
     applyDamageNumberVisualConfig(entry, entry.amountTotal);
     triggerDamageNumberPulse(entry, Math.min(1.45, 0.75 + Math.log10(entry.amountTotal + 1) * 0.22));
     updateDamageNumberTexture(entry);
+    updateDamageNumberAnchor(entry, enemyData);
   }
 
-  function createDamageNumberEntry(enemy, roundedAmount) {
-    const enemyData = getEnemyData(enemy);
-    if (!enemyData) {
-      logInvalidEnemyReference(state, 'vfx.createDamageNumberEntry', enemy);
-      return null;
-    }
-    const budgets = state.performance.frameBudgets;
-    const maxPerFrame = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbersPerFrame, 0.6, 0.25);
-    const maxTotal = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers, 0.62, 0.34);
-    if (budgets.damageNumbers >= maxPerFrame) return null;
-    if (state.performance.qualityLevel >= 2 && Math.random() > 0.45) return null;
-
-    if (state.entities.damageNumbers.length >= maxTotal) {
-      const oldest = state.entities.damageNumbers.shift();
-      if (oldest) disposeDamageNumber(oldest);
-    }
-
-    budgets.damageNumbers += 1;
+  function createDamageNumberEntry(enemy, totalAmount, enemyData) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
@@ -261,8 +238,6 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
     const sprite = new THREE.Sprite(material);
-    sprite.position.copy(enemy.position);
-    sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.3;
     scene.add(sprite);
 
     const entry = {
@@ -270,9 +245,8 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       texture,
       canvas,
       ctx,
-      amountTotal: roundedAmount,
+      amountTotal: 0,
       enemy,
-      idleTimer: 0,
       riseSpeed: 1.05,
       age: 0,
       pulseTime: 0,
@@ -288,54 +262,53 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       fontScale: 1,
       fontPx: DAMAGE_NUMBER_BASE_FONT_PX,
       strokePx: 24,
-      hitCount: 1,
+      hitCount: 0,
     };
-    resetDamageNumberEntryState(entry);
-    applyDamageNumberVisualConfig(entry, entry.amountTotal);
-    triggerDamageNumberPulse(entry, 0.95);
-    updateDamageNumberTexture(entry);
+
+    refreshDamageNumberEntry(entry, totalAmount, enemyData);
     sprite.scale.set(entry.baseSpriteWidth * entry.spawnScale, entry.baseSpriteHeight * entry.spawnScale, 1);
-    damageNumberEntriesByEnemyId.set(enemy.uuid, entry);
+    enemyData.damageNumberEntry = entry;
     state.entities.damageNumbers.push(entry);
     return entry;
   }
 
-  function recordEnemyDamage(enemy, amount) {
+  function upsertEnemyDamageNumber(enemy, totalAmount) {
     const enemyData = getEnemyData(enemy);
     if (!enemyData) {
-      logInvalidEnemyReference(state, 'vfx.recordEnemyDamage', enemy);
-      return;
-    }
-    const enemyKey = getEnemyDamageKey(enemy);
-    if (!enemyKey) return;
-
-    const roundedAmount = Math.max(1, Math.round(amount));
-    if (roundedAmount <= 0) return;
-
-    const existing = damageNumberEntriesByEnemyId.get(enemyKey);
-    if (existing && state.entities.damageNumbers.includes(existing) && existing.enemy === enemy) {
-      refreshDamageNumberEntry(existing, roundedAmount);
+      logInvalidEnemyReference(state, 'vfx.upsertEnemyDamageNumber', enemy);
       return;
     }
 
-    damageNumberEntriesByEnemyId.delete(enemyKey);
-    createDamageNumberEntry(enemy, roundedAmount);
+    const resolvedTotal = Math.max(1, Math.round(totalAmount));
+    let entry = enemyData.damageNumberEntry;
+    if (entry && (!state.entities.damageNumbers.includes(entry) || entry.enemy !== enemy)) {
+      enemyData.damageNumberEntry = null;
+      entry = null;
+    }
+
+    if (entry) {
+      refreshDamageNumberEntry(entry, resolvedTotal, enemyData);
+      return;
+    }
+
+    createDamageNumberEntry(enemy, resolvedTotal, enemyData);
   }
 
   function removeEnemyDamageNumber(enemy) {
     if (!enemy) return;
-    const enemyKey = getEnemyDamageKey(enemy);
-    const entry = enemyKey ? damageNumberEntriesByEnemyId.get(enemyKey) : null;
-    if (entry) {
-      removeDamageNumberEntry(entry);
+    const enemyData = getEnemyData(enemy);
+    const directEntry = enemyData?.damageNumberEntry || null;
+    if (directEntry) {
+      removeDamageNumberEntry(directEntry);
+      if (enemyData) enemyData.damageNumberEntry = null;
       return;
     }
     for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) {
       const staleEntry = state.entities.damageNumbers[i];
       if (!staleEntry || staleEntry.enemy !== enemy) continue;
-      state.entities.damageNumbers.splice(i, 1);
-      disposeDamageNumber(staleEntry);
+      removeDamageNumberEntry(staleEntry);
     }
+    if (enemyData) enemyData.damageNumberEntry = null;
   }
 
   function getDamageNumberScale(entry) {
@@ -452,17 +425,8 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
 
       entry.age += dt;
       entry.pulseTime += dt;
-      entry.idleTimer += dt;
 
-      if (entry.idleTimer >= DAMAGE_NUMBER_IDLE_WINDOW) {
-        removeDamageNumberEntry(entry);
-        continue;
-      }
-
-      const progress = THREE.MathUtils.clamp(entry.idleTimer / DAMAGE_NUMBER_IDLE_WINDOW, 0, 1) * 0.45;
-      entry.sprite.position.copy(enemy.position);
-      entry.sprite.position.y += enemyData.hitboxCenterOffsetY + enemyData.hitboxHalfHeight + 0.34 + progress * entry.riseSpeed;
-
+      updateDamageNumberAnchor(entry, enemyData);
       entry.sprite.material.opacity = 1;
       const scale = getDamageNumberScale(entry);
       entry.sprite.scale.set(entry.baseSpriteWidth * scale, entry.baseSpriteHeight * scale, 1);
@@ -479,7 +443,6 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     state.entities.vfxParticles.length = 0;
     state.entities.chainBeams.length = 0;
     state.entities.damageNumbers.length = 0;
-    damageNumberEntriesByEnemyId.clear();
   }
 
   return {
@@ -492,7 +455,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     spawnBurst,
     spawnImpactBurst,
     spawnImpactEffects,
-    recordEnemyDamage,
+    upsertEnemyDamageNumber,
     removeEnemyDamageNumber,
     createChainBeam,
     spawnExplosionRing,

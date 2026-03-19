@@ -114,15 +114,15 @@ export function startGameApp() {
   keyLight.position.set(28, 36, 16);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
-  keyLight.shadow.camera.near = 0.1;
-  keyLight.shadow.camera.far = 96;
-  keyLight.shadow.camera.left = -42;
-  keyLight.shadow.camera.right = 42;
-  keyLight.shadow.camera.top = 42;
-  keyLight.shadow.camera.bottom = -42;
-  keyLight.shadow.bias = 0.00012;
-  keyLight.shadow.normalBias = 0.038;
-  keyLight.shadow.radius = 1.75;
+  keyLight.shadow.camera.near = 6;
+  keyLight.shadow.camera.far = 84;
+  keyLight.shadow.camera.left = -36;
+  keyLight.shadow.camera.right = 36;
+  keyLight.shadow.camera.top = 36;
+  keyLight.shadow.camera.bottom = -36;
+  keyLight.shadow.bias = -0.00035;
+  keyLight.shadow.normalBias = 0.075;
+  keyLight.shadow.radius = 1.5;
   scene.add(keyLight);
 
   const fillLight = new THREE.DirectionalLight(0xc6dcff, 0.62);
@@ -149,14 +149,6 @@ export function startGameApp() {
   arenaUnderside.position.y = -0.96;
   arenaUnderside.receiveShadow = true;
   arenaRoot.add(arenaUnderside);
-
-  const arena = new THREE.Mesh(
-    new THREE.PlaneGeometry(gameplayConfig.arena.size, gameplayConfig.arena.size, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x66675f, metalness: 0.02, roughness: 0.99 }),
-  );
-  arena.rotation.x = -Math.PI / 2;
-  arena.receiveShadow = true;
-  arenaRoot.add(arena);
 
   const skirtRing = new THREE.Mesh(
     new THREE.CircleGeometry(gameplayConfig.arena.size * 0.72, 72),

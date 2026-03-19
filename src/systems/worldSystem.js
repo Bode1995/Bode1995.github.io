@@ -77,19 +77,21 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
   const GROUND_SURFACE_Y = Object.freeze({
     soilBase: 0,
     backdrop: 0.016,
-    zoneSoft: 0.072,
-    zonePrimary: 0.096,
-    zoneAccent: 0.12,
-    zoneFocus: 0.144,
-    scatter: 0.162,
-    scatterDetail: 0.176,
+    zoneSoft: 0.08,
+    zonePrimary: 0.12,
+    zoneAccent: 0.18,
+    zoneFocus: 0.24,
+    scatter: 0.3,
+    scatterDetail: 0.36,
   });
 
-  const createLayeredSurfaceMaterial = (material, x = 0, z = 0, salt = 0, layer = 0, options = {}) => {
+  const createGroundSurfaceMaterial = (material, x = 0, z = 0, salt = 0, options = {}) => varyMaterial(material, x, z, salt, options);
+
+  const createScatterMaterial = (material, x = 0, z = 0, salt = 0, opacity = 0.26, options = {}) => {
     const clone = varyMaterial(material, x, z, salt, options);
-    clone.polygonOffset = true;
-    clone.polygonOffsetFactor = -0.75 - (layer * 0.35);
-    clone.polygonOffsetUnits = -2 - (layer * 2);
+    clone.transparent = true;
+    clone.opacity = opacity;
+    clone.depthWrite = false;
     return clone;
   };
 
@@ -138,7 +140,7 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
 
   const addGroundPatch = ({ x = 0, z = 0, sx, sz, y = GROUND_SURFACE_Y.zonePrimary, height = 0.08, material, rotation = 0, materialSalt = 0, layer = 0, receiveShadow = true, source = 'ground-patch' }) => {
     const patchHeight = Math.max(height, 0.06);
-    const patch = new THREE.Mesh(new THREE.BoxGeometry(sx, patchHeight, sz), createLayeredSurfaceMaterial(material, x, z, materialSalt, layer));
+    const patch = new THREE.Mesh(new THREE.BoxGeometry(sx, patchHeight, sz), createGroundSurfaceMaterial(material, x, z, materialSalt));
     patch.position.set(x, y - (patchHeight * 0.5), z);
     patch.rotation.y = rotation;
     patch.receiveShadow = receiveShadow;
@@ -166,7 +168,7 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
     lift = 0.01,
     source = 'surface-scatter',
   }) => {
-    const scatterHeight = Math.max(height, 0.028);
+    const scatterHeight = Math.max(height, 0.06);
     for (let i = 0; i < count; i++) {
       const px = x + ((hash(i + salt, z, salt + 10) - 0.5) * sx * 0.84);
       const pz = z + ((hash(x, i + salt, salt + 20) - 0.5) * sz * 0.84);
@@ -178,19 +180,10 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
         && Math.abs(pz - rect.z) <= rect.depth * 0.5
       ));
       if (shouldSkip) continue;
-      const overlayMaterial = createLayeredSurfaceMaterial(material, px, pz, salt + i, layer, { light: 0.1, sat: 0.04, hue: 0.008, roughness: 0.03 });
-      overlayMaterial.transparent = opacity < 0.999;
-      overlayMaterial.depthWrite = opacity >= 0.999;
-      overlayMaterial.opacity = opacity;
-      const stainGeometry = flat ? new THREE.PlaneGeometry(width, depth) : new THREE.BoxGeometry(width, scatterHeight, depth);
-      const stain = new THREE.Mesh(stainGeometry, overlayMaterial);
-      if (flat) {
-        stain.position.set(px, y + lift, pz);
-        stain.rotation.set(-Math.PI * 0.5, rotation, 0);
-      } else {
-        stain.position.set(px, y + lift - (scatterHeight * 0.5), pz);
-        stain.rotation.y = rotation;
-      }
+      const overlayMaterial = createScatterMaterial(material, px, pz, salt + i, opacity, { light: 0.1, sat: 0.04, hue: 0.008, roughness: 0.03 });
+      const stain = new THREE.Mesh(new THREE.BoxGeometry(width, scatterHeight, depth), overlayMaterial);
+      stain.position.set(px, y + lift - (scatterHeight * 0.5), pz);
+      stain.rotation.y = rotation;
       stain.castShadow = false;
       stain.receiveShadow = false;
       stain.renderOrder = layer;
@@ -218,7 +211,7 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
 
     const inner = new THREE.Mesh(
       new THREE.BoxGeometry(Math.max(0.8, sx - innerInset), 0.24, Math.max(0.8, sz - innerInset)),
-      createLayeredSurfaceMaterial(innerMaterial, x + 1.5, z - 1.5, 5, style === 'berm' ? 4 : 5),
+      createGroundSurfaceMaterial(innerMaterial, x + 1.5, z - 1.5, 5),
     );
     inner.position.y = style === 'berm' ? 0.18 : 0.24;
     inner.receiveShadow = true;
@@ -226,7 +219,7 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision }) {
 
     const greens = new THREE.Mesh(
       new THREE.BoxGeometry(Math.max(0.7, sx - greensInset), 0.16, Math.max(0.7, sz - greensInset)),
-      createLayeredSurfaceMaterial(greensMaterial, x - 1.2, z + 1.2, 6, style === 'berm' ? 6 : 7),
+      createGroundSurfaceMaterial(greensMaterial, x - 1.2, z + 1.2, 6),
     );
     greens.position.y = style === 'berm' ? 0.29 : 0.47;
     greens.receiveShadow = true;
