@@ -225,6 +225,22 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     }
   }
 
+  function resetDamageNumberEntryState(entry) {
+    entry.lastHitAt = 0;
+    entry.idleTimer = 0;
+    entry.fadeTimer = DAMAGE_NUMBER_FADE_DURATION;
+    entry.expiring = false;
+  }
+
+  function refreshDamageNumberEntry(entry, amount) {
+    entry.amountTotal += amount;
+    entry.hitCount = (entry.hitCount || 0) + 1;
+    resetDamageNumberEntryState(entry);
+    applyDamageNumberVisualConfig(entry, entry.amountTotal);
+    triggerDamageNumberPulse(entry, Math.min(1.45, 0.75 + Math.log10(entry.amountTotal + 1) * 0.22));
+    updateDamageNumberTexture(entry);
+  }
+
   function createDamageNumberEntry(enemy, enemyData, roundedAmount) {
     const budgets = state.performance.frameBudgets;
     const maxPerFrame = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbersPerFrame, 0.6, 0.25);
@@ -258,7 +274,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       enemy,
       lastHitAt: 0,
       idleTimer: 0,
-      fadeTimer: 0,
+      fadeTimer: DAMAGE_NUMBER_FADE_DURATION,
       expiring: false,
       riseSpeed: 1.05,
       age: 0,
@@ -277,6 +293,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       strokePx: 24,
       hitCount: 1,
     };
+    resetDamageNumberEntryState(entry);
     applyDamageNumberVisualConfig(entry, entry.amountTotal);
     triggerDamageNumberPulse(entry, 0.95);
     updateDamageNumberTexture(entry);
@@ -292,20 +309,14 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       logInvalidEnemyReference(state, 'vfx.recordEnemyDamage', enemy);
       return;
     }
-    const existing = enemyData.damageNumberRef;
     const roundedAmount = Math.max(1, Math.round(amount));
+    if (roundedAmount <= 0) return;
+
+    const existing = enemyData.damageNumberRef;
     const hasTrackedEntry = existing && state.entities.damageNumbers.includes(existing);
 
     if (hasTrackedEntry) {
-      existing.amountTotal += roundedAmount;
-      existing.hitCount = (existing.hitCount || 0) + 1;
-      existing.lastHitAt = 0;
-      existing.idleTimer = 0;
-      existing.fadeTimer = 0;
-      existing.expiring = false;
-      applyDamageNumberVisualConfig(existing, existing.amountTotal);
-      triggerDamageNumberPulse(existing, Math.min(1.45, 0.75 + Math.log10(existing.amountTotal + 1) * 0.22));
-      updateDamageNumberTexture(existing);
+      refreshDamageNumberEntry(existing, roundedAmount);
       removeStaleDamageNumbersForEnemy(enemy, existing);
       return;
     }
@@ -453,7 +464,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       entry.lastHitAt += dt;
       entry.idleTimer += dt;
 
-      if (entry.idleTimer >= DAMAGE_NUMBER_IDLE_WINDOW) {
+      if (!entry.expiring && entry.idleTimer >= DAMAGE_NUMBER_IDLE_WINDOW) {
         removeDamageNumberEntry(entry);
         continue;
       }
