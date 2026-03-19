@@ -41,6 +41,13 @@ export function createEnemySystem({
     bossHeavy: { shell: 0xff7b92, dark: 0x200f1b, main: 0x545f7a, glow: 0xffd470 },
     bossAgile: { shell: 0x35f3d1, dark: 0x112437, main: 0x3f3f74, glow: 0xc6b7ff },
   };
+  const hpBarState = {
+    size: { width: 128, height: 20 },
+    background: 'rgba(8, 12, 20, 0.78)',
+    border: 'rgba(255,255,255,0.18)',
+    fillStart: '#73ffb0',
+    fillEnd: '#ff667f',
+  };
 
   function createMaterials(type) {
     const style = enemyStyle[type] || enemyStyle.runner;
@@ -266,6 +273,80 @@ export function createEnemySystem({
     return { root, anim };
   }
 
+  function createEnemyHpBar(enemy, cfg, hp) {
+    const canvas = document.createElement('canvas');
+    canvas.width = hpBarState.size.width;
+    canvas.height = hpBarState.size.height;
+    const context = canvas.getContext('2d');
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+    const sprite = new THREE.Sprite(material);
+    const bossScale = cfg.role === 'boss' ? 1.35 : 1;
+    sprite.position.set(0, cfg.role === 'boss' ? 3.75 : Math.max(1.5, cfg.radius * 2.45), 0);
+    sprite.scale.set((cfg.role === 'boss' ? 3.3 : Math.max(1.5, cfg.radius * 1.9)) * bossScale, (cfg.role === 'boss' ? 0.42 : 0.26) * bossScale, 1);
+    enemy.add(sprite);
+    return {
+      canvas,
+      context,
+      texture,
+      sprite,
+      lastRatio: -1,
+      lastHp: -1,
+      borderRadius: cfg.role === 'boss' ? 7 : 5,
+      boss: cfg.role === 'boss',
+      width: canvas.width,
+      height: canvas.height,
+      maxHp: hp,
+    };
+  }
+
+  function drawRoundedRect(context, x, y, width, height, radius) {
+    context.beginPath();
+    context.moveTo(x + radius, y);
+    context.arcTo(x + width, y, x + width, y + height, radius);
+    context.arcTo(x + width, y + height, x, y + height, radius);
+    context.arcTo(x, y + height, x, y, radius);
+    context.arcTo(x, y, x + width, y, radius);
+    context.closePath();
+  }
+
+  function renderEnemyHpBar(hpBar, hp, maxHp) {
+    if (!hpBar?.context || maxHp <= 0) return;
+    const ratio = THREE.MathUtils.clamp(hp / maxHp, 0, 1);
+    if (Math.abs(ratio - hpBar.lastRatio) < 0.004 && hpBar.lastHp === hp) return;
+    hpBar.lastRatio = ratio;
+    hpBar.lastHp = hp;
+    const { context, width, height, borderRadius } = hpBar;
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = hpBarState.background;
+    drawRoundedRect(context, 0.5, 0.5, width - 1, height - 1, borderRadius);
+    context.fill();
+    context.strokeStyle = hpBar.boss ? 'rgba(255,220,115,0.55)' : hpBarState.border;
+    context.lineWidth = hpBar.boss ? 2 : 1;
+    context.stroke();
+    const innerX = 2;
+    const innerY = 2;
+    const innerWidth = width - 4;
+    const innerHeight = height - 4;
+    const fillWidth = Math.max(ratio > 0 ? 3 : 0, innerWidth * ratio);
+    if (fillWidth > 0) {
+      const gradient = context.createLinearGradient(innerX, 0, innerX + innerWidth, 0);
+      gradient.addColorStop(0, hpBarState.fillStart);
+      gradient.addColorStop(1, hpBarState.fillEnd);
+      context.fillStyle = gradient;
+      drawRoundedRect(context, innerX, innerY, Math.min(innerWidth, fillWidth), innerHeight, Math.max(2, borderRadius - 2));
+      context.fill();
+    }
+    if (ratio >= 0.999) {
+      context.fillStyle = hpBar.boss ? 'rgba(255,220,115,0.16)' : 'rgba(255,255,255,0.08)';
+      drawRoundedRect(context, innerX, innerY, innerWidth, innerHeight, Math.max(2, borderRadius - 2));
+      context.fill();
+    }
+    hpBar.texture.needsUpdate = true;
+  }
+
   function pickEnemyType(wave, indexInWave) {
     if (wave >= 5 && indexInWave === 0) return wave % 2 === 0 ? 'bossAgile' : 'bossHeavy';
     const pool = ['runner', 'runner', 'swarm', 'tank', 'shooter', 'charger', 'splitter'];
@@ -284,6 +365,7 @@ export function createEnemySystem({
       type,
       role: cfg.role,
       hp: Math.ceil((cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)) * (1 + state.worldIndex * 0.04 + state.levelIndex * 0.03)),
+      maxHp: 0,
       speed:
         (cfg.speed * gameplayConfig.enemies.baseSpeedMultiplier[type] +
           waveScale * (cfg.role === 'boss' ? gameplayConfig.enemies.waveSpeedScale.boss : gameplayConfig.enemies.waveSpeedScale.field)) *
@@ -323,7 +405,11 @@ export function createEnemySystem({
       impactVisualTimer: 0,
       impactVisualEffects: null,
       damageNumberEntry: null,
+      hpBar: null,
     };
+    enemy.userData.maxHp = enemy.userData.hp;
+    enemy.userData.hpBar = createEnemyHpBar(enemy, cfg, enemy.userData.maxHp);
+    renderEnemyHpBar(enemy.userData.hpBar, enemy.userData.hp, enemy.userData.maxHp);
     scene.add(enemy);
     state.entities.enemies.push(enemy);
     return enemy;
@@ -337,6 +423,9 @@ export function createEnemySystem({
     }
     if (data.dead) return;
     data.dead = true;
+    if (data.hpBar?.sprite) enemy.remove(data.hpBar.sprite);
+    data.hpBar?.texture?.dispose?.();
+    data.hpBar?.sprite?.material?.dispose?.();
     vfx.clearEnemyDamageNumber(enemy);
     scene.remove(enemy);
     const resolvedIndex = Number.isInteger(index) && state.entities.enemies[index] === enemy
@@ -373,6 +462,7 @@ export function createEnemySystem({
         continue;
       }
       if (data.dead) continue;
+      renderEnemyHpBar(data.hpBar, data.hp, data.maxHp);
 
       temp.vec3A.set(temp.player.position.x - enemy.position.x, 0, temp.player.position.z - enemy.position.z);
       const dist = Math.max(0.0001, temp.vec3A.length());
@@ -481,6 +571,9 @@ export function createEnemySystem({
     });
     state.entities.enemyProjectiles.length = 0;
     state.entities.enemies.forEach((enemy) => {
+      const data = getEnemyData(enemy);
+      if (data?.hpBar?.texture) data.hpBar.texture.dispose?.();
+      if (data?.hpBar?.sprite?.material) data.hpBar.sprite.material.dispose?.();
       if (enemy) scene.remove(enemy);
     });
     state.entities.enemies.length = 0;
