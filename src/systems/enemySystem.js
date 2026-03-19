@@ -322,6 +322,7 @@ export function createEnemySystem({
       statusPulse: Math.random() * Math.PI * 2,
       impactVisualTimer: 0,
       impactVisualEffects: null,
+      damageNumberEntry: null,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
@@ -336,6 +337,7 @@ export function createEnemySystem({
     }
     if (data.dead) return;
     data.dead = true;
+    vfx.clearEnemyDamageNumber(enemy);
     scene.remove(enemy);
     const resolvedIndex = Number.isInteger(index) && state.entities.enemies[index] === enemy
       ? index

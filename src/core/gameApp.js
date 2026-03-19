@@ -193,6 +193,7 @@ export function startGameApp() {
       enemies: state.entities.enemies.length,
       vfx: state.entities.vfxParticles.length,
       chainBeams: state.entities.chainBeams.length,
+      damageNumbers: state.entities.damageNumbers.length,
     }),
     getExtraDebugLines: () => collision.getWorldDebugLines(),
   });
@@ -953,6 +954,7 @@ export function startGameApp() {
           enemies: state.entities.enemies.length,
           vfx: state.entities.vfxParticles.length,
           chainBeams: state.entities.chainBeams.length,
+          damageNumbers: state.entities.damageNumbers.length,
           fps: state.performance.fps,
           frameMs: state.performance.frameMs,
           qualityLevel: state.performance.qualityLevel,
