@@ -31,8 +31,6 @@ export function createEnemySystem({
     roughness: 0.18,
     metalness: 0.18,
   });
-  const DAMAGE_NUMBER_WINDOW_SECONDS = 3;
-
   const enemyStyle = {
     runner: { shell: 0xff6d78, dark: 0x30111d, main: 0x5d2030, glow: 0xffb39d },
     tank: { shell: 0xffb85c, dark: 0x251918, main: 0x635349, glow: 0xffdf8d },
@@ -325,9 +323,6 @@ export function createEnemySystem({
       impactVisualTimer: 0,
       impactVisualEffects: null,
       damageNumberRef: null,
-      damageWindowTotal: 0,
-      damageWindowHitCount: 0,
-      damageWindowTimer: 0,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
@@ -348,9 +343,6 @@ export function createEnemySystem({
       : state.entities.enemies.indexOf(enemy);
     if (resolvedIndex >= 0) state.entities.enemies.splice(resolvedIndex, 1);
     if (data.damageNumberRef) data.damageNumberRef.enemy = null;
-    data.damageWindowTotal = 0;
-    data.damageWindowHitCount = 0;
-    data.damageWindowTimer = 0;
     if (data.type === 'splitter') {
       for (let i = 0; i < data.splitCount; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -381,12 +373,6 @@ export function createEnemySystem({
         continue;
       }
       if (data.dead) continue;
-
-      data.damageWindowTimer += dt;
-      if (data.damageWindowTimer >= DAMAGE_NUMBER_WINDOW_SECONDS && data.damageWindowTotal > 0) {
-        data.damageWindowTotal = 0;
-        data.damageWindowHitCount = 0;
-      }
 
       temp.vec3A.set(temp.player.position.x - enemy.position.x, 0, temp.player.position.z - enemy.position.z);
       const dist = Math.max(0.0001, temp.vec3A.length());
@@ -498,11 +484,6 @@ export function createEnemySystem({
       if (enemy) scene.remove(enemy);
       const data = getEnemyData(enemy);
       if (data?.damageNumberRef) data.damageNumberRef.enemy = null;
-      if (data) {
-        data.damageWindowTotal = 0;
-        data.damageWindowHitCount = 0;
-        data.damageWindowTimer = 0;
-      }
     });
     state.entities.enemies.length = 0;
   }
