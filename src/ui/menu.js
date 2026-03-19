@@ -54,113 +54,38 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
   function renderUpgradesScreen() {
     ui.upgradeCredits.textContent = String(profile.credits);
     ui.upgradeGroups.innerHTML = '';
-    const defsById = Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, def]));
-    const selectedUpgradeId = defsById[state.ui.selectedUpgradeId] ? state.ui.selectedUpgradeId : UPGRADE_DEFS[0].id;
-    state.ui.selectedUpgradeId = selectedUpgradeId;
     const grouped = UPGRADE_DEFS.reduce((map, def) => {
       (map[def.group] ||= []).push(def);
       return map;
     }, {});
-
-    const rootSection = document.createElement('section');
-    rootSection.className = 'skill-tree-group skill-tree-group--root';
-    rootSection.innerHTML = `
-      <div class="skill-tree-group__header">
-        <div class="card-label">Core</div>
-        <h3>Global Matrix</h3>
-      </div>
-      <div class="skill-tree-lane skill-tree-lane--root"></div>
-    `;
-    const rootLane = rootSection.querySelector('.skill-tree-lane');
-    const rootDef = defsById.upgradeLimit;
-    if (rootDef) rootLane.appendChild(createUpgradeNode(rootDef, true));
-    ui.upgradeGroups.appendChild(rootSection);
-
-    ['Pilot Upgrades', 'Power-up Upgrades'].forEach((groupName, groupIndex) => {
-      const defs = grouped[groupName] || [];
-      if (!defs.length) return;
-      const section = document.createElement('section');
-      section.className = 'skill-tree-group';
-      section.innerHTML = `
-        <div class="skill-tree-group__header">
-          <div class="card-label">Branch ${groupIndex + 1}</div>
-          <h3>${groupName}</h3>
-        </div>
-        <div class="skill-tree-lane"></div>
-      `;
-      const lane = section.querySelector('.skill-tree-lane');
-      defs.forEach((def, index) => {
-        lane.appendChild(createUpgradeNode(def, index === 0));
+    for (const [group, defs] of Object.entries(grouped)) {
+      const groupEl = document.createElement('section');
+      groupEl.className = 'upgrade-group';
+      const title = document.createElement('h3');
+      title.textContent = group;
+      groupEl.appendChild(title);
+      defs.forEach((def) => {
+        const level = helpers.getUpgradeLevel(def.id);
+        const cost = helpers.getUpgradeCost(def.id);
+        const card = document.createElement('article');
+        card.className = `upgrade-card card-surface${cost == null || profile.credits < cost ? ' is-disabled' : ''}`;
+        card.innerHTML = `
+          <div class="card-topline"><span class="card-chip">Mk ${level + 1}</span><span class="card-state">${cost == null ? 'Maxed' : profile.credits >= cost ? 'Available' : 'Insufficient'}</span></div>
+          <div class="card-label">${def.label}</div>
+          <strong>Level ${level}${def.maxLevel ? ` / ${def.maxLevel}` : ''}</strong>
+          <p>${def.description}</p>
+          <div class="card-row"><span>Current: ${def.format(level)}</span><span>${cost == null ? 'MAX' : `Next cost: ${cost}`}</span></div>
+        `;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = cost == null ? 'Maxed' : 'Upgrade';
+        button.disabled = cost == null || profile.credits < cost;
+        button.addEventListener('click', () => actions.purchaseUpgrade(def.id));
+        card.appendChild(button);
+        groupEl.appendChild(card);
       });
-      ui.upgradeGroups.appendChild(section);
-    });
-
-    renderUpgradeDetail(defsById[selectedUpgradeId]);
-  }
-
-  function createUpgradeNode(def, isBranchStart = false) {
-    const level = helpers.getUpgradeLevel(def.id);
-    const maxLevel = helpers.getUpgradeMaxLevel(def.id);
-    const cost = helpers.getUpgradeCost(def.id);
-    const affordable = cost != null && profile.credits >= cost;
-    const isMaxed = cost == null;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `skill-node${state.ui.selectedUpgradeId === def.id ? ' is-selected' : ''}${affordable ? ' is-affordable' : ''}${isMaxed ? ' is-maxed' : ''}${cost != null && !affordable ? ' is-locked' : ''}${isBranchStart ? ' skill-node--branch-start' : ''}${def.isLimitExtender ? ' skill-node--core' : ''}`;
-    button.innerHTML = `
-      <span class="skill-node__icon">${def.icon || '⬢'}</span>
-      <span class="skill-node__title">${def.shortLabel || def.label}</span>
-      <span class="skill-node__level">Lv ${level}${maxLevel != null ? ` / ${maxLevel}` : ''}</span>
-      <span class="skill-node__status">${isMaxed ? 'MAX' : affordable ? `${cost} ¤` : 'Locked'}</span>
-    `;
-    button.addEventListener('click', () => {
-      state.ui.selectedUpgradeId = def.id;
-      renderUpgradesScreen();
-    });
-    return button;
-  }
-
-  function renderUpgradeDetail(def) {
-    if (!def || !ui.upgradeDetail) return;
-    const level = helpers.getUpgradeLevel(def.id);
-    const maxLevel = helpers.getUpgradeMaxLevel(def.id);
-    const cost = helpers.getUpgradeCost(def.id);
-    const affordable = cost != null && profile.credits >= cost;
-    const nextLevel = level + 1;
-    const currentValue = def.format(level);
-    const nextValue = def.format(nextLevel);
-    ui.upgradeDetail.innerHTML = `
-      <div class="card-topline">
-        <span class="card-chip">${def.icon || '⬢'} ${def.group}</span>
-        <span class="card-state">${cost == null ? 'Maxed' : affordable ? 'Available' : 'Insufficient'}</span>
-      </div>
-      <div class="skill-tree-detail__title-row">
-        <div class="skill-tree-detail__icon">${def.icon || '⬢'}</div>
-        <div>
-          <div class="card-label">Selected Node</div>
-          <strong>${def.label}</strong>
-        </div>
-      </div>
-      <p>${def.description}</p>
-      <div class="skill-tree-detail__stats">
-        <div class="skill-tree-detail__stat"><span>Current</span><strong>${currentValue}</strong></div>
-        <div class="skill-tree-detail__stat"><span>Next</span><strong>${cost == null ? 'MAX' : nextValue}</strong></div>
-        <div class="skill-tree-detail__stat"><span>Level</span><strong>${level}${maxLevel != null ? ` / ${maxLevel}` : ''}</strong></div>
-        <div class="skill-tree-detail__stat"><span>Cost</span><strong>${cost == null ? '—' : `${cost} ¤`}</strong></div>
-      </div>
-      <div class="skill-tree-detail__note">${def.detail ? def.detail(level) : currentValue}</div>
-    `;
-
-    const actionRow = document.createElement('div');
-    actionRow.className = 'skill-tree-detail__actions';
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = affordable ? 'btn' : 'ghost-btn';
-    button.textContent = cost == null ? 'Maxed' : 'Upgrade kaufen';
-    button.disabled = cost == null || !affordable;
-    button.addEventListener('click', () => actions.purchaseUpgrade(def.id));
-    actionRow.appendChild(button);
-    ui.upgradeDetail.appendChild(actionRow);
+      ui.upgradeGroups.appendChild(groupEl);
+    }
   }
 
   function renderStatisticsScreen() {
