@@ -144,9 +144,6 @@ export function createCombatSystem({
     data.hp -= resolvedAmount;
     state.damageDealt += resolvedAmount;
     profile.stats.damageDealt += resolvedAmount;
-    data.damageNumberTotal += resolvedAmount;
-    data.damageNumberTimer = 0;
-    vfx.upsertEnemyDamageNumber(enemy, data.damageNumberTotal);
     if (impactEffects) markEnemyImpactVisuals(enemy, impactEffects);
 
     if (runPowers.stacks.lightning > 0 && !isSynergyEffect) {
@@ -158,7 +155,6 @@ export function createCombatSystem({
     }
 
     if (data.hp <= 0) {
-      vfx.removeEnemyDamageNumber(enemy);
       synergySystem.resolveKillSynergies(enemy, buildKillContext({ weaponProfile: weaponProfile || getCharacterCombatProfile() }));
       const idx = state.entities.enemies.indexOf(enemy);
       if (idx >= 0) api.destroyEnemy(enemy, idx);
