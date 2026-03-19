@@ -51,7 +51,6 @@ export function createGameState(profile, helpers) {
       frameBudgets: {
         lightningChains: 0,
         vfxSpawns: 0,
-        damageNumbers: 0,
         bulletsSpawned: 0,
         dotTicks: 0,
         splashDamageEvents: 0,
@@ -88,7 +87,6 @@ export function createGameState(profile, helpers) {
       enemies: [],
       bullets: [],
       enemyProjectiles: [],
-      damageNumbers: [],
       vfxParticles: [],
       chainBeams: [],
       powerPickups: [],

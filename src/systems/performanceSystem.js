@@ -21,7 +21,6 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
     const budgets = state.performance.frameBudgets;
     budgets.lightningChains = 0;
     budgets.vfxSpawns = 0;
-    budgets.damageNumbers = 0;
     budgets.bulletsSpawned = 0;
     budgets.dotTicks = 0;
     budgets.splashDamageEvents = 0;
@@ -62,7 +61,6 @@ export function createPerformanceSystem({ THREE, state, ui, SAFETY_LIMITS, getCo
       `Enemy shots ${counts.enemyProjectiles || 0}`,
       `Enemies ${counts.enemies}`,
       `VFX ${counts.vfx}/${getAdaptiveLimit(maxParticles)}`,
-      `Damage # ${counts.damageNumbers}/${getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers)}`,
       `Chain beams ${counts.chainBeams}/${getAdaptiveLimit(SAFETY_LIMITS.maxChainBeams)}`,
       `Enemy FX ${state.performance.activeEnemyEffects}/${state.performance.enemyEffectSoftCap}`,
     ];
