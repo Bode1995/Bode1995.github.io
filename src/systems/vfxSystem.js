@@ -209,6 +209,22 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     entry.sprite.material.dispose();
   }
 
+  function removeDamageNumberEntry(entry) {
+    if (!entry) return;
+    const index = state.entities.damageNumbers.indexOf(entry);
+    if (index >= 0) state.entities.damageNumbers.splice(index, 1);
+    disposeDamageNumber(entry);
+  }
+
+  function removeStaleDamageNumbersForEnemy(enemy, exceptEntry = null) {
+    for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) {
+      const entry = state.entities.damageNumbers[i];
+      if (!entry || entry === exceptEntry || entry.enemy !== enemy) continue;
+      state.entities.damageNumbers.splice(i, 1);
+      disposeDamageNumber(entry);
+    }
+  }
+
   function spawnDamageNumber(enemy, amount) {
     const enemyData = getEnemyData(enemy);
     if (!enemyData) {
@@ -217,39 +233,24 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     }
     const budgets = state.performance.frameBudgets;
     const existing = enemyData.damageNumberRef;
-    const hasActiveExisting = existing && state.entities.damageNumbers.includes(existing) && !existing.expiring;
     const roundedAmount = Math.max(1, Math.round(amount));
-    const withinDamageWindow = enemyData.damageWindowTimer < DAMAGE_NUMBER_IDLE_WINDOW;
-    const previousHitCount = withinDamageWindow
-      ? Math.max(enemyData.damageWindowHitCount, hasActiveExisting ? existing.hitCount || 0 : 0)
-      : 0;
-    const previousAmount = withinDamageWindow
-      ? Math.max(enemyData.damageWindowTotal, hasActiveExisting ? existing.amountTotal || 0 : 0)
-      : 0;
-    const nextHitCount = previousHitCount + 1;
-    const nextAmount = previousAmount + roundedAmount;
+    const hasTrackedEntry = existing && state.entities.damageNumbers.includes(existing);
 
-    enemyData.damageWindowHitCount = nextHitCount;
-    enemyData.damageWindowTotal = nextAmount;
-    enemyData.damageWindowTimer = 0;
-
-    if (existing && state.entities.damageNumbers.includes(existing)) {
-      if (existing.expiring) {
-        disposeDamageNumber(existing);
-        state.entities.damageNumbers.splice(state.entities.damageNumbers.indexOf(existing), 1);
-        enemyData.damageNumberRef = null;
-      } else {
-        existing.hitCount = nextHitCount;
-        existing.lastHitAt = 0;
-        existing.idleTimer = 0;
-        existing.fadeTimer = 0;
-        existing.expiring = false;
-        applyDamageNumberVisualConfig(existing, nextAmount);
-        triggerDamageNumberPulse(existing, Math.min(1.45, 0.75 + Math.log10(nextAmount + 1) * 0.22));
-        updateDamageNumberTexture(existing);
-        return;
-      }
+    if (hasTrackedEntry) {
+      existing.amountTotal += roundedAmount;
+      existing.hitCount = (existing.hitCount || 0) + 1;
+      existing.lastHitAt = 0;
+      existing.idleTimer = 0;
+      existing.fadeTimer = 0;
+      existing.expiring = false;
+      applyDamageNumberVisualConfig(existing, existing.amountTotal);
+      triggerDamageNumberPulse(existing, Math.min(1.45, 0.75 + Math.log10(existing.amountTotal + 1) * 0.22));
+      updateDamageNumberTexture(existing);
+      removeStaleDamageNumbersForEnemy(enemy, existing);
+      return;
     }
+
+    removeStaleDamageNumbersForEnemy(enemy);
 
     const maxPerFrame = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbersPerFrame, 0.6, 0.25);
     const maxTotal = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers, 0.62, 0.34);
@@ -278,7 +279,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       texture,
       canvas,
       ctx,
-      amountTotal: nextAmount,
+      amountTotal: roundedAmount,
       enemy,
       lastHitAt: 0,
       idleTimer: 0,
@@ -301,7 +302,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       strokePx: 24,
       hitCount: 1,
     };
-    applyDamageNumberVisualConfig(entry, nextAmount);
+    applyDamageNumberVisualConfig(entry, entry.amountTotal);
     triggerDamageNumberPulse(entry, 0.95);
     updateDamageNumberTexture(entry);
     sprite.scale.set(entry.baseSpriteWidth * entry.spawnScale, entry.baseSpriteHeight * entry.spawnScale, 1);
@@ -437,8 +438,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       if (entry.expiring) entry.fadeTimer -= dt;
 
       if (entry.expiring && entry.fadeTimer <= 0) {
-        disposeDamageNumber(entry);
-        state.entities.damageNumbers.splice(i, 1);
+        removeDamageNumberEntry(entry);
         continue;
       }
       const alpha = getDamageNumberAlpha(entry);
