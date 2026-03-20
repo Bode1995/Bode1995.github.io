@@ -69,13 +69,14 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       groupEl.appendChild(title);
       defs.forEach((def) => {
         const level = helpers.getUpgradeLevel(def.id);
+        const maxLevel = helpers.getUpgradeMaxLevel(def.id);
         const cost = helpers.getUpgradeCost(def.id);
         const card = document.createElement('article');
         card.className = `upgrade-card card-surface${cost == null || profile.credits < cost ? ' is-disabled' : ''}`;
         card.innerHTML = `
           <div class="card-topline"><span class="card-chip">Mk ${level + 1}</span><span class="card-state">${cost == null ? 'Maxed' : profile.credits >= cost ? 'Available' : 'Insufficient'}</span></div>
           <div class="card-label">${def.label}</div>
-          <strong>Level ${level}${def.maxLevel ? ` / ${def.maxLevel}` : ''}</strong>
+          <strong>Level ${level}${maxLevel != null ? ` / ${maxLevel}` : ''}</strong>
           <p>${def.description}</p>
           <div class="card-row"><span>Current: ${def.format(level)}</span><span>${cost == null ? 'MAX' : `Next cost: ${cost}`}</span></div>
         `;

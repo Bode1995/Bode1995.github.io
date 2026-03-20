@@ -354,10 +354,18 @@ export function startGameApp() {
     return profile.upgrades[id] || 0;
   }
 
+  function getUpgradeMaxLevel(id) {
+    const def = UPGRADE_DEFS.find((entry) => entry.id === id);
+    if (!def) return null;
+    if (def.id === 'upgradeLimit') return null;
+    return (def.maxLevel || 0) + getUpgradeLevel('upgradeLimit');
+  }
+
   function getUpgradeCost(id) {
     const def = UPGRADE_DEFS.find((entry) => entry.id === id);
     const level = getUpgradeLevel(id);
-    if (!def || level >= def.maxLevel) return null;
+    const maxLevel = getUpgradeMaxLevel(id);
+    if (!def || (maxLevel != null && level >= maxLevel)) return null;
     return def.baseCost + level * def.costStep;
   }
 
@@ -803,6 +811,7 @@ export function startGameApp() {
     helpers: {
       getUpgradeLevel,
       getUpgradeCost,
+      getUpgradeMaxLevel,
       isLevelUnlocked: profileApi.isLevelUnlocked,
       getLevelKey: profileApi.getLevelKey,
     },
