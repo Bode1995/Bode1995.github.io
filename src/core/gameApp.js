@@ -7,6 +7,7 @@ import {
   RUN_BASE,
   SAFETY_LIMITS,
   UPGRADE_DEFS,
+  UPGRADE_LIMIT_INCREASE_ID,
   WAVES_PER_LEVEL,
   WAVE_INTERVAL_SECONDS,
   WORLDS_COUNT,
@@ -32,11 +33,11 @@ import { registerServiceWorker } from '../pwa/register-sw.js';
 export function startGameApp() {
   const ui = getUI();
   const REQUIRED_UI_KEYS = [
-    'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
+    'canvas', 'hud', 'controls', 'menu', 'menuShell', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
     'wave', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'pickupFeed', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
-    'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
-    'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
+    'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'hubMissionButton', 'hubUpgradeButton', 'hubCharacterButton',
+    'worldGrid', 'levelGrid', 'skillTree', 'skillTreeSvg', 'upgradeDetail', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
   ];
   const missingUi = REQUIRED_UI_KEYS.filter((key) => !ui[key]);
@@ -326,10 +327,22 @@ export function startGameApp() {
     return profile.upgrades[id] || 0;
   }
 
+  function getUpgradeDef(id) {
+    return UPGRADE_DEFS.find((entry) => entry.id === id) || null;
+  }
+
+  function getUpgradeMaxLevel(id) {
+    const def = getUpgradeDef(id);
+    if (!def) return 0;
+    if (def.unlimited) return Number.POSITIVE_INFINITY;
+    return (def.maxLevel || 0) + getUpgradeLevel(UPGRADE_LIMIT_INCREASE_ID);
+  }
+
   function getUpgradeCost(id) {
-    const def = UPGRADE_DEFS.find((entry) => entry.id === id);
+    const def = getUpgradeDef(id);
     const level = getUpgradeLevel(id);
-    if (!def || level >= def.maxLevel) return null;
+    const maxLevel = getUpgradeMaxLevel(id);
+    if (!def || level >= maxLevel) return null;
     return def.baseCost + level * def.costStep;
   }
 
@@ -577,7 +590,7 @@ export function startGameApp() {
     return true;
   }
 
-  function abandonRunToMenu(screenId = 'home') {
+  function abandonRunToMenu(screenId = 'hub') {
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
@@ -607,7 +620,7 @@ export function startGameApp() {
   }
 
   function purchaseUpgrade(upgradeId) {
-    const def = UPGRADE_DEFS.find((entry) => entry.id === upgradeId);
+    const def = getUpgradeDef(upgradeId);
     const cost = getUpgradeCost(upgradeId);
     if (!def || cost == null || profile.credits < cost) return;
     profile.credits -= cost;
@@ -695,7 +708,7 @@ export function startGameApp() {
     ui.pauseOverlay.classList.add('hidden');
     ui.gameOver.classList.add('hidden');
     ui.menu.classList.remove('hidden');
-    menuController.setMenuScreen('home');
+    menuController.setMenuScreen('hub');
     menuController.renderMenu();
     reportRuntimeError(context, err, extra);
   }
@@ -770,6 +783,7 @@ export function startGameApp() {
     state,
     helpers: {
       getUpgradeLevel,
+      getUpgradeMaxLevel,
       getUpgradeCost,
       isLevelUnlocked: profileApi.isLevelUnlocked,
       getLevelKey: profileApi.getLevelKey,
@@ -991,7 +1005,8 @@ export function startGameApp() {
   const registerSwOnReady = () => registerServiceWorker().catch((err) => reportRuntimeError('Service worker registration', err));
   if (document.readyState === 'complete') registerSwOnReady();
   else window.addEventListener('load', registerSwOnReady, { once: true });
-  ui.menuTabs.forEach((tab) => tab.addEventListener('click', () => menuController.setMenuScreen(tab.dataset.screen)));
+  ui.menuHubButtons.forEach((button) => button.addEventListener('click', () => menuController.openMenu(button.dataset.menuTarget)));
+  ui.menuBackButtons.forEach((button) => button.addEventListener('click', () => menuController.openMenu(button.dataset.menuBack || 'hub')));
   ui.startBtn.addEventListener('click', () => startGame());
   ui.quickWorldsBtn.addEventListener('click', () => menuController.openMenu('worlds'));
   ui.startSelectedLevelBtn.addEventListener('click', () => {
@@ -999,7 +1014,7 @@ export function startGameApp() {
     startGame(mission.world, mission.level);
   });
   ui.restartBtn.addEventListener('click', () => startGame(state.worldIndex, state.levelIndex));
-  ui.menuBtn.addEventListener('click', () => menuController.openMenu('home'));
+  ui.menuBtn.addEventListener('click', () => menuController.openMenu('hub'));
   ui.nextLevelBtn.addEventListener('click', () => {
     const nextMission = getNextMission(state.worldIndex, state.levelIndex);
     if (!nextMission) {
@@ -1011,7 +1026,7 @@ export function startGameApp() {
   ui.pauseBtn.addEventListener('click', () => pauseRun('manual'));
   ui.pauseResumeBtn.addEventListener('click', () => resumeRun());
   ui.pauseRestartBtn.addEventListener('click', () => startGame(state.worldIndex, state.levelIndex));
-  ui.pauseMenuBtn.addEventListener('click', () => abandonRunToMenu('home'));
+  ui.pauseMenuBtn.addEventListener('click', () => abandonRunToMenu('hub'));
 
   window.addEventListener('keydown', (event) => {
     if (event.code !== 'Escape' || !state.running) return;
