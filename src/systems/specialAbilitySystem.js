@@ -24,9 +24,11 @@ export function createSpecialAbilitySystem({
   createCharacterRig,
   getCharacterDef,
   getCharacterCombatProfile,
+  getSpecialAbilityConfig,
 }) {
   const runtime = {
     characterDef: null,
+    abilityId: null,
     config: null,
     cooldownRemaining: 0,
     activeRemaining: 0,
@@ -47,7 +49,7 @@ export function createSpecialAbilitySystem({
     const config = runtime.config;
     const hud = state.specialAbility;
     hud.characterId = runtime.characterDef?.id || null;
-    hud.id = config?.id || null;
+    hud.id = runtime.abilityId || config?.id || null;
     hud.label = config?.label || '';
     hud.shortLabel = config?.shortLabel || '';
     hud.color = config?.hudColor || 0xffffff;
@@ -147,15 +149,25 @@ export function createSpecialAbilitySystem({
     syncStateStatus();
   }
 
-  function setCharacter(characterId) {
-    runtime.characterDef = getCharacterDef(characterId);
-    runtime.config = runtime.characterDef?.specialAbility || null;
+  function setLoadout({ characterId = runtime.characterDef?.id, abilityId = runtime.abilityId } = {}) {
+    runtime.characterDef = characterId ? getCharacterDef(characterId) : null;
+    runtime.abilityId = abilityId || null;
+    runtime.config = runtime.abilityId ? getSpecialAbilityConfig(runtime.abilityId) : null;
     resetRuntime();
+  }
+
+  function setCharacter(characterId) {
+    setLoadout({ characterId, abilityId: runtime.abilityId });
+  }
+
+  function setAbility(abilityId) {
+    setLoadout({ characterId: runtime.characterDef?.id || state.selection.characterId, abilityId });
   }
 
   function clear() {
     resetRuntime();
     runtime.characterDef = null;
+    runtime.abilityId = null;
     runtime.config = null;
     syncStateStatus();
   }
@@ -585,7 +597,9 @@ export function createSpecialAbilitySystem({
   }
 
   return {
+    setLoadout,
     setCharacter,
+    setAbility,
     clear,
     resetRuntime,
     update,

@@ -1,11 +1,28 @@
+function formatAbilityMetric(label, value) {
+  return `
+    <div class="ability-stat-pill">
+      <span>${label}</span>
+      <strong>${value}</strong>
+    </div>
+  `;
+}
+
 export function setupCharacterSelection({
   THREE,
   ui,
   characterDefs,
+  specialAbilityDefs,
   createCharacterRig,
   animateCharacterRig,
   onSelectCharacter,
   isSelectedCharacter,
+  onSelectAbility,
+  isSelectedAbility,
+  getCredits,
+  getSpecialAbilityLevel,
+  getSpecialAbilityCost,
+  getResolvedSpecialAbility,
+  onUpgradeAbility,
 }) {
   const previewCards = [];
 
@@ -17,6 +34,106 @@ export function setupCharacterSelection({
         <div class="character-stat-bar"><div style="width:${(Math.max(0, Math.min(maxValue, value)) / maxValue) * 100}%;background:${accent}"></div></div>
       </div>
     `;
+  }
+
+  function getAbilityHighlights(config) {
+    switch (config.id) {
+      case 'focus_mark':
+        return [
+          formatAbilityMetric('Bonus', `${Math.round((config.damageMultiplier - 1) * 100)}%`),
+          formatAbilityMetric('Dauer', `${config.duration.toFixed(1)}s`),
+          formatAbilityMetric('Cooldown', `${config.cooldown.toFixed(1)}s`),
+        ];
+      case 'holo_decoy':
+        return [
+          formatAbilityMetric('Radius', `${config.influenceRadius.toFixed(1)}m`),
+          formatAbilityMetric('Lock', `${config.lockDuration.toFixed(2)}s`),
+          formatAbilityMetric('Cooldown', `${config.cooldown.toFixed(1)}s`),
+        ];
+      case 'shield_ram':
+        return [
+          formatAbilityMetric('Schaden', `${config.impactDamage.toFixed(1)}`),
+          formatAbilityMetric('Stoß', `${config.knockback.toFixed(1)}`),
+          formatAbilityMetric('Cooldown', `${config.cooldown.toFixed(1)}s`),
+        ];
+      case 'guardian_orbit':
+        return [
+          formatAbilityMetric('Orbitals', `${config.orbCount}`),
+          formatAbilityMetric('Tick', `${config.damage.toFixed(1)}`),
+          formatAbilityMetric('Cooldown', `${config.cooldown.toFixed(1)}s`),
+        ];
+      case 'execution_mode':
+        return [
+          formatAbilityMetric('Exec', `${Math.round(config.bonusRatio * 100)}%`),
+          formatAbilityMetric('Trigger', `${Math.round(config.thresholdRatio * 100)}%`),
+          formatAbilityMetric('Cooldown', `${config.cooldown.toFixed(1)}s`),
+        ];
+      default:
+        return [formatAbilityMetric('Cooldown', `${config.cooldown.toFixed(1)}s`)];
+    }
+  }
+
+  function renderAbilityCards() {
+    if (!ui.specialAbilityGrid) return;
+    ui.specialAbilityGrid.innerHTML = '';
+    const credits = getCredits();
+
+    for (const def of specialAbilityDefs) {
+      const level = getSpecialAbilityLevel(def.id);
+      const cost = getSpecialAbilityCost(def.id);
+      const config = getResolvedSpecialAbility(def.id);
+      const isSelected = isSelectedAbility(def.id);
+      const canUpgrade = cost != null && credits >= cost;
+      const accentColor = `#${(def.hudColor || 0xffffff).toString(16).padStart(6, '0')}`;
+
+      const card = document.createElement('article');
+      card.className = `ability-card card-surface${isSelected ? ' is-selected' : ''}${cost == null || !canUpgrade ? ' is-disabled' : ''}`;
+      card.style.setProperty('--ability-accent', accentColor);
+
+      const maxLabel = def.maxLevel != null ? ` / ${def.maxLevel}` : '';
+      card.innerHTML = `
+        <div class="card-topline">
+          <span class="card-chip">Ability</span>
+          <span class="card-state">${cost == null ? 'Maxed' : canUpgrade ? 'Upgrade bereit' : 'Zu wenig Credits'}</span>
+        </div>
+        <div class="ability-card__header">
+          <div>
+            <div class="card-label">Level ${level}${maxLabel}</div>
+            <strong>${def.label}</strong>
+          </div>
+          <span class="ability-card__icon">✦</span>
+        </div>
+        <p class="ability-card__description">${def.description}</p>
+        <div class="ability-tags">${(def.tags || []).map((tag) => `<span class="ability-tag">${tag}</span>`).join('')}</div>
+        <div class="ability-stats">${getAbilityHighlights(config).join('')}</div>
+      `;
+
+      const actions = document.createElement('div');
+      actions.className = 'ability-card__actions';
+
+      const selectButton = document.createElement('button');
+      selectButton.type = 'button';
+      selectButton.className = isSelected ? 'btn' : 'ghost-btn';
+      selectButton.textContent = isSelected ? 'Ausgewählt' : 'Ausrüsten';
+      selectButton.addEventListener('click', () => {
+        onSelectAbility(def.id);
+        refresh();
+      });
+
+      const upgradeButton = document.createElement('button');
+      upgradeButton.type = 'button';
+      upgradeButton.className = 'ghost-btn ability-card__upgrade';
+      upgradeButton.textContent = cost == null ? 'Maxed' : `Upgrade · ${cost}¤`;
+      upgradeButton.disabled = cost == null || !canUpgrade;
+      upgradeButton.addEventListener('click', () => {
+        onUpgradeAbility(def.id);
+        refresh();
+      });
+
+      actions.append(selectButton, upgradeButton);
+      card.append(actions);
+      ui.specialAbilityGrid.append(card);
+    }
   }
 
   function createCharacterCard(def) {
@@ -126,6 +243,8 @@ export function setupCharacterSelection({
     for (const card of previewCards) {
       card.button.classList.toggle('is-selected', isSelectedCharacter(card.def.id));
     }
+    if (ui.characterCredits) ui.characterCredits.textContent = String(getCredits());
+    renderAbilityCards();
   }
 
   for (const def of characterDefs) {

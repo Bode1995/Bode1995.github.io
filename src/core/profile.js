@@ -3,16 +3,23 @@ import {
   CHARACTER_STORAGE_KEY,
   LEVELS_PER_WORLD,
   PROFILE_STORAGE_KEY,
+  SPECIAL_ABILITY_DEFS,
   UPGRADE_DEFS,
   WORLDS_COUNT,
 } from '../config/gameConfig.js';
+
+function createDefaultSpecialAbilityUpgrades() {
+  return Object.fromEntries(SPECIAL_ABILITY_DEFS.map((def) => [def.id, 0]));
+}
 
 export function createDefaultProfile() {
   const unlockedLevels = {};
   for (let world = 1; world <= WORLDS_COUNT; world++) unlockedLevels[world] = world === 1 ? 1 : 0;
   return {
-    version: 2,
+    version: 3,
     credits: 0,
+    selectedSpecialAbilityId: SPECIAL_ABILITY_DEFS[0].id,
+    specialAbilityUpgrades: createDefaultSpecialAbilityUpgrades(),
     upgrades: Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, 0])),
     stats: {
       totalKills: 0,
@@ -40,6 +47,13 @@ export function loadProfile() {
     return {
       ...base,
       ...raw,
+      selectedSpecialAbilityId: SPECIAL_ABILITY_DEFS.some((def) => def.id === raw.selectedSpecialAbilityId)
+        ? raw.selectedSpecialAbilityId
+        : base.selectedSpecialAbilityId,
+      specialAbilityUpgrades: {
+        ...base.specialAbilityUpgrades,
+        ...(raw.specialAbilityUpgrades || {}),
+      },
       upgrades: { ...base.upgrades, ...(raw.upgrades || {}) },
       stats: { ...base.stats, ...(raw.stats || {}) },
       progression: {
