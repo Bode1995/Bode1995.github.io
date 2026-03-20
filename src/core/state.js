@@ -66,7 +66,7 @@ export function createGameState(profile, helpers) {
     world: {
       colliders: [],
       objects: [],
-      playerCollisionRadius: 0.72,
+      playerCollisionRadius: 0.94,
       playerGroundY: 0.2,
       audit: {
         blockingObjects: 0,
