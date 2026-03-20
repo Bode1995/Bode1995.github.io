@@ -318,7 +318,7 @@ export function startGameApp() {
     playerRigHolder,
     getAbilityDefinition: getResolvedSpecialAbilityDef,
     getAbilityConfig: getResolvedSpecialAbilityConfig,
-    getWeaponProfile: getCharacterCombatProfile,
+    getCharacterCombatProfile,
   });
 
   combat.api.spawnEnemy = enemySystem.spawnEnemy;

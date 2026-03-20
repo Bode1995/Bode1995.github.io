@@ -23,7 +23,7 @@ export function createSpecialAbilitySystem({
   playerRigHolder,
   getAbilityDefinition,
   getAbilityConfig,
-  getWeaponProfile,
+  getCharacterCombatProfile,
 }) {
   const runtime = {
     abilityId: null,
@@ -142,12 +142,30 @@ export function createSpecialAbilitySystem({
   }
 
   function setAbility(abilityId) {
+    if (!abilityId) {
+      clear();
+      return false;
+    }
+
     const resolvedDef = getAbilityDefinition(abilityId);
-    runtime.abilityId = resolvedDef?.id || null;
+    if (!resolvedDef || resolvedDef.id !== abilityId) {
+      clear();
+      return false;
+    }
+
+    const resolvedConfig = getAbilityConfig(resolvedDef.id);
+    if (!resolvedConfig || resolvedConfig.id !== resolvedDef.id) {
+      clear();
+      return false;
+    }
+
+    runtime.abilityId = resolvedDef.id;
     runtime.abilityDef = resolvedDef;
-    runtime.config = resolvedDef ? getAbilityConfig(resolvedDef.id) : null;
-    state.selection.specialAbilityId = runtime.abilityId;
+    runtime.config = resolvedConfig;
+    state.selection.specialAbilityId = resolvedDef.id;
     resetRuntime();
+    syncStateStatus();
+    return true;
   }
 
   function clear() {
@@ -313,7 +331,7 @@ export function createSpecialAbilitySystem({
         allowLightningChain: false,
         isSecondaryEffect: true,
         impactEffects: { rockets: true },
-        weaponProfile: getWeaponProfile(),
+        weaponProfile: getCharacterCombatProfile(),
       });
     }
     temp.vec3C.copy(playerPos).addScaledVector(forward, 2.6).setY(state.world.playerGroundY + 1.1);
@@ -457,7 +475,7 @@ export function createSpecialAbilitySystem({
           allowLightningChain: false,
           isSecondaryEffect: true,
           impactEffects: { lightning: true },
-          weaponProfile: getWeaponProfile(),
+          weaponProfile: getCharacterCombatProfile(),
         });
         temp.vec3C.copy(orbPos).lerp(enemy.position, 0.55).setY(enemy.position.y + 0.9);
         vfx.spawnImpactBurst(temp.vec3C, runtime.abilityDef.visualStyle.primary, 5, 2.1, 0.2, 0.62);
@@ -484,7 +502,12 @@ export function createSpecialAbilitySystem({
       return;
     }
 
-    runtime.config = getAbilityConfig(runtime.abilityDef.id);
+    const latestConfig = getAbilityConfig(runtime.abilityDef.id);
+    if (!latestConfig || latestConfig.id !== runtime.abilityDef.id) {
+      clear();
+      return;
+    }
+    runtime.config = latestConfig;
     runtime.cooldownRemaining = Math.max(0, runtime.cooldownRemaining - dt);
     runtime.activeRemaining = Math.max(0, runtime.activeRemaining - dt);
 
