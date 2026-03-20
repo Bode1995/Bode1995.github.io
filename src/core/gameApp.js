@@ -34,7 +34,7 @@ export function startGameApp() {
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
-    'wave', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'pickupFeed', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
+    'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
     'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
@@ -382,17 +382,7 @@ export function startGameApp() {
     `;
   }
 
-  function formatPickupNotice(notice) {
-    const def = POWER_UP_DEFS[notice.type];
-    const colorHex = def ? `#${def.color.toString(16).padStart(6, '0')}` : '#ffffff';
-    const icon = notice.category === 'synergy' || notice.category === 'reaction' || notice.type === 'synergy' ? '∞' : (def?.symbol || def?.icon || '+');
-    return `
-      <span class="pickup-line__icon" style="background:${colorHex}">${icon}</span>
-      <span class="pickup-line__meta">
-        <span class="pickup-line__name">${notice.text}</span>
-      </span>
-    `;
-  }
+
 
   function createPickupTokenMaterial(def) {
     return new THREE.MeshStandardMaterial({
@@ -473,7 +463,12 @@ export function startGameApp() {
     mesh.userData.token = token;
     mesh.position.copy(position).setY(0.92);
     scene.add(mesh);
-    state.entities.powerPickups.push({ mesh, type, pulse: Math.random() * Math.PI * 2, radius: 0.98 });
+    state.entities.powerPickups.push({
+      mesh,
+      type,
+      pulse: Math.random() * Math.PI * 2,
+      collisionRadius: gameplayConfig.pickups.collisionRadius,
+    });
   }
 
   function randomPowerKey() {
@@ -516,6 +511,7 @@ export function startGameApp() {
       ]);
 
     ui.wave.textContent = `${state.waveInLevel}/${WAVES_PER_LEVEL}`;
+    ui.enemyCount.textContent = String(state.activeEnemyCount);
     ui.score.textContent = String(state.score);
     ui.hpValue.textContent = String(roundedHp);
     ui.hpBar.style.width = `${hpPercent}%`;
@@ -540,14 +536,6 @@ export function startGameApp() {
       ui.activePowers.appendChild(emptyBadge);
     }
 
-    ui.pickupFeed.innerHTML = '';
-    for (const notice of state.ui.pickupNotices.slice(0, 3)) {
-      const el = document.createElement('div');
-      el.className = 'pickup-line';
-      el.style.opacity = `${Math.max(0, notice.life / notice.maxLife)}`;
-      el.innerHTML = formatPickupNotice(notice);
-      ui.pickupFeed.appendChild(el);
-    }
   }
 
   function syncPauseOverlay() {
@@ -602,7 +590,6 @@ export function startGameApp() {
     vfx.clear();
     collision.clearEnemySpatialGrid();
     removeAllPickups();
-    state.ui.pickupNotices.length = 0;
     state.performance.activeEnemyEffects = 0;
   }
 
@@ -856,6 +843,14 @@ export function startGameApp() {
     characterModule.animateCharacterRig(playerRig, moveBlend, clock.elapsedTime);
   }
 
+  function canCollectPickup(pickup) {
+    const pickupRadius = pickup?.collisionRadius ?? gameplayConfig.pickups.collisionRadius;
+    const dx = pickup.mesh.position.x - playerRigHolder.position.x;
+    const dz = pickup.mesh.position.z - playerRigHolder.position.z;
+    const combinedRadius = state.world.playerCollisionRadius + pickupRadius;
+    return (dx * dx) + (dz * dz) <= combinedRadius * combinedRadius;
+  }
+
   function updatePickups(dt) {
     state.pickupSpawnTimer -= dt;
     if (state.pickupSpawnTimer <= 0 && state.entities.powerPickups.length < 4) {
@@ -874,17 +869,13 @@ export function startGameApp() {
       if (halo) halo.scale.setScalar(1 + Math.sin(pickup.pulse * 1.2) * 0.1);
       if (shell) shell.rotation.y -= dt * 0.8;
       if (token) token.material.opacity = 0.82 + Math.sin(pickup.pulse * 1.8) * 0.12;
-      if (pickup.mesh.position.distanceTo(playerRigHolder.position) <= pickup.radius) {
+      if (canCollectPickup(pickup)) {
         combat.applyRunPower(pickup.type, POWER_UP_DEFS);
         disposePickupMesh(pickup.mesh);
         state.entities.powerPickups.splice(i, 1);
       }
     }
 
-    for (let i = state.ui.pickupNotices.length - 1; i >= 0; i--) {
-      state.ui.pickupNotices[i].life -= dt;
-      if (state.ui.pickupNotices[i].life <= 0) state.ui.pickupNotices.splice(i, 1);
-    }
   }
 
   function animate() {

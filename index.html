@@ -33,6 +33,14 @@
         </div>
       </article>
 
+      <article class="hud-chip hud-chip--enemies" aria-label="Aktive Gegner">
+        <span class="hud-chip__icon">☄</span>
+        <span class="hud-chip__content">
+          <span class="hud-chip__label">Gegner aktiv</span>
+          <strong class="hud-chip__value" id="enemyCount">0</strong>
+        </span>
+      </article>
+
       <div class="hud-actions" aria-label="Run Status und Pause">
         <button class="hud-pause-btn" id="pauseBtn" type="button" aria-label="Spiel pausieren">❚❚</button>
         <article class="hud-badge hud-badge--score">
@@ -47,7 +55,6 @@
       </div>
     </div>
 
-    <div class="pickup-feed" id="pickupFeed" aria-label="Pickup Feed"></div>
   </div>
 
   <div class="controls hidden" id="controls">

@@ -17,6 +17,7 @@ export function createGameState(profile, helpers) {
     yaw: 0,
     totalKills: 0,
     waveKills: 0,
+    activeEnemyCount: 0,
     pickupSpawnTimer: 5,
     pickupSpawnInterval: 10,
     moveSpeedMultiplier: helpers.getBaseMoveSpeedMultiplier(),
@@ -60,7 +61,6 @@ export function createGameState(profile, helpers) {
     },
     ui: {
       activeMenuScreen: 'home',
-      pickupNotices: [],
       synergyFlash: null,
     },
     world: {
