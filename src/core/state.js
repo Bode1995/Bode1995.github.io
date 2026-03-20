@@ -119,16 +119,5 @@ export function createGameState(profile, helpers) {
       thresholdUnlocks: {},
       lastWeaponTag: null,
     },
-    specialAbility: {
-      characterId: null,
-      id: null,
-      label: '',
-      shortLabel: '',
-      color: 0xffffff,
-      cooldownRemaining: 0,
-      activeRemaining: 0,
-      isActive: false,
-      statusText: 'Bereit',
-    },
   };
 }
