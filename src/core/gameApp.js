@@ -111,15 +111,16 @@ export function startGameApp() {
   scene.add(hemi);
 
   const keyLight = new THREE.DirectionalLight(0xfff0d2, 2.1);
-  keyLight.position.set(28, 36, 16);
+  const keyLightOffset = new THREE.Vector3(28, 36, 16);
+  keyLight.position.copy(keyLightOffset);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
   keyLight.shadow.camera.near = 6;
-  keyLight.shadow.camera.far = 84;
-  keyLight.shadow.camera.left = -36;
-  keyLight.shadow.camera.right = 36;
-  keyLight.shadow.camera.top = 36;
-  keyLight.shadow.camera.bottom = -36;
+  keyLight.shadow.camera.far = 96;
+  keyLight.shadow.camera.left = -42;
+  keyLight.shadow.camera.right = 42;
+  keyLight.shadow.camera.top = 42;
+  keyLight.shadow.camera.bottom = -42;
   keyLight.shadow.bias = -0.00035;
   keyLight.shadow.normalBias = 0.075;
   keyLight.shadow.radius = 1.5;
@@ -164,6 +165,7 @@ export function startGameApp() {
   const collisionDebugRoot = new THREE.Group();
   const playerRigHolder = new THREE.Group();
   scene.add(mapRoot, collisionDebugRoot, playerRigHolder);
+  keyLight.target = playerRigHolder;
 
   const state = createGameState(profile, {
     getPlayerMaxHp,
@@ -932,6 +934,8 @@ export function startGameApp() {
     temp.vec3A.set(0, gameplayConfig.camera.height, gameplayConfig.camera.forwardOffset);
     camera.position.copy(playerRigHolder.position).add(temp.vec3A);
     camera.lookAt(playerRigHolder.position.x, playerRigHolder.position.y + gameplayConfig.camera.lookAtHeight, playerRigHolder.position.z);
+    keyLight.position.copy(playerRigHolder.position).add(keyLightOffset);
+    keyLight.target.updateMatrixWorld();
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
   }
