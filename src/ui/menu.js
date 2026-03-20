@@ -57,6 +57,11 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
 
   function renderUpgradesScreen() {
     ui.upgradeCredits.textContent = String(profile.credits);
+    const selectedCharacterStats = actions.getSelectedCharacterUpgradeStats();
+    ui.upgradeCharacterName.textContent = selectedCharacterStats.name;
+    ui.upgradeAttackStat.textContent = selectedCharacterStats.attack;
+    ui.upgradeDefenseStat.textContent = selectedCharacterStats.defense;
+    ui.upgradeSpeedStat.textContent = selectedCharacterStats.speed;
     ui.upgradeGroups.innerHTML = '';
     const grouped = UPGRADE_DEFS.reduce((map, def) => {
       (map[def.group] ||= []).push(def);

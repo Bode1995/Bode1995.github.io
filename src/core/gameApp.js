@@ -856,6 +856,20 @@ export function startGameApp() {
       getSelectedMission: () => profileApi.getSelectedMission(),
       getUnlockedLevelCount: () => profileApi.getUnlockedLevelCount(),
       getSelectedCharacterName: () => getCharacterDef().name,
+      getSelectedCharacterUpgradeStats: () => {
+        const characterDef = getCharacterDef();
+        const combatProfile = getCharacterCombatProfile();
+        const weaponProfile = combatProfile.weaponProfile || {};
+        const projectileCount = Math.max(1, weaponProfile.patternProjectiles || 1);
+        const burstCount = Math.max(1, weaponProfile.burstCount || 1);
+        const attackValue = getBaseDamage() * projectileCount * burstCount / Math.max(getAttackCooldown(), 0.001);
+        return {
+          name: characterDef.name,
+          attack: `${attackValue.toFixed(1)} DPS`,
+          defense: `${Math.round(getPlayerMaxHp())} HP`,
+          speed: `${getBaseMoveSpeedMultiplier().toFixed(2)}x`,
+        };
+      },
       refreshCharacterSelection: () => characterSelection.refresh(),
       getNextMission,
     },
@@ -1069,8 +1083,14 @@ export function startGameApp() {
   const registerSwOnReady = () => registerServiceWorker().catch((err) => reportRuntimeError('Service worker registration', err));
   if (document.readyState === 'complete') registerSwOnReady();
   else window.addEventListener('load', registerSwOnReady, { once: true });
-  ui.menuRouteButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen)));
-  ui.menuBackButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen || 'home')));
+  ui.menuRouteButtons.forEach((button) => button.addEventListener('click', () => {
+    menuController.setMenuScreen(button.dataset.screen);
+    menuController.renderMenu();
+  }));
+  ui.menuBackButtons.forEach((button) => button.addEventListener('click', () => {
+    menuController.setMenuScreen(button.dataset.screen || 'home');
+    menuController.renderMenu();
+  }));
   ui.startBtn.addEventListener('click', () => startGame());
   ui.quickWorldsBtn.addEventListener('click', () => menuController.openMenu('worlds'));
   ui.startSelectedLevelBtn.addEventListener('click', () => {
