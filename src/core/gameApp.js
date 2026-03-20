@@ -655,6 +655,20 @@ export function startGameApp() {
     profile.stats.highestWaveReached = Math.max(profile.stats.highestWaveReached, state.wave);
   }
 
+  function shouldAdvanceWave() {
+    return state.entities.enemies.length === 0;
+  }
+
+  function advanceWave() {
+    if (state.waveInLevel >= WAVES_PER_LEVEL) {
+      finishRun(true);
+      return;
+    }
+    state.waveInLevel += 1;
+    state.waveTimer = WAVE_INTERVAL_SECONDS;
+    spawnWave();
+  }
+
   finishRun = function finishRunImpl(success) {
     if (!state.running) return;
     state.running = false;
@@ -931,14 +945,7 @@ export function startGameApp() {
         projectileSystem.update(dt, { damageEnemy: combat.damageEnemy, applyProjectilePower: combat.applyProjectilePower });
 
         state.waveTimer -= dt;
-        if (state.waveTimer <= 0) {
-          if (state.waveInLevel >= WAVES_PER_LEVEL) finishRun(true);
-          else {
-            state.waveInLevel += 1;
-            state.waveTimer = WAVE_INTERVAL_SECONDS;
-            spawnWave();
-          }
-        }
+        if (state.waveTimer <= 0 || shouldAdvanceWave()) advanceWave();
 
         if (state.lastProfileSaveAt >= 2) {
           profile.stats.timePlayed += state.lastProfileSaveAt;
