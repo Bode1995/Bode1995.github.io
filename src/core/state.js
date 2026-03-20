@@ -40,6 +40,7 @@ export function createGameState(profile, helpers) {
       worldIndex: profile.progression.selectedWorld,
       levelIndex: profile.progression.selectedLevel,
       characterId: null,
+      specialAbilityId: profile.specialAbilities?.selectedId || null,
     },
     performance: {
       frameMs: 16.7,
@@ -120,10 +121,10 @@ export function createGameState(profile, helpers) {
       lastWeaponTag: null,
     },
     specialAbility: {
-      characterId: null,
       id: null,
       label: '',
       shortLabel: '',
+      icon: '',
       color: 0xffffff,
       cooldownRemaining: 0,
       activeRemaining: 0,

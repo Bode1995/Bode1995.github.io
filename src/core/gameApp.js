@@ -13,7 +13,7 @@ import {
   gameplayConfig,
 } from '../config/gameConfig.js';
 import { createGameState } from './state.js';
-import { createProfileApi, loadProfile, loadSelectedCharacterId, saveSelectedCharacterId } from './profile.js';
+import { createProfileApi, loadProfile, loadSelectedCharacterId, resolveProfileSpecialAbilityId, saveSelectedCharacterId } from './profile.js';
 import { getUI } from '../ui/dom.js';
 import { createMenuController } from '../ui/menu.js';
 import { setupCharacterSelection } from '../ui/characterSelection.js';
@@ -30,6 +30,7 @@ import { createVfxSystem } from '../systems/vfxSystem.js';
 import { createSpecialAbilitySystem } from '../systems/specialAbilitySystem.js';
 import { registerServiceWorker } from '../pwa/register-sw.js';
 import { getWorldDefinition } from '../config/worlds.js';
+import { getSpecialAbilityDef, getSpecialAbilityUpgradeTrack, resolveSpecialAbilityId, SPECIAL_ABILITY_DEFS } from '../config/specialAbilities.js';
 
 export function startGameApp() {
   const ui = getUI();
@@ -37,8 +38,8 @@ export function startGameApp() {
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
     'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
-    'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
-    'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
+    'selectedMissionStatus', 'selectedCharacterLabel', 'selectedSpecialAbilityLabel', 'selectedSpecialAbilityStatus', 'unlockedSummary', 'worldGrid', 'levelGrid',
+    'upgradeGroups', 'specialAbilityGrid', 'selectedAbilitySummary', 'specialAbilityUpgradeTracks', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
   ];
   const missingUi = REQUIRED_UI_KEYS.filter((key) => !ui[key]);
@@ -75,7 +76,9 @@ export function startGameApp() {
   const profile = loadProfile();
   const profileApi = createProfileApi(profile);
   const initialCharacterId = loadSelectedCharacterId();
+  const initialSpecialAbilityId = resolveProfileSpecialAbilityId(profile, profile.specialAbilities?.selectedId);
   let currentCharacterId = initialCharacterId;
+  let currentSpecialAbilityId = initialSpecialAbilityId;
   const characterModule = createCharacterModule(THREE, CHARACTER_DEFS);
 
   const renderer = new THREE.WebGLRenderer({ canvas: ui.canvas, antialias: true });
@@ -199,6 +202,7 @@ export function startGameApp() {
   });
   applyWorldPresentation(state.worldIndex);
   state.selection.characterId = currentCharacterId;
+  state.selection.specialAbilityId = currentSpecialAbilityId;
   playerRigHolder.position.set(0, state.world.playerGroundY, 0);
 
   const collision = createCollisionSystem({
@@ -310,8 +314,8 @@ export function startGameApp() {
     vfx,
     temp,
     playerRigHolder,
-    createCharacterRig: characterModule.createCharacterRig,
-    getCharacterDef,
+    getAbilityDefinition: getResolvedSpecialAbilityDef,
+    getAbilityConfig: getResolvedSpecialAbilityConfig,
     getCharacterCombatProfile,
   });
 
@@ -337,6 +341,68 @@ export function startGameApp() {
     return getCharacterDef(characterId).combatProfile;
   }
 
+  function getResolvedSpecialAbilityDef(abilityId = currentSpecialAbilityId) {
+    return getSpecialAbilityDef(resolveSpecialAbilityId(abilityId, currentSpecialAbilityId));
+  }
+
+  function getSpecialAbilityLevels(abilityId = currentSpecialAbilityId) {
+    const def = getResolvedSpecialAbilityDef(abilityId);
+    return profile.specialAbilities?.upgrades?.[def.id] || {};
+  }
+
+  function getResolvedSpecialAbilityConfig(abilityId = currentSpecialAbilityId) {
+    const def = getResolvedSpecialAbilityDef(abilityId);
+    return {
+      id: def.id,
+      label: def.label,
+      shortLabel: def.shortLabel,
+      hudColor: def.hudColor,
+      ...def.baseStats,
+      ...def.resolveConfig(getSpecialAbilityLevels(def.id)),
+    };
+  }
+
+  function getSpecialAbilityTrackLevel(abilityId, trackId) {
+    return getSpecialAbilityLevels(abilityId)[trackId] || 0;
+  }
+
+  function getSpecialAbilityTrackCost(abilityId, trackId) {
+    const def = getResolvedSpecialAbilityDef(abilityId);
+    const track = getSpecialAbilityUpgradeTrack(def, trackId);
+    const level = getSpecialAbilityTrackLevel(def.id, trackId);
+    if (!track || (track.maxLevel != null && level >= track.maxLevel)) return null;
+    return track.baseCost + level * track.costStep;
+  }
+
+  function getSelectedSpecialAbilitySummary(abilityId = currentSpecialAbilityId) {
+    const def = getResolvedSpecialAbilityDef(abilityId);
+    const config = getResolvedSpecialAbilityConfig(def.id);
+    const statLineMap = {
+      focus_mark: `Mark ${config.duration.toFixed(1)}s · ${config.damageMultiplier.toFixed(2)}x`,
+      holo_decoy: `${config.decoyCount} Decoy · ${config.influenceRadius.toFixed(1)}m`,
+      shield_ram: `${config.impactDamage.toFixed(1)} dmg · ${config.range.toFixed(1)}m`,
+      guardian_orbit: `${config.orbCount} Orbs · ${config.damage.toFixed(1)} dmg`,
+      execution_mode: `${(config.bonusRatio * 100).toFixed(0)}% Bonus · ${config.duration.toFixed(1)}s`,
+    };
+    const highlights = [
+      `Cooldown ${config.cooldown.toFixed(1)}s`,
+      statLineMap[def.id],
+      `${def.category} · ${def.balanceTags.join(' · ')}`,
+    ].filter(Boolean);
+    return { def, config, statLineMap, highlights };
+  }
+
+  function selectSpecialAbility(abilityId, { persist = true, resetRuntime = true } = {}) {
+    const def = getResolvedSpecialAbilityDef(abilityId);
+    currentSpecialAbilityId = def.id;
+    state.selection.specialAbilityId = def.id;
+    profile.specialAbilities.selectedId = def.id;
+    profile.specialAbilities.unlocked[def.id] = true;
+    if (resetRuntime) specialAbilitySystem.setAbility(def.id);
+    if (persist) profileApi.save();
+    if (!state.running) updateHUD();
+  }
+
   function setPlayerCharacter(characterId) {
     const characterDef = getCharacterDef(characterId);
     if (!characterDef) {
@@ -354,7 +420,6 @@ export function startGameApp() {
     state.weaponState.burstTimer = 0;
     state.runPowers.lastWeaponTag = characterDef.combatProfile.weaponTag;
     synergySystem.rebuildActiveSynergies(characterDef.combatProfile);
-    specialAbilitySystem.setCharacter(characterDef.id);
     ui.selectedCharacterLabel.textContent = characterDef.name;
   }
 
@@ -368,6 +433,7 @@ export function startGameApp() {
     isSelectedCharacter: (characterId) => characterId === state.selection.characterId,
   });
   setPlayerCharacter(state.selection.characterId);
+  selectSpecialAbility(state.selection.specialAbilityId, { persist: false });
 
   function getUpgradeLevel(id) {
     return profile.upgrades[id] || 0;
@@ -584,7 +650,7 @@ export function startGameApp() {
         {
           label: state.specialAbility.label,
           shortLabel: `${state.specialAbility.shortLabel} · ${state.specialAbility.statusText}`,
-          symbol: '✦',
+          symbol: state.specialAbility.icon || '✦',
           color: state.specialAbility.color,
         },
         state.specialAbility.isActive ? 2 : Math.max(1, Math.ceil(state.specialAbility.cooldownRemaining || 1)),
@@ -682,6 +748,19 @@ export function startGameApp() {
     if (!def || cost == null || profile.credits < cost) return;
     profile.credits -= cost;
     profile.upgrades[upgradeId] = getUpgradeLevel(upgradeId) + 1;
+    profileApi.save();
+    menuController.renderMenu();
+    updateHUD();
+  }
+
+  function purchaseSpecialAbilityUpgrade(abilityId, trackId) {
+    const def = getResolvedSpecialAbilityDef(abilityId);
+    const track = getSpecialAbilityUpgradeTrack(def, trackId);
+    const cost = getSpecialAbilityTrackCost(def.id, trackId);
+    if (!track || cost == null || profile.credits < cost) return;
+    profile.credits -= cost;
+    profile.specialAbilities.upgrades[def.id][track.id] = getSpecialAbilityTrackLevel(def.id, track.id) + 1;
+    if (def.id === currentSpecialAbilityId) specialAbilitySystem.setAbility(def.id);
     profileApi.save();
     menuController.renderMenu();
     updateHUD();
@@ -867,9 +946,37 @@ export function startGameApp() {
         menuController.renderMenu();
       },
       purchaseUpgrade,
+      purchaseSpecialAbilityUpgrade,
+      selectSpecialAbility(abilityId) {
+        selectSpecialAbility(abilityId);
+        menuController.renderMenu();
+      },
       getSelectedMission: () => profileApi.getSelectedMission(),
       getUnlockedLevelCount: () => profileApi.getUnlockedLevelCount(),
       getSelectedCharacterName: () => getCharacterDef().name,
+      getSelectedSpecialAbility: () => ({
+        ...getSelectedSpecialAbilitySummary(),
+        tracks: getResolvedSpecialAbilityDef().upgradeTracks.map((track) => {
+          const level = getSpecialAbilityTrackLevel(currentSpecialAbilityId, track.id);
+          const currentFormatted = track.format(getResolvedSpecialAbilityDef().getTrackValue(track.id, getSpecialAbilityLevels(currentSpecialAbilityId)), getSpecialAbilityLevels(currentSpecialAbilityId));
+          const nextLevels = { ...getSpecialAbilityLevels(currentSpecialAbilityId), [track.id]: level + 1 };
+          const nextValue = level >= (track.maxLevel ?? level + 1) ? null : getResolvedSpecialAbilityDef().getTrackValue(track.id, nextLevels);
+          return {
+            def: track,
+            level,
+            cost: getSpecialAbilityTrackCost(currentSpecialAbilityId, track.id),
+            currentFormatted,
+            nextFormatted: nextValue == null ? null : track.format(nextValue, nextLevels),
+          };
+        }),
+      }),
+      getSelectedSpecialAbilitySummary: () => getSelectedSpecialAbilitySummary(),
+      getSpecialAbilities: () => SPECIAL_ABILITY_DEFS.map((def) => ({
+        def,
+        isSelected: def.id === currentSpecialAbilityId,
+        isUnlocked: !!profile.specialAbilities.unlocked[def.id],
+        resolvedConfig: getResolvedSpecialAbilityConfig(def.id),
+      })),
       getUpgradeSummaryStats,
       refreshCharacterSelection: () => characterSelection.refresh(),
       getNextMission,
