@@ -101,6 +101,7 @@ export function createSynergySystem({ state, runPowers, collision, performance, 
       });
     }
 
+    if (unlockedNotices.length) state.ui.pickupNotices.unshift(...unlockedNotices.slice(0, 4));
     return { activeSynergies, unlockedNotices };
   }
 
@@ -262,6 +263,7 @@ export function createSynergySystem({ state, runPowers, collision, performance, 
         noteReactionTrigger(data, def.id, { triggerType, sourceWeapon: bullet?.userData?.weaponTag || 'default' });
         runPowers.synergyCounters.frameEvents = (runPowers.synergyCounters.frameEvents || 0) + 1;
         runPowers.synergyCounters.totalReactions = (runPowers.synergyCounters.totalReactions || 0) + 1;
+        state.ui.pickupNotices.unshift({ type: 'synergy', text: def.hudLabel, category: 'reaction', life: 0.75, maxLife: 0.75 });
         spawnReactionFeedback(enemy.position, effectConfig.reactionVfx || 'lightning', scale);
         results.push({ id: def.id, triggerType });
         triggered += 1;
@@ -315,6 +317,7 @@ export function createSynergySystem({ state, runPowers, collision, performance, 
         return affected < sceneResources.SAFETY_LIMITS.maxStatusPropagationPerEvent;
       }, sceneResources.SAFETY_LIMITS.maxRocketSplashSearchCells);
       runPowers.synergyCounters.killFrameEvents = (runPowers.synergyCounters.killFrameEvents || 0) + 1;
+      state.ui.pickupNotices.unshift({ type: 'synergy', text: `${def.hudLabel} ausgelöst`, category: 'reaction', life: 0.95, maxLife: 0.95 });
       spawnReactionFeedback(enemy.position, effectConfig.reactionVfx || 'poison', 1.1);
       results.push({ id: def.id, affectedTargets: affected });
     }

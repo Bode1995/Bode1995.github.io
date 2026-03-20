@@ -3,17 +3,17 @@ import {
   CHARACTER_STORAGE_KEY,
   LEVELS_PER_WORLD,
   PROFILE_STORAGE_KEY,
+  UPGRADE_DEFS,
   WORLDS_COUNT,
 } from '../config/gameConfig.js';
-import { createDefaultUpgradeState } from './upgrades.js';
 
 export function createDefaultProfile() {
   const unlockedLevels = {};
   for (let world = 1; world <= WORLDS_COUNT; world++) unlockedLevels[world] = world === 1 ? 1 : 0;
   return {
-    version: 3,
+    version: 2,
     credits: 0,
-    upgrades: createDefaultUpgradeState(),
+    upgrades: Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, 0])),
     stats: {
       totalKills: 0,
       totalRuns: 0,

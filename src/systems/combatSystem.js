@@ -45,10 +45,22 @@ export function createCombatSystem({
     return active.length ? active.join(' · ') : 'none';
   }
 
+  function showPickupNotice(type, POWER_UP_DEFS, text = null, category = 'pickup') {
+    const def = POWER_UP_DEFS[type];
+    state.ui.pickupNotices.push({
+      type,
+      text: text || `${def.label} +1`,
+      category,
+      life: 1.4,
+      maxLife: 1.4,
+    });
+  }
+
   function applyRunPower(type, POWER_UP_DEFS) {
     profile.stats.powerUpsCollected += 1;
     if (type === 'health') {
       state.hp = Math.min(getPlayerMaxHp(), state.hp + 20);
+      showPickupNotice(type, POWER_UP_DEFS);
       return;
     }
 
@@ -60,6 +72,7 @@ export function createCombatSystem({
     } else if (type === 'shield') {
       runPowers.shieldHp += getShieldPickupCapacity();
     }
+    showPickupNotice(type, POWER_UP_DEFS);
     synergySystem.applyThresholdUnlocks();
   }
 
