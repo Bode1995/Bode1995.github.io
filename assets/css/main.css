@@ -1232,38 +1232,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
-.upgrade-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.upgrade-stat-card {
-  display: grid;
-  gap: 8px;
-  padding: 18px;
-  border-radius: 22px;
-  border: 1px solid rgba(113, 210, 255, 0.18);
-  background:
-    radial-gradient(circle at top right, rgba(113, 210, 255, 0.16), transparent 42%),
-    linear-gradient(180deg, rgba(16, 21, 38, 0.95), rgba(11, 14, 24, 0.95));
-}
-
-.upgrade-stat-card strong {
-  font-size: clamp(30px, 4vw, 42px);
-  line-height: 1;
-}
-
-.upgrade-stat-card span:last-child {
-  color: var(--muted);
-}
-
-.upgrade-groups--tree {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
 .world-card,
 .level-card,
 .upgrade-card,
@@ -1299,10 +1267,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   background: linear-gradient(180deg, rgba(19, 24, 42, 0.9), rgba(12, 15, 27, 0.9));
 }
 
-.upgrade-tree-group {
-  min-width: 0;
-}
-
 .upgrade-group__header {
   display: grid;
   gap: 6px;
@@ -1312,71 +1276,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   margin: 0;
 }
 
-.skill-tree {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  padding-top: 10px;
-}
-
-.skill-tree::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: calc(50% - 1px);
-  width: 2px;
-  height: 12px;
-  background: linear-gradient(180deg, rgba(115, 227, 255, 0.55), rgba(115, 227, 255, 0));
-}
-
-.skill-tree::after {
-  content: '';
-  position: absolute;
-  top: 10px;
-  left: 20%;
-  right: 20%;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(115, 227, 255, 0), rgba(115, 227, 255, 0.42), rgba(115, 227, 255, 0));
-}
-
-.skill-node {
-  position: relative;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.skill-node::before {
-  content: '';
-  position: absolute;
-  top: -14px;
-  left: 50%;
-  width: 1px;
-  height: 14px;
-  background: linear-gradient(180deg, rgba(115, 227, 255, 0.45), rgba(115, 227, 255, 0));
-  transform: translateX(-50%);
-}
-
-.skill-node:nth-child(odd)::after {
-  content: '';
-  position: absolute;
-  top: -14px;
-  left: 50%;
-  width: 24%;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(115, 227, 255, 0), rgba(115, 227, 255, 0.38));
-}
-
-.skill-node:nth-child(even)::after {
-  content: '';
-  position: absolute;
-  top: -14px;
-  right: 50%;
-  width: 24%;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(115, 227, 255, 0.38), rgba(115, 227, 255, 0));
-}
-
 .upgrade-card button {
   margin-top: 14px;
   width: 100%;
@@ -1384,23 +1283,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 
 .hint {
   margin-top: 4px;
-}
-
-@media (orientation: portrait) {
-  .upgrade-summary-grid,
-  .upgrade-groups--tree {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (orientation: landscape) and (max-width: 1180px) {
-  .upgrade-summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .upgrade-groups--tree {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 960px) {
@@ -1465,16 +1347,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   .level-grid,
   .stats-grid,
   .character-grid,
-  .upgrade-summary-grid,
-  .upgrade-groups,
-  .upgrade-groups--tree,
-  .skill-tree {
+  .upgrade-groups {
     grid-template-columns: 1fr;
-  }
-
-  .skill-tree::after,
-  .skill-node:nth-child(odd)::after,
-  .skill-node:nth-child(even)::after {
-    display: none;
   }
 }

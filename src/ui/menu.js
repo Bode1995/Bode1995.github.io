@@ -56,74 +56,47 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
   }
 
   function renderUpgradesScreen() {
-    const buildStats = helpers.getUpgradeBuildSummary();
     ui.upgradeCredits.textContent = String(profile.credits);
-    ui.upgradeAttackValue.textContent = buildStats.attack.score;
-    ui.upgradeAttackMeta.textContent = buildStats.attack.detail;
-    ui.upgradeDefenseValue.textContent = buildStats.defense.score;
-    ui.upgradeDefenseMeta.textContent = buildStats.defense.detail;
-    ui.upgradeSpeedValue.textContent = buildStats.speed.score;
-    ui.upgradeSpeedMeta.textContent = buildStats.speed.detail;
     ui.upgradeGroups.innerHTML = '';
     const grouped = UPGRADE_DEFS.reduce((map, def) => {
       (map[def.group] ||= []).push(def);
       return map;
     }, {});
-    const groupMeta = {
-      'Pilot Upgrades': {
-        kicker: 'Kernpfad',
-        title: 'Piloten-Kern',
-        intro: 'Grundwerte für Waffenhandhabung, Haltbarkeit und Tempo deines aktiven Charakters.',
-      },
-      'Power-up Upgrades': {
-        kicker: 'Spezialisierung',
-        title: 'Tech-Module',
-        intro: 'Verbessert aufgesammelte Effekte und erweitert deine Reaktions- und Schutzwerkzeuge.',
-      },
-    };
 
     for (const [group, defs] of Object.entries(grouped)) {
       const groupEl = document.createElement('section');
-      groupEl.className = 'upgrade-group upgrade-tree-group';
+      groupEl.className = 'upgrade-group';
       const titleWrap = document.createElement('div');
       titleWrap.className = 'upgrade-group__header';
-      const meta = groupMeta[group] || { kicker: 'Pfad', title: group, intro: 'Freischaltbare Verbesserungen.' };
-      const kicker = document.createElement('div');
-      kicker.className = 'card-label';
-      kicker.textContent = meta.kicker;
       const title = document.createElement('h3');
-      title.textContent = meta.title;
+      title.textContent = group;
       const intro = document.createElement('p');
-      intro.textContent = meta.intro;
-      titleWrap.append(kicker, title, intro);
+      intro.textContent = 'Dauerhafte Verbesserungen mit sauberer Kosten- und Fortschrittsanzeige.';
+      titleWrap.append(title, intro);
       groupEl.appendChild(titleWrap);
 
-      const tree = document.createElement('div');
-      tree.className = 'skill-tree';
       defs.forEach((def) => {
         const level = helpers.getUpgradeLevel(def.id);
         const maxLevel = helpers.getUpgradeMaxLevel(def.id);
         const cost = helpers.getUpgradeCost(def.id);
-        const status = cost == null ? 'Maximiert' : profile.credits >= cost ? 'Verfügbar' : 'Benötigt Credits';
         const card = document.createElement('article');
-        card.className = `upgrade-card skill-node card-surface${cost == null || profile.credits < cost ? ' is-disabled' : ''}`;
+        card.className = `upgrade-card card-surface${cost == null || profile.credits < cost ? ' is-disabled' : ''}`;
         card.innerHTML = `
-          <div class="card-topline"><span class="card-chip">Tier ${level + 1}</span><span class="card-state">${status}</span></div>
+          <div class="card-topline"><span class="card-chip">Mk ${level + 1}</span><span class="card-state">${cost == null ? 'Maxed' : profile.credits >= cost ? 'Available' : 'Insufficient'}</span></div>
           <div class="card-label">${def.label}</div>
           <strong>Level ${level}${maxLevel != null ? ` / ${maxLevel}` : ''}</strong>
           <p>${def.description}</p>
-          <div class="card-row"><span>Aktuell: ${def.format(level)}</span><span>${cost == null ? 'MAX' : `Nächste Stufe: ${cost}`}</span></div>
+          <div class="card-row"><span>Current: ${def.format(level)}</span><span>${cost == null ? 'MAX' : `Next cost: ${cost}`}</span></div>
         `;
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = cost == null ? 'Max.' : 'Freischalten';
+        button.textContent = cost == null ? 'Maxed' : 'Upgrade';
         button.disabled = cost == null || profile.credits < cost;
         button.addEventListener('click', () => actions.purchaseUpgrade(def.id));
         card.appendChild(button);
-        tree.appendChild(card);
+        groupEl.appendChild(card);
       });
 
-      groupEl.appendChild(tree);
       ui.upgradeGroups.appendChild(groupEl);
     }
   }

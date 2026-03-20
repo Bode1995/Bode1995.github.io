@@ -32,14 +32,12 @@ import { getWorldDefinition } from '../config/worlds.js';
 
 export function startGameApp() {
   const ui = getUI();
-  let menuController = null;
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
     'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
-    'upgradeGroups', 'upgradeCredits', 'upgradeAttackValue', 'upgradeAttackMeta', 'upgradeDefenseValue', 'upgradeDefenseMeta',
-    'upgradeSpeedValue', 'upgradeSpeedMeta', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
+    'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
   ];
   const missingUi = REQUIRED_UI_KEYS.filter((key) => !ui[key]);
@@ -339,7 +337,6 @@ export function startGameApp() {
     state.runPowers.lastWeaponTag = characterDef.combatProfile.weaponTag;
     synergySystem.rebuildActiveSynergies(characterDef.combatProfile);
     ui.selectedCharacterLabel.textContent = characterDef.name;
-    menuController?.renderMenu();
   }
 
   const characterSelection = setupCharacterSelection({
@@ -393,28 +390,6 @@ export function startGameApp() {
 
   function getShieldPickupCapacity() {
     return 26 + getUpgradeLevel('shieldCapacity') * 6;
-  }
-
-  function getUpgradeBuildSummary() {
-    const attackPerShot = getBaseDamage();
-    const attacksPerSecond = 1 / getAttackCooldown();
-    const maxHp = getPlayerMaxHp();
-    const shieldCapacity = getShieldPickupCapacity();
-    const moveMultiplier = getBaseMoveSpeedMultiplier();
-    return {
-      attack: {
-        score: String(Math.round(attackPerShot * attacksPerSecond * 10)),
-        detail: `${attackPerShot.toFixed(2)} Schaden · ${attacksPerSecond.toFixed(2)}/s`,
-      },
-      defense: {
-        score: String(Math.round(maxHp + shieldCapacity)),
-        detail: `${maxHp} HP · ${shieldCapacity} Schild`,
-      },
-      speed: {
-        score: String(Math.round(moveMultiplier * 100)),
-        detail: `${moveMultiplier.toFixed(2)}x Bewegung`,
-      },
-    };
   }
 
   function getDifficultyIndex(world = state.worldIndex, level = state.levelIndex, waveInLevel = state.waveInLevel) {
@@ -829,7 +804,7 @@ export function startGameApp() {
   }
   window.addEventListener('resize', resize);
 
-  menuController = createMenuController({
+  const menuController = createMenuController({
     ui,
     profile,
     state,
@@ -837,7 +812,6 @@ export function startGameApp() {
       getUpgradeLevel,
       getUpgradeCost,
       getUpgradeMaxLevel,
-      getUpgradeBuildSummary,
       isLevelUnlocked: profileApi.isLevelUnlocked,
       getLevelKey: profileApi.getLevelKey,
     },
