@@ -59,8 +59,7 @@ export function createGameState(profile, helpers) {
       },
     },
     ui: {
-      activeMenuScreen: 'hub',
-      selectedUpgradeId: null,
+      activeMenuScreen: 'home',
       pickupNotices: [],
       synergyFlash: null,
     },

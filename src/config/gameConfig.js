@@ -335,64 +335,17 @@ export const CHARACTER_DEFS = [
   },
 ];
 
-export const UPGRADE_LIMIT_INCREASE_ID = 'limitOverclock';
-
 export const UPGRADE_DEFS = [
-  {
-    id: 'baseDamage', group: 'Pilot Upgrades', label: 'Base Damage', shortLabel: 'Damage', icon: '✦', description: 'Erhöht den Schaden jeder Kugel.',
-    baseCost: 60, costStep: 35, maxLevel: 12, format: (lvl) => `${(1 + lvl * 0.22).toFixed(2)}x`,
-    tree: { col: 1, row: 1, connectsTo: ['attackSpeed', 'maxHealth'] },
-  },
-  {
-    id: 'attackSpeed', group: 'Pilot Upgrades', label: 'Attack Speed', shortLabel: 'RoF', icon: '⟳', description: 'Senkt das Feuerintervall deines Blasters.',
-    baseCost: 70, costStep: 40, maxLevel: 10, format: (lvl) => `${Math.max(0.07, 0.18 * Math.pow(0.94, lvl)).toFixed(2)}s`,
-    tree: { col: 2, row: 1, connectsTo: ['limitOverclock'] },
-  },
-  {
-    id: 'maxHealth', group: 'Pilot Upgrades', label: 'Max Health', shortLabel: 'Hull', icon: '❤', description: 'Mehr Lebenspunkte pro Run.',
-    baseCost: 80, costStep: 45, maxLevel: 12, format: (lvl) => `${100 + lvl * 14} HP`,
-    tree: { col: 1, row: 2, connectsTo: ['movementSpeed', 'limitOverclock'] },
-  },
-  {
-    id: 'movementSpeed', group: 'Pilot Upgrades', label: 'Movement Speed', shortLabel: 'Dash', icon: '➜', description: 'Schnelleres Traversieren der Arena.',
-    baseCost: 55, costStep: 30, maxLevel: 12, format: (lvl) => `${(1 + lvl * 0.05).toFixed(2)}x`,
-    tree: { col: 2, row: 2, connectsTo: ['limitOverclock'] },
-  },
-  {
-    id: 'limitOverclock', group: 'Core Control', label: 'Upgrade Limit Overclock', shortLabel: 'Limit+', icon: '⬡', description: 'Erhöht das Max-Level aller anderen Upgrades pro Kauf dauerhaft um +1.',
-    baseCost: 120, costStep: 85, unlimited: true, format: (lvl) => `+${lvl} Max-Level`,
-    tree: { col: 3, row: 2, connectsTo: ['burnDamage', 'slowDuration', 'lightningRange', 'rocketRadius', 'shieldCapacity', 'poisonDamage'] },
-  },
-  {
-    id: 'burnDamage', group: 'Power-up Upgrades', label: 'Burn Damage', shortLabel: 'Burn', icon: '🔥', description: 'Verstärkt Feuer-DOT.',
-    baseCost: 65, costStep: 36, maxLevel: 10, format: (lvl) => `${(1 + lvl * 0.18).toFixed(2)}x`,
-    tree: { col: 4, row: 1, connectsTo: ['poisonDamage'] },
-  },
-  {
-    id: 'slowDuration', group: 'Power-up Upgrades', label: 'Slow Duration', shortLabel: 'Ice', icon: '❄', description: 'Verlängert die Wirkzeit von Ice.',
-    baseCost: 60, costStep: 34, maxLevel: 10, format: (lvl) => `${(1.2 + lvl * 0.16).toFixed(1)}s`,
-    tree: { col: 4, row: 2, connectsTo: ['lightningRange'] },
-  },
-  {
-    id: 'lightningRange', group: 'Power-up Upgrades', label: 'Lightning Range', shortLabel: 'Shock', icon: '⚡', description: 'Längere Kettenreichweite für Blitz-Treffer.',
-    baseCost: 72, costStep: 42, maxLevel: 10, format: (lvl) => `${(6.5 + lvl * 0.45).toFixed(1)}m`,
-    tree: { col: 5, row: 1, connectsTo: ['rocketRadius'] },
-  },
-  {
-    id: 'rocketRadius', group: 'Power-up Upgrades', label: 'Rocket Radius', shortLabel: 'Blast', icon: '🚀', description: 'Größere Explosionsradien.',
-    baseCost: 72, costStep: 42, maxLevel: 10, format: (lvl) => `${(1.8 + lvl * 0.18).toFixed(1)}m`,
-    tree: { col: 5, row: 2, connectsTo: ['shieldCapacity'] },
-  },
-  {
-    id: 'shieldCapacity', group: 'Power-up Upgrades', label: 'Shield Capacity', shortLabel: 'Shield', icon: '🛡', description: 'Shields absorbieren mehr Schaden.',
-    baseCost: 68, costStep: 38, maxLevel: 10, format: (lvl) => `${26 + lvl * 6} HP`,
-    tree: { col: 5, row: 3, connectsTo: [] },
-  },
-  {
-    id: 'poisonDamage', group: 'Power-up Upgrades', label: 'Poison Damage', shortLabel: 'Toxin', icon: '☠', description: 'Verstärkt Gift-DOT.',
-    baseCost: 65, costStep: 36, maxLevel: 10, format: (lvl) => `${(1 + lvl * 0.18).toFixed(2)}x`,
-    tree: { col: 4, row: 3, connectsTo: [] },
-  },
+  { id: 'baseDamage', group: 'Pilot Upgrades', label: 'Base Damage', description: 'Erhöht den Schaden jeder Kugel.', baseCost: 60, costStep: 35, maxLevel: 12, format: (lvl) => `${(1 + lvl * 0.22).toFixed(2)}x` },
+  { id: 'attackSpeed', group: 'Pilot Upgrades', label: 'Attack Speed', description: 'Senkt das Feuerintervall deines Blasters.', baseCost: 70, costStep: 40, maxLevel: 10, format: (lvl) => `${Math.max(0.07, 0.18 * Math.pow(0.94, lvl)).toFixed(2)}s` },
+  { id: 'maxHealth', group: 'Pilot Upgrades', label: 'Max Health', description: 'Mehr Lebenspunkte pro Run.', baseCost: 80, costStep: 45, maxLevel: 12, format: (lvl) => `${100 + lvl * 14} HP` },
+  { id: 'movementSpeed', group: 'Pilot Upgrades', label: 'Movement Speed', description: 'Schnelleres Traversieren der Arena.', baseCost: 55, costStep: 30, maxLevel: 12, format: (lvl) => `${(1 + lvl * 0.05).toFixed(2)}x` },
+  { id: 'burnDamage', group: 'Power-up Upgrades', label: 'Burn Damage', description: 'Verstärkt Feuer-DOT.', baseCost: 65, costStep: 36, maxLevel: 10, format: (lvl) => `${(1 + lvl * 0.18).toFixed(2)}x` },
+  { id: 'poisonDamage', group: 'Power-up Upgrades', label: 'Poison Damage', description: 'Verstärkt Gift-DOT.', baseCost: 65, costStep: 36, maxLevel: 10, format: (lvl) => `${(1 + lvl * 0.18).toFixed(2)}x` },
+  { id: 'slowDuration', group: 'Power-up Upgrades', label: 'Slow Duration', description: 'Verlängert die Wirkzeit von Ice.', baseCost: 60, costStep: 34, maxLevel: 10, format: (lvl) => `${(1.2 + lvl * 0.16).toFixed(1)}s` },
+  { id: 'lightningRange', group: 'Power-up Upgrades', label: 'Lightning Range', description: 'Längere Kettenreichweite für Blitz-Treffer.', baseCost: 72, costStep: 42, maxLevel: 10, format: (lvl) => `${(6.5 + lvl * 0.45).toFixed(1)}m` },
+  { id: 'rocketRadius', group: 'Power-up Upgrades', label: 'Rocket Radius', description: 'Größere Explosionsradien.', baseCost: 72, costStep: 42, maxLevel: 10, format: (lvl) => `${(1.8 + lvl * 0.18).toFixed(1)}m` },
+  { id: 'shieldCapacity', group: 'Power-up Upgrades', label: 'Shield Capacity', description: 'Shields absorbieren mehr Schaden.', baseCost: 68, costStep: 38, maxLevel: 10, format: (lvl) => `${26 + lvl * 6} HP` },
 ];
 
 export const STAT_DEFS = [
