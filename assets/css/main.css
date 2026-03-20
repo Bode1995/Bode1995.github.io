@@ -386,7 +386,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 .level-grid,
 .upgrade-groups,
 .stats-grid,
-.ability-grid,
 .character-grid {
   display: grid;
   gap: 16px;
@@ -396,7 +395,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 .stats-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .world-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .level-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-.ability-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .character-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .upgrade-groups { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 
@@ -469,117 +467,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   align-items: center;
   color: var(--muted);
   font-size: 13px;
-}
-
-
-
-.character-page-summary {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.ability-card {
-  display: grid;
-  gap: 12px;
-  padding: 18px;
-  border-color: color-mix(in srgb, var(--ability-accent, var(--teal)) 26%, rgba(255, 255, 255, 0.08));
-  background:
-    radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--ability-accent, var(--teal)) 20%, transparent), transparent 26%),
-    linear-gradient(180deg, rgba(27, 31, 53, 0.95), rgba(14, 18, 32, 0.96));
-}
-
-.ability-card.is-selected {
-  border-color: color-mix(in srgb, var(--ability-accent, var(--teal)) 58%, rgba(53, 243, 209, 0.55));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ability-accent, var(--teal)) 26%, transparent), inset 0 0 22px color-mix(in srgb, var(--ability-accent, var(--teal)) 12%, transparent), 0 16px 34px rgba(0, 0, 0, 0.28);
-}
-
-.ability-card.is-disabled {
-  opacity: 0.82;
-}
-
-.ability-card__header,
-.ability-card__actions,
-.ability-stats,
-.ability-tags {
-  display: flex;
-  gap: 10px;
-}
-
-.ability-card__header {
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.ability-card__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--ability-accent, var(--teal)) 16%, rgba(255, 255, 255, 0.04));
-  border: 1px solid color-mix(in srgb, var(--ability-accent, var(--teal)) 32%, transparent);
-  color: var(--text);
-  font-size: 18px;
-}
-
-.ability-card__description {
-  margin: 0;
-  min-height: 64px;
-}
-
-.ability-tags {
-  flex-wrap: wrap;
-}
-
-.ability-tag,
-.ability-stat-pill {
-  border-radius: 999px;
-  font-size: 11px;
-}
-
-.ability-tag {
-  padding: 5px 9px;
-  color: var(--text);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.ability-stats {
-  flex-wrap: wrap;
-}
-
-.ability-stat-pill {
-  display: grid;
-  gap: 3px;
-  min-width: 90px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.ability-stat-pill span {
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.ability-stat-pill strong {
-  font-size: 15px;
-}
-
-.ability-card__actions {
-  flex-wrap: wrap;
-}
-
-.ability-card__actions > * {
-  flex: 1 1 160px;
-}
-
-.ability-card__upgrade:disabled {
-  opacity: 0.52;
 }
 
 .character-card {
