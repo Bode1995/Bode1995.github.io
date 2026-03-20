@@ -2,15 +2,11 @@ import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
 import {
   CHARACTER_DEFS,
   ENEMY_TYPES,
-  SPECIAL_ABILITY_DEFS,
   LEVELS_PER_WORLD,
   POWER_UP_DEFS,
   RUN_BASE,
   SAFETY_LIMITS,
   UPGRADE_DEFS,
-  getResolvedSpecialAbilityConfig,
-  getSpecialAbilityDefinition,
-  getSpecialAbilityUpgradeCost,
   WAVES_PER_LEVEL,
   WAVE_INTERVAL_SECONDS,
   WORLDS_COUNT,
@@ -41,9 +37,9 @@ export function startGameApp() {
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
     'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
-    'selectedMissionStatus', 'selectedCharacterLabel', 'selectedAbilityLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
+    'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
     'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
-    'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterCredits', 'specialAbilityGrid', 'characterGrid',
+    'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
   ];
   const missingUi = REQUIRED_UI_KEYS.filter((key) => !ui[key]);
   const startErrorEl = document.createElement('div');
@@ -80,9 +76,6 @@ export function startGameApp() {
   const profileApi = createProfileApi(profile);
   const initialCharacterId = loadSelectedCharacterId();
   let currentCharacterId = initialCharacterId;
-  let currentSpecialAbilityId = SPECIAL_ABILITY_DEFS.some((def) => def.id === profile.selectedSpecialAbilityId)
-    ? profile.selectedSpecialAbilityId
-    : SPECIAL_ABILITY_DEFS[0].id;
   const characterModule = createCharacterModule(THREE, CHARACTER_DEFS);
 
   const renderer = new THREE.WebGLRenderer({ canvas: ui.canvas, antialias: true });
@@ -206,7 +199,6 @@ export function startGameApp() {
   });
   applyWorldPresentation(state.worldIndex);
   state.selection.characterId = currentCharacterId;
-  state.selection.specialAbilityId = currentSpecialAbilityId;
   playerRigHolder.position.set(0, state.world.playerGroundY, 0);
 
   const collision = createCollisionSystem({
@@ -321,7 +313,6 @@ export function startGameApp() {
     createCharacterRig: characterModule.createCharacterRig,
     getCharacterDef,
     getCharacterCombatProfile,
-    getSpecialAbilityConfig: (abilityId = currentSpecialAbilityId) => getResolvedSpecialAbility(abilityId),
   });
 
   combat.api.spawnEnemy = enemySystem.spawnEnemy;
@@ -346,43 +337,6 @@ export function startGameApp() {
     return getCharacterDef(characterId).combatProfile;
   }
 
-  function getSpecialAbilityDef(abilityId = currentSpecialAbilityId) {
-    return getSpecialAbilityDefinition(abilityId);
-  }
-
-  function getSpecialAbilityLevel(abilityId = currentSpecialAbilityId) {
-    return profile.specialAbilityUpgrades?.[abilityId] || 0;
-  }
-
-  function getResolvedSpecialAbility(abilityId = currentSpecialAbilityId) {
-    return getResolvedSpecialAbilityConfig(abilityId, getSpecialAbilityLevel(abilityId));
-  }
-
-  function getSpecialAbilityCost(abilityId = currentSpecialAbilityId) {
-    return getSpecialAbilityUpgradeCost(abilityId, getSpecialAbilityLevel(abilityId));
-  }
-
-  function syncSelectedLoadout() {
-    specialAbilitySystem.setLoadout({
-      characterId: currentCharacterId,
-      abilityId: currentSpecialAbilityId,
-    });
-  }
-
-  function setSelectedAbility(abilityId) {
-    const abilityDef = getSpecialAbilityDef(abilityId);
-    if (!abilityDef) {
-      reportRuntimeError('Special ability selection', new Error(`Unknown special ability: ${abilityId}`));
-      return;
-    }
-    currentSpecialAbilityId = abilityDef.id;
-    state.selection.specialAbilityId = abilityDef.id;
-    profile.selectedSpecialAbilityId = abilityDef.id;
-    profileApi.save();
-    syncSelectedLoadout();
-    if (ui.selectedAbilityLabel) ui.selectedAbilityLabel.textContent = abilityDef.label;
-  }
-
   function setPlayerCharacter(characterId) {
     const characterDef = getCharacterDef(characterId);
     if (!characterDef) {
@@ -400,7 +354,7 @@ export function startGameApp() {
     state.weaponState.burstTimer = 0;
     state.runPowers.lastWeaponTag = characterDef.combatProfile.weaponTag;
     synergySystem.rebuildActiveSynergies(characterDef.combatProfile);
-    syncSelectedLoadout();
+    specialAbilitySystem.setCharacter(characterDef.id);
     ui.selectedCharacterLabel.textContent = characterDef.name;
   }
 
@@ -408,20 +362,11 @@ export function startGameApp() {
     THREE,
     ui,
     characterDefs: CHARACTER_DEFS,
-    specialAbilityDefs: SPECIAL_ABILITY_DEFS,
     createCharacterRig: characterModule.createCharacterRig,
     animateCharacterRig: characterModule.animateCharacterRig,
     onSelectCharacter: setPlayerCharacter,
     isSelectedCharacter: (characterId) => characterId === state.selection.characterId,
-    onSelectAbility: setSelectedAbility,
-    isSelectedAbility: (abilityId) => abilityId === state.selection.specialAbilityId,
-    getCredits: () => profile.credits,
-    getSpecialAbilityLevel,
-    getSpecialAbilityCost,
-    getResolvedSpecialAbility,
-    onUpgradeAbility: purchaseSpecialAbilityUpgrade,
   });
-  setSelectedAbility(state.selection.specialAbilityId);
   setPlayerCharacter(state.selection.characterId);
 
   function getUpgradeLevel(id) {
@@ -742,18 +687,6 @@ export function startGameApp() {
     updateHUD();
   }
 
-  function purchaseSpecialAbilityUpgrade(abilityId) {
-    const abilityDef = getSpecialAbilityDef(abilityId);
-    const cost = getSpecialAbilityCost(abilityId);
-    if (!abilityDef || cost == null || profile.credits < cost) return;
-    profile.credits -= cost;
-    profile.specialAbilityUpgrades[abilityDef.id] = getSpecialAbilityLevel(abilityDef.id) + 1;
-    profileApi.save();
-    syncSelectedLoadout();
-    menuController.renderMenu();
-    updateHUD();
-  }
-
   function getSpawnBudget() {
     return Math.round(5 + state.waveInLevel * 1.5 + state.levelIndex * 1.2 + state.worldIndex * 1.8);
   }
@@ -937,7 +870,6 @@ export function startGameApp() {
       getSelectedMission: () => profileApi.getSelectedMission(),
       getUnlockedLevelCount: () => profileApi.getUnlockedLevelCount(),
       getSelectedCharacterName: () => getCharacterDef().name,
-      getSelectedAbilityName: () => getSpecialAbilityDef().label,
       getUpgradeSummaryStats,
       refreshCharacterSelection: () => characterSelection.refresh(),
       getNextMission,

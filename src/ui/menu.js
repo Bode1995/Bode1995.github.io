@@ -129,7 +129,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'} · ${worldDef.hudBadge}`;
     ui.unlockedSummary.textContent = `${actions.getUnlockedLevelCount()} / ${WORLDS_COUNT * LEVELS_PER_WORLD} Levels`;
     ui.selectedCharacterLabel.textContent = actions.getSelectedCharacterName();
-    if (ui.selectedAbilityLabel) ui.selectedAbilityLabel.textContent = actions.getSelectedAbilityName();
   }
 
   function renderMenu() {
@@ -137,7 +136,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     renderWorldsScreen();
     renderUpgradesScreen();
     renderStatisticsScreen();
-    if (ui.characterCredits) ui.characterCredits.textContent = String(profile.credits);
     actions.refreshCharacterSelection();
   }
 
