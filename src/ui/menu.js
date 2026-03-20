@@ -1,10 +1,19 @@
 import { LEVELS_PER_WORLD, STAT_DEFS, UPGRADE_DEFS, WAVES_PER_LEVEL, WORLDS_COUNT } from '../config/gameConfig.js';
 
 export function createMenuController({ ui, profile, state, helpers, actions }) {
+  const upgradeDefMap = new Map(UPGRADE_DEFS.map((def) => [def.id, def]));
+
   function setMenuScreen(screenId) {
     state.ui.activeMenuScreen = screenId;
-    ui.menuTabs.forEach((tab) => tab.classList.toggle('is-active', tab.dataset.screen === screenId));
-    ui.menuScreens.forEach((screen) => screen.classList.toggle('hidden', screen.dataset.screen !== screenId));
+    const isHub = screenId === 'hub';
+    ui.menu.classList.toggle('menu--hub', isHub);
+    ui.menu.classList.toggle('menu--detail', !isHub);
+    ui.menuShell.dataset.screen = screenId;
+    ui.menuScreens.forEach((screen) => {
+      const active = screen.dataset.screen === screenId;
+      screen.classList.toggle('hidden', !active);
+      screen.classList.toggle('is-active', active);
+    });
   }
 
   function openMenu(screenId = state.ui.activeMenuScreen) {
@@ -13,6 +22,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.menu.classList.remove('hidden');
     ui.gameOver.classList.add('hidden');
   }
+
 
   function renderWorldsScreen() {
     ui.worldGrid.innerHTML = '';
@@ -51,41 +61,132 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     }
   }
 
+  function renderUpgradeDetails(def) {
+    if (!def) return;
+    const level = helpers.getUpgradeLevel(def.id);
+    const maxLevel = helpers.getUpgradeMaxLevel(def.id);
+    const cost = helpers.getUpgradeCost(def.id);
+    const purchasable = cost != null && profile.credits >= cost;
+    const detail = ui.upgradeDetail;
+    detail.innerHTML = '';
+
+    const header = document.createElement('div');
+    header.className = 'skill-detail__header';
+    header.innerHTML = `
+      <div class="skill-detail__icon">${def.icon || '✦'}</div>
+      <div>
+        <div class="card-label">${def.group}</div>
+        <h3>${def.shortLabel || def.label}</h3>
+        <p>${def.description}</p>
+      </div>
+    `;
+
+    const metrics = document.createElement('div');
+    metrics.className = 'skill-detail__metrics';
+    metrics.innerHTML = `
+      <div class="skill-detail__metric"><span>Level</span><strong>${level}${Number.isFinite(maxLevel) ? ` / ${maxLevel}` : ' / ∞'}</strong></div>
+      <div class="skill-detail__metric"><span>Aktuell</span><strong>${def.format(level)}</strong></div>
+      <div class="skill-detail__metric"><span>Nächster Kauf</span><strong>${cost == null ? 'MAX' : `${cost} Cr`}</strong></div>
+    `;
+
+    const footer = document.createElement('div');
+    footer.className = 'skill-detail__footer';
+    const buyButton = document.createElement('button');
+    buyButton.type = 'button';
+    buyButton.className = 'btn';
+    buyButton.textContent = cost == null ? 'Maxed' : `Upgrade kaufen · ${cost} Cr`;
+    buyButton.disabled = !purchasable;
+    buyButton.addEventListener('click', () => actions.purchaseUpgrade(def.id));
+    footer.appendChild(buyButton);
+
+    const info = document.createElement('p');
+    info.className = 'skill-detail__hint';
+    info.textContent = def.id === 'limitOverclock'
+      ? 'Jeder Kauf erhöht das Max-Level aller anderen Upgrades dauerhaft um +1.'
+      : `Status: ${cost == null ? 'Max-Level erreicht' : purchasable ? 'Kaufbar' : 'Mehr Credits benötigt'}`;
+    footer.appendChild(info);
+
+    detail.append(header, metrics, footer);
+  }
+
   function renderUpgradesScreen() {
     ui.upgradeCredits.textContent = String(profile.credits);
-    ui.upgradeGroups.innerHTML = '';
-    const grouped = UPGRADE_DEFS.reduce((map, def) => {
-      (map[def.group] ||= []).push(def);
-      return map;
-    }, {});
-    for (const [group, defs] of Object.entries(grouped)) {
-      const groupEl = document.createElement('section');
-      groupEl.className = 'upgrade-group';
-      const title = document.createElement('h3');
-      title.textContent = group;
-      groupEl.appendChild(title);
-      defs.forEach((def) => {
-        const level = helpers.getUpgradeLevel(def.id);
-        const cost = helpers.getUpgradeCost(def.id);
-        const card = document.createElement('article');
-        card.className = `upgrade-card card-surface${cost == null || profile.credits < cost ? ' is-disabled' : ''}`;
-        card.innerHTML = `
-          <div class="card-topline"><span class="card-chip">Mk ${level + 1}</span><span class="card-state">${cost == null ? 'Maxed' : profile.credits >= cost ? 'Available' : 'Insufficient'}</span></div>
-          <div class="card-label">${def.label}</div>
-          <strong>Level ${level}${def.maxLevel ? ` / ${def.maxLevel}` : ''}</strong>
-          <p>${def.description}</p>
-          <div class="card-row"><span>Current: ${def.format(level)}</span><span>${cost == null ? 'MAX' : `Next cost: ${cost}`}</span></div>
-        `;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = cost == null ? 'Maxed' : 'Upgrade';
-        button.disabled = cost == null || profile.credits < cost;
-        button.addEventListener('click', () => actions.purchaseUpgrade(def.id));
-        card.appendChild(button);
-        groupEl.appendChild(card);
+    ui.skillTree.innerHTML = '';
+    ui.skillTreeSvg.innerHTML = '';
+
+    const treeBounds = { cols: 0, rows: 0 };
+    UPGRADE_DEFS.forEach((def) => {
+      treeBounds.cols = Math.max(treeBounds.cols, def.tree.col);
+      treeBounds.rows = Math.max(treeBounds.rows, def.tree.row);
+    });
+    ui.skillTree.style.setProperty('--tree-cols', String(treeBounds.cols));
+    ui.skillTree.style.setProperty('--tree-rows', String(treeBounds.rows));
+
+    UPGRADE_DEFS.forEach((def) => {
+      const level = helpers.getUpgradeLevel(def.id);
+      const maxLevel = helpers.getUpgradeMaxLevel(def.id);
+      const cost = helpers.getUpgradeCost(def.id);
+      const purchasable = cost != null && profile.credits >= cost;
+      const locked = cost == null;
+      const article = document.createElement('article');
+      article.className = `skill-node card-surface${state.ui.selectedUpgradeId === def.id ? ' is-selected' : ''}${purchasable ? ' is-available' : ''}${locked ? ' is-maxed' : ''}`;
+      article.style.gridColumn = String(def.tree.col);
+      article.style.gridRow = String(def.tree.row);
+      article.dataset.upgradeId = def.id;
+      article.innerHTML = `
+        <div class="skill-node__topline">
+          <span class="skill-node__icon">${def.icon || '✦'}</span>
+          <span class="skill-node__badge">${locked ? 'MAX' : purchasable ? 'LIVE' : 'LOCK'}</span>
+        </div>
+        <strong>${def.shortLabel || def.label}</strong>
+        <span class="skill-node__group">${def.group}</span>
+        <div class="skill-node__stats">
+          <span>Lv ${level}${Number.isFinite(maxLevel) ? `/${maxLevel}` : '/∞'}</span>
+          <span>${cost == null ? 'MAX' : `${cost} Cr`}</span>
+        </div>
+      `;
+      article.addEventListener('click', () => {
+        state.ui.selectedUpgradeId = def.id;
+        renderUpgradesScreen();
       });
-      ui.upgradeGroups.appendChild(groupEl);
-    }
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'skill-node__action';
+      button.textContent = cost == null ? 'Maxed' : '+';
+      button.disabled = !purchasable;
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        actions.purchaseUpgrade(def.id);
+      });
+      article.appendChild(button);
+
+      ui.skillTree.appendChild(article);
+    });
+
+    const svgWidth = treeBounds.cols * 100;
+    const svgHeight = treeBounds.rows * 100;
+    ui.skillTreeSvg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+    ui.skillTreeSvg.setAttribute('preserveAspectRatio', 'none');
+
+    UPGRADE_DEFS.forEach((def) => {
+      const connections = def.tree.connectsTo || [];
+      connections.forEach((targetId) => {
+        const target = upgradeDefMap.get(targetId);
+        if (!target) return;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', String((def.tree.col - 0.5) * 100));
+        line.setAttribute('y1', String((def.tree.row - 0.5) * 100));
+        line.setAttribute('x2', String((target.tree.col - 0.5) * 100));
+        line.setAttribute('y2', String((target.tree.row - 0.5) * 100));
+        line.setAttribute('class', 'skill-tree__line');
+        ui.skillTreeSvg.appendChild(line);
+      });
+    });
+
+    const selectedDef = upgradeDefMap.get(state.ui.selectedUpgradeId) || UPGRADE_DEFS[0];
+    state.ui.selectedUpgradeId = selectedDef.id;
+    renderUpgradeDetails(selectedDef);
   }
 
   function renderStatisticsScreen() {
@@ -106,6 +207,9 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'}`;
     ui.unlockedSummary.textContent = `${actions.getUnlockedLevelCount()} / ${WORLDS_COUNT * LEVELS_PER_WORLD} Levels`;
     ui.selectedCharacterLabel.textContent = actions.getSelectedCharacterName();
+    ui.hubMissionButton.textContent = `Mission W${mission.world} · L${mission.level} öffnen`;
+    ui.hubCharacterButton.textContent = `${actions.getSelectedCharacterName()} anpassen`;
+    ui.hubUpgradeButton.textContent = `Skill-Tree (${profile.credits} Cr)`;
   }
 
   function renderMenu() {
