@@ -780,7 +780,7 @@ export function startGameApp() {
     const locomotion = characterDef.locomotionProfile || {};
     temp.vec2A.set(
       (state.input.keys.has('KeyD') ? 1 : 0) - (state.input.keys.has('KeyA') ? 1 : 0),
-      (state.input.keys.has('KeyW') ? 1 : 0) - (state.input.keys.has('KeyS') ? 1 : 0),
+      (state.input.keys.has('KeyS') ? 1 : 0) - (state.input.keys.has('KeyW') ? 1 : 0),
     );
     if (temp.vec2A.lengthSq() > 0) temp.vec2A.normalize();
     const usingTouchMove = state.input.move.lengthSq() > 0;
