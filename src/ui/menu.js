@@ -4,7 +4,7 @@ import { getWorldDefinition } from '../config/worlds.js';
 export function createMenuController({ ui, profile, state, helpers, actions }) {
   function setMenuScreen(screenId) {
     state.ui.activeMenuScreen = screenId;
-    ui.menuTabs.forEach((tab) => tab.classList.toggle('is-active', tab.dataset.screen === screenId));
+    ui.menu.dataset.activeScreen = screenId;
     ui.menuScreens.forEach((screen) => screen.classList.toggle('hidden', screen.dataset.screen !== screenId));
   }
 
@@ -18,7 +18,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
   function renderWorldsScreen() {
     ui.worldGrid.innerHTML = '';
     ui.levelGrid.innerHTML = '';
-    for (let world = 1; world <= WORLDS_COUNT; world++) {
+    for (let world = 1; world <= WORLDS_COUNT; world += 1) {
       const unlockedCount = profile.progression.unlockedLevels[world] || 0;
       const worldDef = getWorldDefinition(world);
       const button = document.createElement('button');
@@ -35,8 +35,9 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       button.title = `${worldDef.themeName} · ${worldDef.hudBadge}`;
       ui.worldGrid.appendChild(button);
     }
+
     const selectedWorld = profile.progression.selectedWorld;
-    for (let level = 1; level <= LEVELS_PER_WORLD; level++) {
+    for (let level = 1; level <= LEVELS_PER_WORLD; level += 1) {
       const unlocked = helpers.isLevelUnlocked(selectedWorld, level);
       const completed = !!profile.progression.completedLevels[helpers.getLevelKey(selectedWorld, level)];
       const button = document.createElement('button');
@@ -61,12 +62,19 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       (map[def.group] ||= []).push(def);
       return map;
     }, {});
+
     for (const [group, defs] of Object.entries(grouped)) {
       const groupEl = document.createElement('section');
       groupEl.className = 'upgrade-group';
+      const titleWrap = document.createElement('div');
+      titleWrap.className = 'upgrade-group__header';
       const title = document.createElement('h3');
       title.textContent = group;
-      groupEl.appendChild(title);
+      const intro = document.createElement('p');
+      intro.textContent = 'Dauerhafte Verbesserungen mit sauberer Kosten- und Fortschrittsanzeige.';
+      titleWrap.append(title, intro);
+      groupEl.appendChild(titleWrap);
+
       defs.forEach((def) => {
         const level = helpers.getUpgradeLevel(def.id);
         const maxLevel = helpers.getUpgradeMaxLevel(def.id);
@@ -88,6 +96,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         card.appendChild(button);
         groupEl.appendChild(card);
       });
+
       ui.upgradeGroups.appendChild(groupEl);
     }
   }
@@ -97,7 +106,12 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     STAT_DEFS.forEach((def) => {
       const card = document.createElement('article');
       card.className = 'stat-card card-surface';
-      card.innerHTML = `<div class="card-topline"><span class="card-chip">LOG</span></div><div class="card-label">${def.label}</div><strong>${def.format(profile.stats[def.id] || 0)}</strong><span>Persistent progression stat</span>`;
+      card.innerHTML = `
+        <div class="card-topline"><span class="card-chip">LOG</span></div>
+        <div class="card-label">${def.label}</div>
+        <strong>${def.format(profile.stats[def.id] || 0)}</strong>
+        <span>Persistent progression stat</span>
+      `;
       ui.statsGrid.appendChild(card);
     });
   }

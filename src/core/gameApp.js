@@ -1031,7 +1031,8 @@ export function startGameApp() {
   const registerSwOnReady = () => registerServiceWorker().catch((err) => reportRuntimeError('Service worker registration', err));
   if (document.readyState === 'complete') registerSwOnReady();
   else window.addEventListener('load', registerSwOnReady, { once: true });
-  ui.menuTabs.forEach((tab) => tab.addEventListener('click', () => menuController.setMenuScreen(tab.dataset.screen)));
+  ui.menuRouteButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen)));
+  ui.menuBackButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen || 'home')));
   ui.startBtn.addEventListener('click', () => startGame());
   ui.quickWorldsBtn.addEventListener('click', () => menuController.openMenu('worlds'));
   ui.startSelectedLevelBtn.addEventListener('click', () => {
