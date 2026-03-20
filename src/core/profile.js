@@ -6,14 +6,66 @@ import {
   UPGRADE_DEFS,
   WORLDS_COUNT,
 } from '../config/gameConfig.js';
+import {
+  createDefaultSpecialAbilityProfile,
+  getDefaultSpecialAbilityId,
+  getSpecialAbilityDef,
+  resolveSpecialAbilityId,
+  SPECIAL_ABILITY_DEFS,
+} from '../config/specialAbilities.js';
+
+function buildDefaultUpgrades() {
+  return Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, 0]));
+}
+
+function inferLegacySpecialAbilityId() {
+  const characterId = resolveCharacterId(localStorage.getItem(CHARACTER_STORAGE_KEY));
+  const legacyMap = {
+    char_01: 'focus_mark',
+    char_02: 'holo_decoy',
+    char_03: 'shield_ram',
+    char_04: 'guardian_orbit',
+    char_05: 'execution_mode',
+  };
+  return resolveSpecialAbilityId(legacyMap[characterId], getDefaultSpecialAbilityId());
+}
+
+function mergeSpecialAbilityState(rawState) {
+  const base = createDefaultSpecialAbilityProfile();
+  const selectedId = resolveSpecialAbilityId(rawState?.selectedId, inferLegacySpecialAbilityId());
+
+  const unlocked = { ...base.unlocked };
+  for (const def of SPECIAL_ABILITY_DEFS) {
+    if (typeof rawState?.unlocked?.[def.id] === 'boolean') unlocked[def.id] = rawState.unlocked[def.id];
+  }
+  if (!unlocked[selectedId]) unlocked[selectedId] = true;
+
+  const upgrades = { ...base.upgrades };
+  for (const def of SPECIAL_ABILITY_DEFS) {
+    const rawAbilityUpgrades = rawState?.upgrades?.[def.id] || {};
+    upgrades[def.id] = { ...base.upgrades[def.id] };
+    for (const track of def.upgradeTracks || []) {
+      const rawLevel = Number(rawAbilityUpgrades[track.id]);
+      const normalized = Number.isFinite(rawLevel) ? Math.max(0, Math.min(track.maxLevel ?? rawLevel, Math.floor(rawLevel))) : 0;
+      upgrades[def.id][track.id] = normalized;
+    }
+  }
+
+  return {
+    selectedId,
+    unlocked,
+    upgrades,
+  };
+}
 
 export function createDefaultProfile() {
   const unlockedLevels = {};
   for (let world = 1; world <= WORLDS_COUNT; world++) unlockedLevels[world] = world === 1 ? 1 : 0;
   return {
-    version: 2,
+    version: 3,
     credits: 0,
-    upgrades: Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, 0])),
+    upgrades: buildDefaultUpgrades(),
+    specialAbilities: createDefaultSpecialAbilityProfile(),
     stats: {
       totalKills: 0,
       totalRuns: 0,
@@ -40,7 +92,9 @@ export function loadProfile() {
     return {
       ...base,
       ...raw,
+      version: Math.max(3, Number(raw.version) || 0),
       upgrades: { ...base.upgrades, ...(raw.upgrades || {}) },
+      specialAbilities: mergeSpecialAbilityState(raw.specialAbilities),
       stats: { ...base.stats, ...(raw.stats || {}) },
       progression: {
         ...base.progression,
@@ -60,6 +114,11 @@ export function saveProfile(profile) {
 
 export function resolveCharacterId(rawId) {
   return CHARACTER_DEFS.some((character) => character.id === rawId) ? rawId : CHARACTER_DEFS[0].id;
+}
+
+export function resolveProfileSpecialAbilityId(profile, rawId) {
+  const fallbackId = profile?.specialAbilities?.selectedId || inferLegacySpecialAbilityId();
+  return resolveSpecialAbilityId(rawId, fallbackId);
 }
 
 export function loadSelectedCharacterId() {
@@ -92,6 +151,9 @@ export function createProfileApi(profile) {
     },
     getUnlockedLevelCount() {
       return Object.values(profile.progression.unlockedLevels).reduce((sum, count) => sum + Math.max(0, count || 0), 0);
+    },
+    getSelectedSpecialAbilityDef() {
+      return getSpecialAbilityDef(profile.specialAbilities?.selectedId);
     },
     unlockNextMission(world, level) {
       profile.progression.completedLevels[this.getLevelKey(world, level)] = true;
