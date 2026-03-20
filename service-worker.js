@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sky-blaster-3d-v4';
+const CACHE_NAME = 'sky-blaster-3d-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -9,22 +9,28 @@ const ASSETS = [
   './assets/icons/apple-touch-icon.svg',
   './src/main.js',
   './src/config/gameConfig.js',
+  './src/config/specialAbilities.js',
+  './src/config/worlds.js',
   './src/core/gameApp.js',
   './src/core/profile.js',
   './src/core/state.js',
+  './src/core/utils.js',
   './src/pwa/register-sw.js',
   './src/ui/dom.js',
   './src/ui/menu.js',
   './src/ui/characterSelection.js',
   './src/entities/characters.js',
-  './src/systems/worldSystem.js',
   './src/systems/collisionSystem.js',
   './src/systems/combatSystem.js',
+  './src/systems/enemyRuntimeUtils.js',
   './src/systems/enemySystem.js',
   './src/systems/inputSystem.js',
   './src/systems/performanceSystem.js',
   './src/systems/projectileSystem.js',
+  './src/systems/specialAbilitySystem.js',
+  './src/systems/synergySystem.js',
   './src/systems/vfxSystem.js',
+  './src/systems/worldSystem.js',
 ];
 
 self.addEventListener('install', (event) => {
