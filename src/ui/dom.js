@@ -36,7 +36,6 @@ export function getUI() {
     levelGrid: document.getElementById('levelGrid'),
     upgradeGroups: document.getElementById('upgradeGroups'),
     upgradeCredits: document.getElementById('upgradeCredits'),
-    upgradeCharacterName: document.getElementById('upgradeCharacterName'),
     upgradeAttackStat: document.getElementById('upgradeAttackStat'),
     upgradeDefenseStat: document.getElementById('upgradeDefenseStat'),
     upgradeSpeedStat: document.getElementById('upgradeSpeedStat'),
