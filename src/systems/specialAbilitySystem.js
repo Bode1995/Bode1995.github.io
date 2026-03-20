@@ -23,9 +23,10 @@ export function createSpecialAbilitySystem({
   playerRigHolder,
   getAbilityDefinition,
   getAbilityConfig,
-  getCharacterCombatProfile,
+  getWeaponProfile,
 }) {
   const runtime = {
+    abilityId: null,
     abilityDef: null,
     config: null,
     cooldownRemaining: 0,
@@ -44,10 +45,9 @@ export function createSpecialAbilitySystem({
   };
 
   function syncStateStatus() {
-    const def = runtime.abilityDef;
-    const config = runtime.config;
+    const { abilityDef: def, config } = runtime;
     const hud = state.specialAbility;
-    hud.id = def?.id || null;
+    hud.id = runtime.abilityId;
     hud.label = def?.label || '';
     hud.shortLabel = def?.shortLabel || '';
     hud.icon = def?.icon || '';
@@ -142,14 +142,17 @@ export function createSpecialAbilitySystem({
   }
 
   function setAbility(abilityId) {
-    runtime.abilityDef = getAbilityDefinition(abilityId);
-    runtime.config = runtime.abilityDef ? getAbilityConfig(runtime.abilityDef.id) : null;
-    state.selection.specialAbilityId = runtime.abilityDef?.id || null;
+    const resolvedDef = getAbilityDefinition(abilityId);
+    runtime.abilityId = resolvedDef?.id || null;
+    runtime.abilityDef = resolvedDef;
+    runtime.config = resolvedDef ? getAbilityConfig(resolvedDef.id) : null;
+    state.selection.specialAbilityId = runtime.abilityId;
     resetRuntime();
   }
 
   function clear() {
     resetRuntime();
+    runtime.abilityId = null;
     runtime.abilityDef = null;
     runtime.config = null;
     state.selection.specialAbilityId = null;
@@ -310,7 +313,7 @@ export function createSpecialAbilitySystem({
         allowLightningChain: false,
         isSecondaryEffect: true,
         impactEffects: { rockets: true },
-        weaponProfile: getCharacterCombatProfile(),
+        weaponProfile: getWeaponProfile(),
       });
     }
     temp.vec3C.copy(playerPos).addScaledVector(forward, 2.6).setY(state.world.playerGroundY + 1.1);
@@ -454,7 +457,7 @@ export function createSpecialAbilitySystem({
           allowLightningChain: false,
           isSecondaryEffect: true,
           impactEffects: { lightning: true },
-          weaponProfile: getCharacterCombatProfile(),
+          weaponProfile: getWeaponProfile(),
         });
         temp.vec3C.copy(orbPos).lerp(enemy.position, 0.55).setY(enemy.position.y + 0.9);
         vfx.spawnImpactBurst(temp.vec3C, runtime.abilityDef.visualStyle.primary, 5, 2.1, 0.2, 0.62);

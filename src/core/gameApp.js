@@ -77,6 +77,8 @@ export function startGameApp() {
   const profileApi = createProfileApi(profile);
   const initialCharacterId = loadSelectedCharacterId();
   const initialSpecialAbilityId = resolveProfileSpecialAbilityId(profile, profile.specialAbilities?.selectedId);
+  profile.specialAbilities.selectedId = initialSpecialAbilityId;
+  profile.specialAbilities.unlocked[initialSpecialAbilityId] = true;
   let currentCharacterId = initialCharacterId;
   let currentSpecialAbilityId = initialSpecialAbilityId;
   const characterModule = createCharacterModule(THREE, CHARACTER_DEFS);
@@ -316,7 +318,7 @@ export function startGameApp() {
     playerRigHolder,
     getAbilityDefinition: getResolvedSpecialAbilityDef,
     getAbilityConfig: getResolvedSpecialAbilityConfig,
-    getCharacterCombatProfile,
+    getWeaponProfile: getCharacterCombatProfile,
   });
 
   combat.api.spawnEnemy = enemySystem.spawnEnemy;
@@ -342,12 +344,16 @@ export function startGameApp() {
   }
 
   function getResolvedSpecialAbilityDef(abilityId = currentSpecialAbilityId) {
-    return getSpecialAbilityDef(resolveSpecialAbilityId(abilityId, currentSpecialAbilityId));
+    return getSpecialAbilityDef(resolveSpecialAbilityId(abilityId, profile.specialAbilities?.selectedId || currentSpecialAbilityId));
   }
 
   function getSpecialAbilityLevels(abilityId = currentSpecialAbilityId) {
     const def = getResolvedSpecialAbilityDef(abilityId);
-    return profile.specialAbilities?.upgrades?.[def.id] || {};
+    const abilityUpgrades = profile.specialAbilities?.upgrades?.[def.id];
+    if (abilityUpgrades) return abilityUpgrades;
+    const fallbackLevels = Object.fromEntries((def.upgradeTracks || []).map((track) => [track.id, 0]));
+    profile.specialAbilities.upgrades[def.id] = fallbackLevels;
+    return fallbackLevels;
   }
 
   function getResolvedSpecialAbilityConfig(abilityId = currentSpecialAbilityId) {
@@ -398,9 +404,19 @@ export function startGameApp() {
     state.selection.specialAbilityId = def.id;
     profile.specialAbilities.selectedId = def.id;
     profile.specialAbilities.unlocked[def.id] = true;
-    if (resetRuntime) specialAbilitySystem.setAbility(def.id);
+    if (resetRuntime) initializeSelectedSpecialAbility();
     if (persist) profileApi.save();
     if (!state.running) updateHUD();
+  }
+
+  function initializeSelectedSpecialAbility({ persist = false } = {}) {
+    const resolvedAbilityId = resolveProfileSpecialAbilityId(profile, currentSpecialAbilityId);
+    profile.specialAbilities.selectedId = resolvedAbilityId;
+    profile.specialAbilities.unlocked[resolvedAbilityId] = true;
+    currentSpecialAbilityId = resolvedAbilityId;
+    state.selection.specialAbilityId = resolvedAbilityId;
+    specialAbilitySystem.setAbility(resolvedAbilityId);
+    if (persist) profileApi.save();
   }
 
   function setPlayerCharacter(characterId) {
@@ -433,7 +449,7 @@ export function startGameApp() {
     isSelectedCharacter: (characterId) => characterId === state.selection.characterId,
   });
   setPlayerCharacter(state.selection.characterId);
-  selectSpecialAbility(state.selection.specialAbilityId, { persist: false });
+  initializeSelectedSpecialAbility();
 
   function getUpgradeLevel(id) {
     return profile.upgrades[id] || 0;
@@ -760,7 +776,7 @@ export function startGameApp() {
     if (!track || cost == null || profile.credits < cost) return;
     profile.credits -= cost;
     profile.specialAbilities.upgrades[def.id][track.id] = getSpecialAbilityTrackLevel(def.id, track.id) + 1;
-    if (def.id === currentSpecialAbilityId) specialAbilitySystem.setAbility(def.id);
+    if (def.id === currentSpecialAbilityId) initializeSelectedSpecialAbility();
     profileApi.save();
     menuController.renderMenu();
     updateHUD();
@@ -867,6 +883,7 @@ export function startGameApp() {
     try {
       clearRuntimeError();
       validateMission(world, level);
+      initializeSelectedSpecialAbility();
       const characterDef = getCharacterDef(state.selection.characterId);
       if (!characterDef) throw new Error('No character definition available for run start.');
       if (!playerRig) setPlayerCharacter(characterDef.id);
