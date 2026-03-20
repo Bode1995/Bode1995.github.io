@@ -123,7 +123,8 @@ export function createEnemySystem({
       : data.hitboxRadius + 0.35;
     const spawnY = enemy.position.y + data.hitboxCenterOffsetY * 0.52;
     temp.vec3C.set(state.movement.velocityX, 0, state.movement.velocityZ);
-    temp.vec3D.copy(temp.player.position)
+    const aimTarget = data.currentTargetPosition || temp.player.position;
+    temp.vec3D.copy(aimTarget)
       .addScaledVector(temp.vec3C, 0.08)
       .sub(temp.vec3B.set(enemy.position.x, spawnY, enemy.position.z));
     temp.vec3D.y = THREE.MathUtils.clamp(temp.vec3D.y, -0.16, 0.3);
@@ -379,9 +380,12 @@ export function createEnemySystem({
       worldTheme: worldDef.key,
       worldModifiers: worldMods,
       elementalResistance: worldDef.elementalResistance || null,
+      specialStates: {},
       interruptTimer: 0,
       externalImpulseX: 0,
       externalImpulseZ: 0,
+      targetDecoyId: null,
+      currentTargetPosition: null,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
@@ -436,7 +440,8 @@ export function createEnemySystem({
       }
       if (data.dead) continue;
 
-      temp.vec3A.set(temp.player.position.x - enemy.position.x, 0, temp.player.position.z - enemy.position.z);
+      const targetPosition = data.currentTargetPosition || temp.player.position;
+      temp.vec3A.set(targetPosition.x - enemy.position.x, 0, targetPosition.z - enemy.position.z);
       const dist = Math.max(0.0001, temp.vec3A.length());
       temp.vec3A.multiplyScalar(1 / dist);
       temp.vec3B.set(-temp.vec3A.z, 0, temp.vec3A.x);

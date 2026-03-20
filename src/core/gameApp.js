@@ -27,6 +27,7 @@ import { createPerformanceSystem } from '../systems/performanceSystem.js';
 import { createProjectileSystem } from '../systems/projectileSystem.js';
 import { createSynergySystem } from '../systems/synergySystem.js';
 import { createVfxSystem } from '../systems/vfxSystem.js';
+import { createSpecialAbilitySystem } from '../systems/specialAbilitySystem.js';
 import { registerServiceWorker } from '../pwa/register-sw.js';
 import { getWorldDefinition } from '../config/worlds.js';
 
@@ -281,6 +282,8 @@ export function startGameApp() {
     onDamagePlayer: combat.damagePlayer,
   });
 
+  let specialAbilitySystem = null;
+
   const projectileSystem = createProjectileSystem({
     THREE,
     scene,
@@ -295,12 +298,27 @@ export function startGameApp() {
     getCharacterCombatProfile,
     getProjectileEffects: combat.getProjectileEffects,
     getWeaponSynergyProfile: synergySystem.getWeaponSynergyProfile,
+    resolveSpecialHitDamage: (enemy, bullet, amount) => specialAbilitySystem?.resolvePlayerHitDamage(enemy, bullet, amount) || { amount },
     sceneResources,
+  });
+
+  specialAbilitySystem = createSpecialAbilitySystem({
+    THREE,
+    scene,
+    state,
+    collision,
+    vfx,
+    temp,
+    playerRigHolder,
+    createCharacterRig: characterModule.createCharacterRig,
+    getCharacterDef,
+    getCharacterCombatProfile,
   });
 
   combat.api.spawnEnemy = enemySystem.spawnEnemy;
   combat.api.destroyEnemy = enemySystem.destroyEnemy;
   enemySystem.registerCallbacks({ damageEnemy: combat.damageEnemy });
+  specialAbilitySystem.registerCallbacks({ damageEnemy: combat.damageEnemy });
 
   const inputSystem = createInputSystem({
     THREE,
@@ -336,6 +354,7 @@ export function startGameApp() {
     state.weaponState.burstTimer = 0;
     state.runPowers.lastWeaponTag = characterDef.combatProfile.weaponTag;
     synergySystem.rebuildActiveSynergies(characterDef.combatProfile);
+    specialAbilitySystem.setCharacter(characterDef.id);
     ui.selectedCharacterLabel.textContent = characterDef.name;
   }
 
@@ -560,6 +579,19 @@ export function startGameApp() {
         entry.priority || 1,
         true,
       ]);
+    const specialAbilityEntries = state.specialAbility.id
+      ? [[
+        {
+          label: state.specialAbility.label,
+          shortLabel: `${state.specialAbility.shortLabel} · ${state.specialAbility.statusText}`,
+          symbol: '✦',
+          color: state.specialAbility.color,
+        },
+        state.specialAbility.isActive ? 2 : Math.max(1, Math.ceil(state.specialAbility.cooldownRemaining || 1)),
+        true,
+      ]]
+      : [];
+
     ui.wave.textContent = `${state.waveInLevel}/${WAVES_PER_LEVEL}`;
     ui.enemyCount.textContent = String(state.activeEnemyCount);
     ui.score.textContent = String(state.score);
@@ -572,7 +604,7 @@ export function startGameApp() {
     ui.pauseBtn.setAttribute('aria-pressed', state.paused ? 'true' : 'false');
 
     ui.activePowers.innerHTML = '';
-    for (const [def, count, isSynergy] of [...activePowerEntries, ...activeSynergyEntries]) {
+    for (const [def, count, isSynergy] of [...specialAbilityEntries, ...activePowerEntries, ...activeSynergyEntries]) {
       const badge = document.createElement('div');
       badge.className = 'power-badge';
       badge.innerHTML = formatPowerBadge(def, count);
@@ -638,6 +670,7 @@ export function startGameApp() {
     enemySystem.clear();
     projectileSystem.clear();
     vfx.clear();
+    specialAbilitySystem.resetRuntime();
     collision.clearEnemySpatialGrid();
     removeAllPickups();
     state.performance.activeEnemyEffects = 0;
@@ -962,8 +995,14 @@ export function startGameApp() {
         state.lastProfileSaveAt += dt;
         state.fireCooldown -= dt;
         state.weaponState.burstTimer = Math.max(0, state.weaponState.burstTimer - dt);
+        specialAbilitySystem.update(dt, elapsed);
         projectileSystem.shoot();
         updatePickups(dt);
+        for (const enemy of state.entities.enemies) {
+          const data = enemy?.userData;
+          if (!data || data.dead) continue;
+          data.currentTargetPosition = specialAbilitySystem.getEnemyTarget(enemy, data);
+        }
         enemySystem.update(dt, elapsed, state.runPowers);
         projectileSystem.update(dt, { damageEnemy: combat.damageEnemy, applyProjectilePower: combat.applyProjectilePower });
 
