@@ -55,75 +55,8 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     }
   }
 
-  function renderSpecialAbilities() {
-    const selected = actions.getSelectedSpecialAbility();
-    const allAbilities = actions.getSpecialAbilities();
-    const summary = actions.getSelectedSpecialAbilitySummary();
-
-    ui.specialAbilityGrid.innerHTML = '';
-    for (const entry of allAbilities) {
-      const { def, isSelected, isUnlocked, resolvedConfig } = entry;
-      const card = document.createElement('article');
-      card.className = `special-ability-card card-surface${isSelected ? ' is-selected' : ''}${isUnlocked ? '' : ' is-locked'}`;
-      card.style.setProperty('--ability-accent', `#${def.hudColor.toString(16).padStart(6, '0')}`);
-      card.innerHTML = `
-        <div class="card-topline"><span class="card-chip">${def.category}</span><span class="card-state">${isSelected ? 'Equipped' : isUnlocked ? 'Available' : 'Locked'}</span></div>
-        <div class="special-ability-card__title"><span class="special-ability-card__icon">${def.icon}</span><strong>${def.name}</strong></div>
-        <p>${def.description}</p>
-        <div class="special-ability-card__stats">
-          <span>CD ${resolvedConfig.cooldown.toFixed(1)}s</span>
-          <span>${summary.statLineMap[def.id] || 'Eigenständiger Loadout-Slot'}</span>
-        </div>
-      `;
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = isSelected ? 'Ausgerüstet' : 'Ausrüsten';
-      button.disabled = !isUnlocked || isSelected;
-      button.addEventListener('click', () => actions.selectSpecialAbility(def.id));
-      card.appendChild(button);
-      ui.specialAbilityGrid.appendChild(card);
-    }
-
-    ui.selectedAbilitySummary.innerHTML = `
-      <article class="selected-ability-card" style="--ability-accent:#${selected.def.hudColor.toString(16).padStart(6, '0')}">
-        <div class="card-topline"><span class="card-chip">Aktiv</span><span class="card-state">${selected.def.category}</span></div>
-        <div class="selected-ability-card__title"><span class="selected-ability-card__icon">${selected.def.icon}</span><div><strong>${selected.def.name}</strong><span>${selected.def.shortLabel} · ${selected.def.balanceTags.join(' · ')}</span></div></div>
-        <p>${selected.def.description}</p>
-        <div class="selected-ability-card__stats">
-          ${summary.highlights.map((line) => `<span>${line}</span>`).join('')}
-        </div>
-      </article>
-    `;
-
-    ui.specialAbilityUpgradeTracks.innerHTML = '';
-    selected.tracks.forEach((track) => {
-      const card = document.createElement('article');
-      card.className = `special-track-card card-surface${track.cost == null || profile.credits < track.cost ? ' is-disabled' : ''}`;
-      card.innerHTML = `
-        <div class="card-topline"><span class="card-chip">${track.def.shortLabel}</span><span class="card-state">${track.cost == null ? 'Maxed' : profile.credits >= track.cost ? 'Available' : 'Insufficient'}</span></div>
-        <div class="card-label">${track.def.label}</div>
-        <strong>Level ${track.level}${track.def.maxLevel != null ? ` / ${track.def.maxLevel}` : ''}</strong>
-        <p>${track.def.description}</p>
-        <div class="card-row"><span>Aktuell: ${track.currentFormatted}</span><span>${track.cost == null ? 'MAX' : `Nächste Kosten: ${track.cost}`}</span></div>
-        <div class="card-row"><span>Nächster Wert</span><span>${track.nextFormatted || '—'}</span></div>
-      `;
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = track.cost == null ? 'Maxed' : 'Upgrade';
-      button.disabled = track.cost == null || profile.credits < track.cost;
-      button.addEventListener('click', () => actions.purchaseSpecialAbilityUpgrade(selected.def.id, track.def.id));
-      card.appendChild(button);
-      ui.specialAbilityUpgradeTracks.appendChild(card);
-    });
-  }
-
   function renderUpgradesScreen() {
     ui.upgradeCredits.textContent = String(profile.credits);
-    const upgradeStats = actions.getUpgradeSummaryStats();
-    ui.upgradeAttackStat.textContent = upgradeStats.attack;
-    ui.upgradeDefenseStat.textContent = upgradeStats.defense;
-    ui.upgradeSpeedStat.textContent = upgradeStats.speed;
-    renderSpecialAbilities();
     ui.upgradeGroups.innerHTML = '';
     const grouped = UPGRADE_DEFS.reduce((map, def) => {
       (map[def.group] ||= []).push(def);
@@ -185,7 +118,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
 
   function renderHomeScreen() {
     const mission = actions.getSelectedMission();
-    const selectedAbility = actions.getSelectedSpecialAbility();
     ui.menuCredits.textContent = String(profile.credits);
     ui.menuHighestWave.textContent = String(profile.stats.highestWaveReached);
     const worldDef = getWorldDefinition(mission.world);
@@ -193,8 +125,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'} · ${worldDef.hudBadge}`;
     ui.unlockedSummary.textContent = `${actions.getUnlockedLevelCount()} / ${WORLDS_COUNT * LEVELS_PER_WORLD} Levels`;
     ui.selectedCharacterLabel.textContent = actions.getSelectedCharacterName();
-    ui.selectedSpecialAbilityLabel.textContent = selectedAbility.def.name;
-    ui.selectedSpecialAbilityStatus.textContent = `${selectedAbility.def.category} · ${selectedAbility.highlights[0] || 'Eigenständiger Spezial-Slot'}`;
   }
 
   function renderMenu() {
