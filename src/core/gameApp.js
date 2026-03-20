@@ -411,6 +411,20 @@ export function startGameApp() {
     return 26 + getUpgradeLevel('shieldCapacity') * 6;
   }
 
+  function getUpgradeSummaryStats() {
+    const attackMultiplier = (
+      (1 + getUpgradeLevel('baseDamage') * 0.22)
+      * Math.pow(1 / 0.94, getUpgradeLevel('attackSpeed'))
+    );
+    const defenseMultiplier = (100 + getUpgradeLevel('maxHealth') * 14) / 100;
+    const speedMultiplier = 1 + getUpgradeLevel('movementSpeed') * 0.05;
+    return {
+      attack: `${attackMultiplier.toFixed(2)}x`,
+      defense: `${defenseMultiplier.toFixed(2)}x`,
+      speed: `${speedMultiplier.toFixed(2)}x`,
+    };
+  }
+
   function getDifficultyIndex(world = state.worldIndex, level = state.levelIndex, waveInLevel = state.waveInLevel) {
     return ((world - 1) * LEVELS_PER_WORLD + (level - 1)) * WAVES_PER_LEVEL + waveInLevel;
   }
@@ -856,20 +870,7 @@ export function startGameApp() {
       getSelectedMission: () => profileApi.getSelectedMission(),
       getUnlockedLevelCount: () => profileApi.getUnlockedLevelCount(),
       getSelectedCharacterName: () => getCharacterDef().name,
-      getSelectedCharacterUpgradeStats: () => {
-        const characterDef = getCharacterDef();
-        const combatProfile = getCharacterCombatProfile();
-        const weaponProfile = combatProfile.weaponProfile || {};
-        const projectileCount = Math.max(1, weaponProfile.patternProjectiles || 1);
-        const burstCount = Math.max(1, weaponProfile.burstCount || 1);
-        const attackValue = getBaseDamage() * projectileCount * burstCount / Math.max(getAttackCooldown(), 0.001);
-        return {
-          name: characterDef.name,
-          attack: `${attackValue.toFixed(1)} DPS`,
-          defense: `${Math.round(getPlayerMaxHp())} HP`,
-          speed: `${getBaseMoveSpeedMultiplier().toFixed(2)}x`,
-        };
-      },
+      getUpgradeSummaryStats,
       refreshCharacterSelection: () => characterSelection.refresh(),
       getNextMission,
     },
