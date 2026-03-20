@@ -1,4 +1,5 @@
 import { getEnemyData, isValidEnemyReference, logInvalidEnemyReference } from './enemyRuntimeUtils.js';
+import { applyWorldStatusApplication } from '../config/worlds.js';
 
 export function createCombatSystem({
   state,
@@ -200,28 +201,33 @@ export function createCombatSystem({
 
   function applyProjectileStatuses(enemy, bullet, data, impactEffects, hitPos, volleyWeight, weightBoost) {
     const statusBias = bullet.userData.statusBias || {};
+    const worldIndex = state.worldIndex;
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.fire > 0) {
       const amount = Math.min(14, data.fireDot + runPowers.stacks.fire * 0.55 * (1 + getUpgradeLevel('burnDamage') * 0.18) * Math.min(3.2, volleyWeight) * Math.max(0.75, statusBias.fire || 1));
-      data.fireDot = amount;
-      synergySystem.applyStatusMetadata(data, bullet, 'fireDot', amount);
+      const resistedAmount = applyWorldStatusApplication(worldIndex, 'fireDot', amount);
+      data.fireDot = resistedAmount;
+      synergySystem.applyStatusMetadata(data, bullet, 'fireDot', resistedAmount);
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.22, 0.35, (Math.random() - 0.5) * 0.22), vfx.EFFECT_COLORS.fire, 0.22, 0.72);
     }
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.poison > 0) {
       const amount = Math.min(16, data.poisonDot + runPowers.stacks.poison * 0.7 * (1 + getUpgradeLevel('poisonDamage') * 0.18) * Math.min(3.2, volleyWeight) * Math.max(0.75, statusBias.poison || 1));
-      data.poisonDot = amount;
-      synergySystem.applyStatusMetadata(data, bullet, 'poisonDot', amount);
+      const resistedAmount = applyWorldStatusApplication(worldIndex, 'poisonDot', amount);
+      data.poisonDot = resistedAmount;
+      synergySystem.applyStatusMetadata(data, bullet, 'poisonDot', resistedAmount);
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.14, 0.16, (Math.random() - 0.5) * 0.14), 0x7dff74, 0.28, 0.88);
     }
     if (canSpawnStatusEffects(enemy) && runPowers.stacks.ice > 0) {
       const amount = Math.max(data.iceSlowTimer, (1.2 + getUpgradeLevel('slowDuration') * 0.16 + runPowers.stacks.ice * 0.2) * Math.min(2.1, weightBoost) * Math.max(0.75, statusBias.ice || 1));
-      data.iceSlowTimer = amount;
-      synergySystem.applyStatusMetadata(data, bullet, 'iceSlowTimer', amount);
+      const resistedAmount = applyWorldStatusApplication(worldIndex, 'iceSlowTimer', amount);
+      data.iceSlowTimer = resistedAmount;
+      synergySystem.applyStatusMetadata(data, bullet, 'iceSlowTimer', resistedAmount);
       vfx.maybeSpawnImpactVfx(hitPos, temp.vec3B.set((Math.random() - 0.5) * 0.15, 0.18, (Math.random() - 0.5) * 0.15), vfx.EFFECT_COLORS.ice, 0.22, 0.72);
     }
     if (runPowers.stacks.lightning > 0) {
       const amount = Math.max(data.shockTimer, (0.18 + runPowers.stacks.lightning * 0.04) * Math.max(0.8, statusBias.lightning || 1));
-      data.shockTimer = amount;
-      synergySystem.applyStatusMetadata(data, bullet, 'shockTimer', amount);
+      const resistedAmount = applyWorldStatusApplication(worldIndex, 'shockTimer', amount);
+      data.shockTimer = resistedAmount;
+      synergySystem.applyStatusMetadata(data, bullet, 'shockTimer', resistedAmount);
     }
     markEnemyImpactVisuals(enemy, impactEffects);
   }

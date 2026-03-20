@@ -28,6 +28,7 @@ import { createProjectileSystem } from '../systems/projectileSystem.js';
 import { createSynergySystem } from '../systems/synergySystem.js';
 import { createVfxSystem } from '../systems/vfxSystem.js';
 import { registerServiceWorker } from '../pwa/register-sw.js';
+import { getWorldDefinition } from '../config/worlds.js';
 
 export function startGameApp() {
   const ui = getUI();
@@ -167,10 +168,35 @@ export function startGameApp() {
   scene.add(mapRoot, collisionDebugRoot, playerRigHolder);
   keyLight.target = playerRigHolder;
 
+  function applyWorldPresentation(worldIndex = state.worldIndex) {
+    const world = getWorldDefinition(worldIndex);
+    const atmosphere = world.environment.atmosphere;
+    scene.background = new THREE.Color(atmosphere.background);
+    scene.fog = new THREE.Fog(atmosphere.background, atmosphere.fogNear, atmosphere.fogFar);
+    renderer.toneMappingExposure = atmosphere.exposure;
+    hemi.color.setHex(atmosphere.hemisphereSky);
+    hemi.groundColor.setHex(atmosphere.hemisphereGround);
+    hemi.intensity = atmosphere.hemisphereIntensity;
+    keyLight.color.setHex(atmosphere.keyLightColor);
+    keyLight.intensity = atmosphere.keyLightIntensity;
+    fillLight.color.setHex(atmosphere.fillLightColor);
+    fillLight.intensity = atmosphere.fillLightIntensity;
+    warmBounceLight.color.setHex(atmosphere.bounceLightColor);
+    warmBounceLight.intensity = atmosphere.bounceLightIntensity;
+    arenaBase.material.color.setHex(world.environment.arena.base);
+    arenaUnderside.material.color.setHex(world.environment.arena.underside);
+    skirtRing.material.color.setHex(world.environment.arena.ring);
+    state.world.themeKey = world.key;
+    state.world.themeName = world.themeName;
+    state.world.hudBadge = world.hudBadge;
+    state.world.elementalResistance = world.elementalResistance || null;
+  }
+
   const state = createGameState(profile, {
     getPlayerMaxHp,
     getBaseMoveSpeedMultiplier,
   });
+  applyWorldPresentation(state.worldIndex);
   state.selection.characterId = currentCharacterId;
   playerRigHolder.position.set(0, state.world.playerGroundY, 0);
 
@@ -182,7 +208,7 @@ export function startGameApp() {
     SAFETY_LIMITS,
     debugRoot: collisionDebugRoot,
   });
-  createWorldMap({ THREE, gameplayConfig, mapRoot, collision });
+  createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worldIndex: state.worldIndex });
 
   const performance = createPerformanceSystem({
     THREE,
@@ -363,7 +389,8 @@ export function startGameApp() {
   }
 
   function getMissionLabel(world = state.worldIndex, level = state.levelIndex) {
-    return `W${world} · L${level}`;
+    const worldDef = getWorldDefinition(world);
+    return `W${world} ${worldDef.themeName} · L${level}`;
   }
 
   function getPauseDescription(reason = state.pauseReason) {
@@ -518,7 +545,7 @@ export function startGameApp() {
     ui.hpValue.textContent = String(roundedHp);
     ui.hpBar.style.width = `${hpPercent}%`;
     ui.shieldValue.textContent = String(roundedShield);
-    ui.missionLabel.textContent = getMissionLabel();
+    ui.missionLabel.textContent = `${getMissionLabel()} · ${state.world.hudBadge || 'Standard'}`;
     ui.creditsValue.textContent = String(profile.credits + state.runCredits);
     ui.pauseBtn.setAttribute('aria-label', state.paused ? 'Spiel ist pausiert' : 'Spiel pausieren');
     ui.pauseBtn.setAttribute('aria-pressed', state.paused ? 'true' : 'false');
@@ -707,6 +734,8 @@ export function startGameApp() {
       state.pauseReason = null;
       state.worldIndex = world;
       state.levelIndex = level;
+      applyWorldPresentation(world);
+      createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worldIndex: world });
       state.hp = getPlayerMaxHp();
       state.score = 0;
       state.waveInLevel = 1;

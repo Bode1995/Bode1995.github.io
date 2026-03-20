@@ -1,4 +1,5 @@
 import { LEVELS_PER_WORLD, STAT_DEFS, UPGRADE_DEFS, WAVES_PER_LEVEL, WORLDS_COUNT } from '../config/gameConfig.js';
+import { getWorldDefinition } from '../config/worlds.js';
 
 export function createMenuController({ ui, profile, state, helpers, actions }) {
   function setMenuScreen(screenId) {
@@ -19,17 +20,19 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.levelGrid.innerHTML = '';
     for (let world = 1; world <= WORLDS_COUNT; world++) {
       const unlockedCount = profile.progression.unlockedLevels[world] || 0;
+      const worldDef = getWorldDefinition(world);
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `world-card card-surface${profile.progression.selectedWorld === world ? ' is-selected' : ''}${unlockedCount === 0 ? ' is-locked' : ''}`;
       button.disabled = unlockedCount === 0;
       button.innerHTML = `
         <div class="card-topline"><span class="card-chip">W${world}</span><span class="card-state">${unlockedCount > 0 ? 'Online' : 'Locked'}</span></div>
-        <div class="card-label">Orbital Cluster</div>
-        <strong>World ${world}</strong>
+        <div class="card-label">${worldDef.menuLabel}</div>
+        <strong>World ${world} · ${worldDef.themeName}</strong>
         <span>${Math.max(unlockedCount, 0)} / ${LEVELS_PER_WORLD} Levels freigeschaltet</span>
       `;
       button.addEventListener('click', () => actions.selectMission(world, Math.min(profile.progression.selectedLevel, Math.max(1, unlockedCount || 1))));
+      button.title = `${worldDef.themeName} · ${worldDef.hudBadge}`;
       ui.worldGrid.appendChild(button);
     }
     const selectedWorld = profile.progression.selectedWorld;
@@ -102,8 +105,9 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     const mission = actions.getSelectedMission();
     ui.menuCredits.textContent = String(profile.credits);
     ui.menuHighestWave.textContent = String(profile.stats.highestWaveReached);
-    ui.selectedMissionLabel.textContent = `World ${mission.world} · Level ${mission.level}`;
-    ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'}`;
+    const worldDef = getWorldDefinition(mission.world);
+    ui.selectedMissionLabel.textContent = `World ${mission.world} · ${worldDef.themeName} · Level ${mission.level}`;
+    ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'} · ${worldDef.hudBadge}`;
     ui.unlockedSummary.textContent = `${actions.getUnlockedLevelCount()} / ${WORLDS_COUNT * LEVELS_PER_WORLD} Levels`;
     ui.selectedCharacterLabel.textContent = actions.getSelectedCharacterName();
   }

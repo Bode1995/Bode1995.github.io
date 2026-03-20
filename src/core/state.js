@@ -66,6 +66,10 @@ export function createGameState(profile, helpers) {
     world: {
       colliders: [],
       objects: [],
+      themeKey: 'frontier',
+      themeName: 'Frontier Outpost',
+      hudBadge: 'Standard',
+      elementalResistance: null,
       playerCollisionRadius: 0.94,
       playerGroundY: 0.2,
       audit: {

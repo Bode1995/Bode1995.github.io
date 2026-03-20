@@ -1,4 +1,5 @@
 import { POWER_STACK_THRESHOLDS, POWER_SYNERGY_DEFS } from '../config/gameConfig.js';
+import { applyWorldStatusSynergy } from '../config/worlds.js';
 import { getEnemyData } from './enemyRuntimeUtils.js';
 
 function clampPositive(value, fallback = 0) {
@@ -177,7 +178,7 @@ export function createSynergySystem({ state, runPowers, collision, performance, 
 
   function amplifyTargetStatuses(data, effectConfig, scale) {
     for (const [statusKey, delta] of Object.entries(effectConfig.statusAmplify || {})) {
-      data[statusKey] = clampPositive(data[statusKey]) + delta * scale;
+      data[statusKey] = clampPositive(data[statusKey]) + applyWorldStatusSynergy(state.worldIndex, statusKey, delta * scale);
     }
     for (const [statusKey, ratio] of Object.entries(effectConfig.consumeStatuses || {})) {
       data[statusKey] = clampPositive(data[statusKey]) * Math.max(0, 1 - ratio);
@@ -252,7 +253,7 @@ export function createSynergySystem({ state, runPowers, collision, performance, 
     if (!data) return;
     ensureEnemyReactionState(data);
     for (const [statusKey, amount] of Object.entries(transferStatus || {})) {
-      data[statusKey] = clampPositive(data[statusKey]) + amount;
+      data[statusKey] = clampPositive(data[statusKey]) + applyWorldStatusSynergy(state.worldIndex, statusKey, amount);
       data.statusSourceWeapon[statusKey] = sourceWeapon;
       data.statusIntensity[statusKey] = Math.max(data.statusIntensity[statusKey] || 0, amount);
     }
