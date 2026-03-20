@@ -123,7 +123,8 @@ export function createEnemySystem({
       : data.hitboxRadius + 0.35;
     const spawnY = enemy.position.y + data.hitboxCenterOffsetY * 0.52;
     temp.vec3C.set(state.movement.velocityX, 0, state.movement.velocityZ);
-    temp.vec3D.copy(temp.player.position)
+    const aimTarget = data.currentTargetPosition || temp.player.position;
+    temp.vec3D.copy(aimTarget)
       .addScaledVector(temp.vec3C, 0.08)
       .sub(temp.vec3B.set(enemy.position.x, spawnY, enemy.position.z));
     temp.vec3D.y = THREE.MathUtils.clamp(temp.vec3D.y, -0.16, 0.3);
@@ -330,10 +331,12 @@ export function createEnemySystem({
     const cfg = ENEMY_TYPES[type];
     const enemy = model.root;
     enemy.position.set(Math.cos(angle) * dist, cfg.role === 'boss' ? 0.7 : 0.45, Math.sin(angle) * dist);
+    const maxHp = Math.ceil((cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)) * (1 + state.worldIndex * 0.04 + state.levelIndex * 0.03) * (worldMods.healthMultiplier || 1));
     enemy.userData = {
       type,
       role: cfg.role,
-      hp: Math.ceil((cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)) * (1 + state.worldIndex * 0.04 + state.levelIndex * 0.03) * (worldMods.healthMultiplier || 1)),
+      hp: maxHp,
+      maxHp,
       speed:
         (cfg.speed * gameplayConfig.enemies.baseSpeedMultiplier[type] +
           waveScale * (cfg.role === 'boss' ? gameplayConfig.enemies.waveSpeedScale.boss : gameplayConfig.enemies.waveSpeedScale.field)) *
@@ -377,6 +380,12 @@ export function createEnemySystem({
       worldTheme: worldDef.key,
       worldModifiers: worldMods,
       elementalResistance: worldDef.elementalResistance || null,
+      specialStates: {},
+      interruptTimer: 0,
+      externalImpulseX: 0,
+      externalImpulseZ: 0,
+      targetDecoyId: null,
+      currentTargetPosition: null,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
@@ -431,12 +440,14 @@ export function createEnemySystem({
       }
       if (data.dead) continue;
 
-      temp.vec3A.set(temp.player.position.x - enemy.position.x, 0, temp.player.position.z - enemy.position.z);
+      const targetPosition = data.currentTargetPosition || temp.player.position;
+      temp.vec3A.set(targetPosition.x - enemy.position.x, 0, targetPosition.z - enemy.position.z);
       const dist = Math.max(0.0001, temp.vec3A.length());
       temp.vec3A.multiplyScalar(1 / dist);
       temp.vec3B.set(-temp.vec3A.z, 0, temp.vec3A.x);
       temp.vec3C.copy(temp.vec3A);
       let moveSpeedEnemy = data.speed;
+      data.interruptTimer = Math.max(0, (data.interruptTimer || 0) - dt);
 
       if (data.iceSlowTimer > 0) {
         data.iceSlowTimer = Math.max(0, data.iceSlowTimer - dt);
@@ -494,7 +505,7 @@ export function createEnemySystem({
 
       moveSpeedEnemy *= data.worldModifiers?.aggression || 1;
 
-      if (data.type === 'shooter') {
+      if (data.type === 'shooter' && data.interruptTimer <= 0) {
         if (dist < data.keepDistance) {
           temp.vec3C.copy(temp.vec3A).multiplyScalar(-0.65).addScaledVector(temp.vec3B, Math.sin(elapsed + i) * 0.7).normalize();
         } else if (dist < data.range) {
@@ -507,13 +518,20 @@ export function createEnemySystem({
         }
       }
 
-      if (data.chargeCooldown > 0) {
+      if (data.chargeCooldown > 0 && data.interruptTimer <= 0) {
         data.chargeTimer -= dt;
         if (data.chargeTimer <= -data.chargeCooldown) data.chargeTimer = data.chargeDuration;
         if (data.chargeTimer > 0) moveSpeedEnemy = data.chargeSpeed;
       }
 
       enemy.position.addScaledVector(temp.vec3C, moveSpeedEnemy * dt);
+      if (Math.abs(data.externalImpulseX || 0) > 0.001 || Math.abs(data.externalImpulseZ || 0) > 0.001) {
+        enemy.position.x += data.externalImpulseX * dt;
+        enemy.position.z += data.externalImpulseZ * dt;
+        const damping = Math.exp(-6.5 * dt);
+        data.externalImpulseX *= damping;
+        data.externalImpulseZ *= damping;
+      }
       collision.resolveWorldCollision(enemy.position, data.radius * 0.88);
       const enemyHalfArena = gameplayConfig.arena.size * 0.5 - gameplayConfig.arena.padding - 1.9;
       enemy.position.x = THREE.MathUtils.clamp(enemy.position.x, -enemyHalfArena, enemyHalfArena);
@@ -531,7 +549,7 @@ export function createEnemySystem({
         enemy.position.x = THREE.MathUtils.clamp(enemy.position.x, -enemyHalfArena, enemyHalfArena);
         enemy.position.z = THREE.MathUtils.clamp(enemy.position.z, -enemyHalfArena, enemyHalfArena);
       }
-      enemy.lookAt(temp.player.position.x, enemy.position.y, temp.player.position.z);
+      enemy.lookAt(targetPosition.x, enemy.position.y, targetPosition.z);
 
       const step = elapsed * (2.8 + moveSpeedEnemy * 0.9) + data.spawnTick;
       const bobAmp = data.type.includes('boss') ? 0.12 : data.type === 'swarm' ? 0.06 : 0.08;
