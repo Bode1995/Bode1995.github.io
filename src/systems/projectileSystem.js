@@ -14,6 +14,7 @@ export function createProjectileSystem({
   getCharacterCombatProfile,
   getProjectileEffects,
   getWeaponSynergyProfile,
+  resolveSpecialHitDamage = null,
   sceneResources,
 }) {
   const bulletAssets = {
@@ -374,7 +375,10 @@ export function createProjectileSystem({
       });
       if (!hitEnemy) continue;
       state.performance.frameBudgets.hitResolutions += 1;
-      callbacks.damageEnemy(hitEnemy, bullet.userData.damage, { impactEffects: bullet.userData.effects || getProjectileEffects() });
+      const specialDamage = resolveSpecialHitDamage
+        ? resolveSpecialHitDamage(hitEnemy, bullet, bullet.userData.damage)
+        : { amount: bullet.userData.damage };
+      callbacks.damageEnemy(hitEnemy, specialDamage.amount, { impactEffects: specialDamage.impactEffects || bullet.userData.effects || getProjectileEffects() });
       callbacks.applyProjectilePower(hitEnemy, bullet);
       bullet.userData.hitEnemies?.add(hitEnemy);
       if ((bullet.userData.pierceRemaining || 0) > 0) {
