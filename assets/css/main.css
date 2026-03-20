@@ -558,9 +558,11 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   left: max(10px, env(safe-area-inset-left));
   right: max(10px, env(safe-area-inset-right));
   display: grid;
-  grid-template-columns: minmax(0, max-content) minmax(180px, 320px) minmax(0, max-content);
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content);
+  grid-template-areas:
+    'mission enemies actions'
+    '. health .';
   align-items: start;
-  justify-content: space-between;
   gap: 10px;
 }
 
@@ -568,8 +570,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 .hud-health,
 .hud-badge,
 .hud-pause-btn,
-.power-badge,
-.pickup-line {
+.power-badge {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(10, 14, 25, 0.62);
@@ -595,8 +596,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 .hud-chip__icon,
 .hud-stat-pill__icon,
 .hud-badge__icon,
-.power-badge__icon,
-.pickup-line__icon {
+.power-badge__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -643,9 +643,26 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 }
 
 .hud-health {
+  grid-area: health;
   justify-self: center;
   width: min(42vw, 320px);
   padding: 8px 12px;
+}
+
+.hud-chip--mission {
+  grid-area: mission;
+  justify-self: start;
+}
+
+.hud-chip--enemies {
+  grid-area: enemies;
+  justify-self: center;
+  align-self: start;
+  min-width: 108px;
+}
+
+.hud-chip--enemies .hud-chip__icon {
+  color: var(--gold);
 }
 
 .hud-health__stats {
@@ -697,10 +714,12 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 }
 
 .hud-actions {
+  grid-area: actions;
   display: inline-flex;
   align-items: flex-start;
   justify-content: flex-end;
   flex-wrap: wrap;
+  justify-self: end;
   gap: 6px;
   max-width: min(40vw, 360px);
 }
@@ -746,20 +765,15 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   max-width: 100%;
 }
 
-.power-badge,
-.pickup-line {
+.power-badge {
   display: inline-flex;
   align-items: center;
-}
-
-.power-badge {
   position: relative;
   min-width: 0;
   padding: 5px;
 }
 
-.power-badge__icon,
-.pickup-line__icon {
+.power-badge__icon {
   width: 22px;
   height: 22px;
   border-radius: 7px;
@@ -785,8 +799,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 }
 
 .power-badge__meta,
-.power-badge__name,
-.pickup-line__count {
+.power-badge__name {
   display: none;
 }
 
@@ -802,37 +815,9 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 0 18px rgba(255, 220, 115, 0.24);
 }
 
-.pickup-feed {
-  position: absolute;
-  top: calc(max(10px, env(safe-area-inset-top)) + 46px);
-  right: max(10px, env(safe-area-inset-right));
-  display: grid;
-  gap: 5px;
-  width: min(180px, 42vw);
-}
 
-.pickup-line {
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  justify-content: flex-start;
-  background: rgba(10, 14, 25, 0.46);
-}
 
-.pickup-line__meta {
-  display: block;
-  min-width: 0;
-}
 
-.pickup-line__name {
-  display: block;
-  overflow: hidden;
-  color: var(--text);
-  font-size: 11px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .pause-panel {
   width: min(420px, 92vw);
@@ -852,7 +837,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 
 @media (max-width: 960px) {
   .hud-header {
-    grid-template-columns: minmax(0, max-content) minmax(160px, 280px) minmax(0, max-content);
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content);
     gap: 8px;
   }
 
@@ -860,9 +845,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
     max-width: min(44vw, 300px);
   }
 
-  .pickup-feed {
-    width: min(156px, 38vw);
-  }
 }
 
 @media (max-width: 720px) {
@@ -886,22 +868,18 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       'mission actions'
+      'enemies enemies'
       'health health';
     align-items: start;
   }
 
-  .hud-chip--mission { grid-area: mission; justify-self: start; }
-  .hud-health { grid-area: health; width: min(78vw, 300px); }
+  .hud-chip--mission { justify-self: start; }
+  .hud-chip--enemies { justify-self: center; }
+  .hud-health { width: min(78vw, 300px); }
   .hud-actions {
-    grid-area: actions;
-    justify-self: end;
     max-width: min(48vw, 220px);
   }
 
-  .pickup-feed {
-    top: calc(max(10px, env(safe-area-inset-top)) + 92px);
-    width: min(150px, 40vw);
-  }
 }
 
 @media (max-width: 560px) {
@@ -966,20 +944,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
     max-width: min(46vw, 174px);
   }
 
-  .pickup-feed {
-    top: calc(max(6px, env(safe-area-inset-top)) + 82px);
-    right: max(6px, env(safe-area-inset-right));
-    width: min(132px, 38vw);
-    gap: 4px;
-  }
-
-  .pickup-line {
-    padding: 5px 7px;
-  }
-
-  .pickup-line__name {
-    font-size: 10px;
-  }
 }
 
 .controls {

@@ -382,6 +382,9 @@ export const gameplayConfig = {
     spawnMinDistance: 24,
     spawnMaxDistance: 46,
   },
+  pickups: {
+    collisionRadius: 0.62,
+  },
   enemies: {
     waveSpeedScale: {
       field: 0.06,

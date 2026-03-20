@@ -42,6 +42,14 @@ export function createEnemySystem({
     bossAgile: { shell: 0x35f3d1, dark: 0x112437, main: 0x3f3f74, glow: 0xc6b7ff },
   };
 
+  function syncActiveEnemyCount() {
+    state.activeEnemyCount = state.entities.enemies.reduce((count, enemy) => {
+      const data = getEnemyData(enemy);
+      return data && !data.dead ? count + 1 : count;
+    }, 0);
+    return state.activeEnemyCount;
+  }
+
   function createMaterials(type) {
     const style = enemyStyle[type] || enemyStyle.runner;
     return {
@@ -326,6 +334,7 @@ export function createEnemySystem({
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
+    syncActiveEnemyCount();
     return enemy;
   }
 
@@ -343,6 +352,7 @@ export function createEnemySystem({
       ? index
       : state.entities.enemies.indexOf(enemy);
     if (resolvedIndex >= 0) state.entities.enemies.splice(resolvedIndex, 1);
+    syncActiveEnemyCount();
     if (data.type === 'splitter') {
       for (let i = 0; i < data.splitCount; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -362,7 +372,7 @@ export function createEnemySystem({
     state.performance.activeEnemyEffects = 0;
     const dotBudget = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDotTicksPerFrame, 0.62, 0.38);
     updateEnemyProjectiles(dt);
-    removeInvalidEnemiesFromList(state.entities.enemies, state, 'enemy.update.prepass');
+    if (removeInvalidEnemiesFromList(state.entities.enemies, state, 'enemy.update.prepass') > 0) syncActiveEnemyCount();
 
     for (let i = state.entities.enemies.length - 1; i >= 0; i--) {
       const enemy = state.entities.enemies[i];
@@ -370,6 +380,7 @@ export function createEnemySystem({
       if (!data) {
         logInvalidEnemyReference(state, 'enemy.update.loop', enemy);
         state.entities.enemies.splice(i, 1);
+        syncActiveEnemyCount();
         continue;
       }
       if (data.dead) continue;
@@ -484,6 +495,7 @@ export function createEnemySystem({
       if (enemy) scene.remove(enemy);
     });
     state.entities.enemies.length = 0;
+    state.activeEnemyCount = 0;
   }
 
   return {
