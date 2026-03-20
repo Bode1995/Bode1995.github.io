@@ -33,6 +33,12 @@
         </div>
       </article>
 
+      <article class="hud-badge hud-badge--enemy-count" aria-label="Aktive Gegner">
+        <span class="hud-badge__icon">⚔</span>
+        <span class="hud-badge__label">Enemies</span>
+        <strong class="hud-badge__value" id="enemyCountValue">0</strong>
+      </article>
+
       <div class="hud-actions" aria-label="Run Status und Pause">
         <button class="hud-pause-btn" id="pauseBtn" type="button" aria-label="Spiel pausieren">❚❚</button>
         <article class="hud-badge hud-badge--score">
@@ -46,8 +52,7 @@
         <div class="power-stack" id="activePowers" aria-label="Aktive Power-ups"></div>
       </div>
     </div>
-
-    <div class="pickup-feed" id="pickupFeed" aria-label="Pickup Feed"></div>
+    <canvas class="enemy-overlay" id="enemyOverlay" aria-hidden="true"></canvas>
   </div>
 
   <div class="controls hidden" id="controls">
@@ -134,8 +139,8 @@
           <div class="section-head">
             <div>
               <div class="card-label">Persistent Arsenal</div>
-              <h2>Upgrades</h2>
-              <p>Persistente Verbesserungen für Basiswerte und Power-up-Effekte. Jeder Kauf kostet Credits und stapelt sich.</p>
+              <h2>Skill Tree</h2>
+              <p>Kompakter Fähigkeitenbaum für Basiswerte, Power-Effekte und globale Ausbau-Limits. Nodes zeigen Level, Kosten und Freigaben direkt im Baum.</p>
             </div>
             <div class="summary-pill summary-pill--bank"><span>Bank</span><strong id="upgradeCredits">0</strong></div>
           </div>

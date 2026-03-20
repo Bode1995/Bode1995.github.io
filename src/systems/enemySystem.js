@@ -88,6 +88,8 @@ export function createEnemySystem({
     projectile.position.set(enemy.position.x, spawnY, enemy.position.z)
       .addScaledVector(temp.vec3D, muzzleOffset);
     projectile.scale.setScalar(1);
+    projectile.castShadow = true;
+    projectile.receiveShadow = true;
     scene.add(projectile);
     state.entities.enemyProjectiles.push({
       mesh: projectile,
@@ -278,12 +280,14 @@ export function createEnemySystem({
   function spawnEnemy(type, angle, dist, waveScale) {
     const model = createEnemyModel(type);
     const cfg = ENEMY_TYPES[type];
+    const maxHp = Math.ceil((cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)) * (1 + state.worldIndex * 0.04 + state.levelIndex * 0.03));
     const enemy = model.root;
     enemy.position.set(Math.cos(angle) * dist, cfg.role === 'boss' ? 0.7 : 0.45, Math.sin(angle) * dist);
     enemy.userData = {
       type,
       role: cfg.role,
-      hp: Math.ceil((cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)) * (1 + state.worldIndex * 0.04 + state.levelIndex * 0.03)),
+      hp: maxHp,
+      maxHp,
       speed:
         (cfg.speed * gameplayConfig.enemies.baseSpeedMultiplier[type] +
           waveScale * (cfg.role === 'boss' ? gameplayConfig.enemies.waveSpeedScale.boss : gameplayConfig.enemies.waveSpeedScale.field)) *

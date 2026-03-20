@@ -60,8 +60,8 @@ export function createGameState(profile, helpers) {
     },
     ui: {
       activeMenuScreen: 'home',
-      pickupNotices: [],
       synergyFlash: null,
+      selectedUpgradeId: 'baseDamage',
     },
     world: {
       colliders: [],
