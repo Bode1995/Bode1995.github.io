@@ -1,15 +1,15 @@
 import { getEnemyData, isValidEnemyReference } from './enemyRuntimeUtils.js';
 
-function createAbilityMaterial(THREE, color, opacity = 0.72) {
+function cloneHologramMaterial(THREE, material, color) {
   return new THREE.MeshStandardMaterial({
     color,
     emissive: color,
-    emissiveIntensity: 0.85,
-    transparent: opacity < 1,
-    opacity,
-    roughness: 0.22,
-    metalness: 0.18,
-    depthWrite: opacity >= 1,
+    emissiveIntensity: 1.1,
+    transparent: true,
+    opacity: 0.38,
+    roughness: 0.18,
+    metalness: 0.08,
+    depthWrite: false,
   });
 }
 
@@ -21,12 +21,12 @@ export function createSpecialAbilitySystem({
   vfx,
   temp,
   playerRigHolder,
-  getAbilityDefinition,
-  getAbilityConfig,
+  createCharacterRig,
+  getCharacterDef,
   getCharacterCombatProfile,
 }) {
   const runtime = {
-    abilityDef: null,
+    characterDef: null,
     config: null,
     cooldownRemaining: 0,
     activeRemaining: 0,
@@ -37,25 +37,24 @@ export function createSpecialAbilitySystem({
     orbitGroup: null,
     orbiters: [],
     orbitHitLocks: new WeakMap(),
-    executionAura: null,
+    rogueAura: null,
     callbacks: {
       damageEnemy: null,
     },
   };
 
   function syncStateStatus() {
-    const def = runtime.abilityDef;
     const config = runtime.config;
     const hud = state.specialAbility;
-    hud.id = def?.id || null;
-    hud.label = def?.label || '';
-    hud.shortLabel = def?.shortLabel || '';
-    hud.icon = def?.icon || '';
-    hud.color = def?.hudColor || 0xffffff;
+    hud.characterId = runtime.characterDef?.id || null;
+    hud.id = config?.id || null;
+    hud.label = config?.label || '';
+    hud.shortLabel = config?.shortLabel || '';
+    hud.color = config?.hudColor || 0xffffff;
     hud.cooldownRemaining = Math.max(0, runtime.cooldownRemaining);
     hud.activeRemaining = Math.max(0, runtime.activeRemaining);
     hud.isActive = runtime.activeRemaining > 0;
-    if (!config || !def) hud.statusText = 'Keine Fähigkeit';
+    if (!config) hud.statusText = 'Keine Fähigkeit';
     else if (runtime.activeRemaining > 0) hud.statusText = `Aktiv ${runtime.activeRemaining.toFixed(1)}s`;
     else if (runtime.cooldownRemaining > 0) hud.statusText = `CD ${runtime.cooldownRemaining.toFixed(1)}s`;
     else hud.statusText = 'Bereit';
@@ -67,7 +66,6 @@ export function createSpecialAbilitySystem({
     mesh.traverse?.((child) => {
       if (Array.isArray(child.material)) child.material.forEach((material) => material?.dispose?.());
       else child.material?.dispose?.();
-      child.geometry?.dispose?.();
     });
   }
 
@@ -75,24 +73,30 @@ export function createSpecialAbilitySystem({
     const enemy = runtime.mark.enemy;
     if (enemy) {
       const data = getEnemyData(enemy);
-      if (data?.specialStates?.focusMark?.sourceAbilityId === runtime.abilityDef?.id) data.specialStates.focusMark = null;
+      if (data?.specialStates?.focusMark?.sourceCharacterId === runtime.characterDef?.id) data.specialStates.focusMark = null;
     }
     runtime.mark.enemy = null;
     if (runtime.mark.mesh) {
-      removeMesh(runtime.mark.mesh);
+      scene.remove(runtime.mark.mesh);
+      runtime.mark.mesh.geometry?.dispose?.();
+      runtime.mark.mesh.material?.dispose?.();
       runtime.mark.mesh = null;
     }
-    if (runtime.abilityDef?.id === 'focus_mark') runtime.activeRemaining = 0;
+    if (runtime.config?.id === 'focus_mark') runtime.activeRemaining = 0;
   }
 
   function ensureMarkMesh() {
     if (runtime.mark.mesh) return runtime.mark.mesh;
     const mesh = new THREE.Group();
-    const primary = runtime.abilityDef?.visualStyle?.primary || 0x69f0ff;
-    const secondary = runtime.abilityDef?.visualStyle?.secondary || 0xd9fdff;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.06, 8, 28), new THREE.MeshBasicMaterial({ color: primary, transparent: true, opacity: 0.82, depthWrite: false }));
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(1.05, 0.06, 8, 28),
+      new THREE.MeshBasicMaterial({ color: 0x69f0ff, transparent: true, opacity: 0.82, depthWrite: false }),
+    );
     ring.rotation.x = Math.PI / 2;
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.52, 3), new THREE.MeshBasicMaterial({ color: secondary, transparent: true, opacity: 0.94, depthWrite: false }));
+    const crown = new THREE.Mesh(
+      new THREE.ConeGeometry(0.24, 0.52, 3),
+      new THREE.MeshBasicMaterial({ color: 0xd9fdff, transparent: true, opacity: 0.92, depthWrite: false }),
+    );
     crown.position.y = 0.62;
     crown.rotation.x = Math.PI;
     mesh.add(ring, crown);
@@ -107,16 +111,18 @@ export function createSpecialAbilitySystem({
   }
 
   function clearOrbiters() {
-    if (runtime.orbitGroup) removeMesh(runtime.orbitGroup);
-    runtime.orbitGroup = null;
+    if (runtime.orbitGroup) {
+      removeMesh(runtime.orbitGroup);
+      runtime.orbitGroup = null;
+    }
     runtime.orbiters.length = 0;
     runtime.orbitHitLocks = new WeakMap();
   }
 
-  function clearExecutionAura() {
-    if (!runtime.executionAura) return;
-    removeMesh(runtime.executionAura);
-    runtime.executionAura = null;
+  function clearRogueAura() {
+    if (!runtime.rogueAura) return;
+    removeMesh(runtime.rogueAura);
+    runtime.rogueAura = null;
   }
 
   function clearWaveMesh() {
@@ -129,7 +135,7 @@ export function createSpecialAbilitySystem({
     clearMarkedTarget();
     clearDecoys();
     clearOrbiters();
-    clearExecutionAura();
+    clearRogueAura();
     clearWaveMesh();
   }
 
@@ -141,32 +147,32 @@ export function createSpecialAbilitySystem({
     syncStateStatus();
   }
 
-  function setAbility(abilityId) {
-    runtime.abilityDef = getAbilityDefinition(abilityId);
-    runtime.config = runtime.abilityDef ? getAbilityConfig(runtime.abilityDef.id) : null;
-    state.selection.specialAbilityId = runtime.abilityDef?.id || null;
+  function setCharacter(characterId) {
+    runtime.characterDef = getCharacterDef(characterId);
+    runtime.config = runtime.characterDef?.specialAbility || null;
     resetRuntime();
   }
 
   function clear() {
     resetRuntime();
-    runtime.abilityDef = null;
+    runtime.characterDef = null;
     runtime.config = null;
-    state.selection.specialAbilityId = null;
     syncStateStatus();
   }
 
   function captureTrailPoint(dt) {
     const last = runtime.trail[runtime.trail.length - 1];
-    if (!last || last.age >= 0.08) runtime.trail.push({ position: playerRigHolder.position.clone(), age: 0 });
-    for (let i = runtime.trail.length - 1; i >= 0; i -= 1) {
+    if (!last || last.age >= 0.08) {
+      runtime.trail.push({ position: playerRigHolder.position.clone(), age: 0 });
+    }
+    for (let i = runtime.trail.length - 1; i >= 0; i--) {
       runtime.trail[i].age += dt;
       if (runtime.trail[i].age > 1.4) runtime.trail.splice(i, 1);
     }
   }
 
   function getTrailPosition(delay) {
-    for (let i = runtime.trail.length - 1; i >= 0; i -= 1) {
+    for (let i = runtime.trail.length - 1; i >= 0; i--) {
       if (runtime.trail[i].age >= delay) return runtime.trail[i].position;
     }
     return null;
@@ -217,79 +223,73 @@ export function createSpecialAbilitySystem({
     const data = getEnemyData(enemy);
     data.specialStates = data.specialStates || {};
     data.specialStates.focusMark = {
-      sourceAbilityId: runtime.abilityDef.id,
+      sourceCharacterId: runtime.characterDef.id,
       remaining: config.duration,
       damageMultiplier: config.damageMultiplier,
     };
     runtime.mark.enemy = enemy;
     ensureMarkMesh();
     temp.vec3B.copy(enemy.position).setY(enemy.position.y + data.hitboxCenterOffsetY + data.hitboxHalfHeight + 0.45);
-    vfx.spawnImpactBurst(temp.vec3B, runtime.abilityDef.visualStyle.primary, 8, 2.6, 0.36, 0.9, 'shard');
+    vfx.spawnImpactBurst(temp.vec3B, config.hudColor, 8, 2.6, 0.36, 0.9, 'shard');
     runtime.activeRemaining = config.duration;
     return true;
   }
 
-  function createDecoyMesh(index = 0, total = 1) {
-    const style = runtime.abilityDef?.visualStyle || {};
-    const group = new THREE.Group();
-    const shell = new THREE.Mesh(new THREE.OctahedronGeometry(0.64, 0), createAbilityMaterial(THREE, style.primary || 0x72f2cf, 0.34));
-    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 0), createAbilityMaterial(THREE, style.secondary || 0xcffdf3, 0.88));
-    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.82, 0.05, 8, 24), new THREE.MeshBasicMaterial({ color: style.aura || 0x8ffff3, transparent: true, opacity: 0.7, depthWrite: false }));
-    halo.rotation.x = Math.PI / 2;
-    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 8), createAbilityMaterial(THREE, style.secondary || 0xcffdf3, 0.78));
-    antenna.position.y = 0.58;
-    const beacon = new THREE.Mesh(new THREE.RingGeometry(0.52, 0.84, 24), new THREE.MeshBasicMaterial({ color: style.primary || 0x72f2cf, transparent: true, opacity: 0.58, side: THREE.DoubleSide, depthWrite: false }));
+  function createDecoyMesh() {
+    const rig = createCharacterRig(runtime.characterDef);
+    rig.root.traverse((child) => {
+      if (!child.isMesh) return;
+      child.material = cloneHologramMaterial(THREE, child.material, 0x8df07c);
+      child.renderOrder = 14;
+    });
+    const beacon = new THREE.Mesh(
+      new THREE.RingGeometry(0.55, 0.88, 18),
+      new THREE.MeshBasicMaterial({ color: 0xbffff4, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false }),
+    );
     beacon.rotation.x = -Math.PI / 2;
-    beacon.position.y = 0.12;
-    group.add(shell, core, halo, antenna, beacon);
-    group.userData.spinOffset = total > 1 ? ((Math.PI * 2) / total) * index : 0;
-    return group;
+    beacon.position.y = 0.14;
+    rig.root.add(beacon);
+    return rig.root;
   }
 
   function triggerHoloDecoy() {
     const config = runtime.config;
     const source = getTrailPosition(config.spawnTrailDelay) || playerRigHolder.position;
     clearDecoys();
-    for (let index = 0; index < config.decoyCount; index += 1) {
-      const mesh = createDecoyMesh(index, config.decoyCount);
-      const angle = config.decoyCount > 1 ? (Math.PI * 2 * index) / config.decoyCount : 0;
-      mesh.position.copy(source);
-      mesh.position.x += Math.cos(angle) * (config.decoyCount > 1 ? 1.15 : 0);
-      mesh.position.z += Math.sin(angle) * (config.decoyCount > 1 ? 1.15 : 0);
-      mesh.position.y = state.world.playerGroundY + 0.15;
-      scene.add(mesh);
-      runtime.decoys.push({
-        id: `decoy_${Date.now()}_${index}_${Math.random().toString(16).slice(2, 6)}`,
-        mesh,
-        life: config.duration,
-        maxLife: config.duration,
-        influenceRadius: config.influenceRadius,
-        lockDuration: config.lockDuration,
-        pulse: Math.random() * Math.PI * 2,
-        baseY: mesh.position.y,
-      });
-    }
-    vfx.spawnImpactBurst(source.clone().setY(state.world.playerGroundY + 1.05), runtime.abilityDef.visualStyle.primary, 10, 2.2, 0.42, 0.78);
+    const mesh = createDecoyMesh();
+    mesh.position.copy(source);
+    mesh.position.y = state.world.playerGroundY;
+    scene.add(mesh);
+    runtime.decoys.push({
+      id: `decoy_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
+      mesh,
+      life: config.duration,
+      maxLife: config.duration,
+      influenceRadius: config.influenceRadius,
+      lockDuration: config.lockDuration,
+      pulse: Math.random() * Math.PI * 2,
+      baseY: mesh.position.y,
+    });
+    vfx.spawnImpactBurst(mesh.position.clone().setY(mesh.position.y + 1.05), config.hudColor, 10, 2.2, 0.42, 0.78);
     runtime.activeRemaining = config.duration;
     return true;
   }
 
   function triggerShieldRam() {
     const config = runtime.config;
-    const style = runtime.abilityDef.visualStyle || {};
     const forward = temp.vec3A.set(Math.sin(state.yaw), 0, Math.cos(state.yaw)).normalize();
     const playerPos = playerRigHolder.position;
     const wave = new THREE.Mesh(
       new THREE.CylinderGeometry(0.7, 2.2, 0.14, 24, 1, true),
-      new THREE.MeshBasicMaterial({ color: style.primary || config.hudColor, transparent: true, opacity: 0.44, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: config.hudColor, transparent: true, opacity: 0.44, side: THREE.DoubleSide, depthWrite: false }),
     );
     wave.position.copy(playerPos).addScaledVector(forward, config.range * 0.48).setY(state.world.playerGroundY + 1.05);
     wave.rotation.z = Math.PI / 2;
     wave.rotation.y = state.yaw;
     wave.userData.life = config.duration;
+    scene.add(wave);
     clearWaveMesh();
     runtime.waveMesh = wave;
-    scene.add(wave);
 
     const rangeSq = config.range * config.range;
     for (const enemy of state.entities.enemies) {
@@ -314,7 +314,7 @@ export function createSpecialAbilitySystem({
       });
     }
     temp.vec3C.copy(playerPos).addScaledVector(forward, 2.6).setY(state.world.playerGroundY + 1.1);
-    vfx.spawnImpactBurst(temp.vec3C, style.secondary || 0xffd1a2, 14, 5.1, 0.5, 1.18, 'shard');
+    vfx.spawnImpactBurst(temp.vec3C, 0xffd1a2, 14, 5.1, 0.5, 1.18, 'shard');
     runtime.activeRemaining = config.duration;
     return true;
   }
@@ -322,15 +322,20 @@ export function createSpecialAbilitySystem({
   function ensureOrbiters() {
     if (runtime.orbitGroup) return;
     const config = runtime.config;
-    const style = runtime.abilityDef.visualStyle || {};
     const group = new THREE.Group();
     scene.add(group);
     runtime.orbitGroup = group;
     runtime.orbiters = [];
-    for (let i = 0; i < config.orbCount; i += 1) {
+    for (let i = 0; i < config.orbCount; i++) {
       const orb = new THREE.Group();
-      const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 0), createAbilityMaterial(THREE, style.primary || runtime.abilityDef.hudColor, 0.92));
-      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.05, 8, 18), new THREE.MeshBasicMaterial({ color: style.secondary || 0xf6ebff, transparent: true, opacity: 0.72, depthWrite: false }));
+      const core = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.28, 0),
+        new THREE.MeshStandardMaterial({ color: config.hudColor, emissive: config.hudColor, emissiveIntensity: 0.9, roughness: 0.2, metalness: 0.34 }),
+      );
+      const halo = new THREE.Mesh(
+        new THREE.TorusGeometry(0.46, 0.05, 8, 18),
+        new THREE.MeshBasicMaterial({ color: 0xf6ebff, transparent: true, opacity: 0.72, depthWrite: false }),
+      );
       halo.rotation.x = Math.PI / 2;
       orb.add(core, halo);
       group.add(orb);
@@ -341,39 +346,50 @@ export function createSpecialAbilitySystem({
   function triggerGuardianOrbit() {
     ensureOrbiters();
     runtime.activeRemaining = runtime.config.duration;
-    vfx.spawnImpactBurst(playerRigHolder.position.clone().setY(state.world.playerGroundY + 1.2), runtime.abilityDef.visualStyle.primary, 12, 2.8, 0.48, 0.98);
+    vfx.spawnImpactBurst(playerRigHolder.position.clone().setY(state.world.playerGroundY + 1.2), runtime.config.hudColor, 12, 2.8, 0.48, 0.98);
     return true;
   }
 
-  function ensureExecutionAura() {
-    if (runtime.executionAura) return;
-    const style = runtime.abilityDef.visualStyle || {};
+  function ensureRogueAura() {
+    if (runtime.rogueAura) return;
     const aura = new THREE.Group();
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.98, 0.08, 8, 28), new THREE.MeshBasicMaterial({ color: style.primary || runtime.abilityDef.hudColor, transparent: true, opacity: 0.86, depthWrite: false }));
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.98, 0.08, 8, 28),
+      new THREE.MeshBasicMaterial({ color: runtime.config.hudColor, transparent: true, opacity: 0.86, depthWrite: false }),
+    );
     ring.rotation.x = Math.PI / 2;
-    const spikes = new THREE.Mesh(new THREE.RingGeometry(1.18, 1.52, 18), new THREE.MeshBasicMaterial({ color: style.secondary || 0xffdbe9, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+    const spikes = new THREE.Mesh(
+      new THREE.RingGeometry(1.18, 1.52, 18),
+      new THREE.MeshBasicMaterial({ color: 0xffdbe9, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
+    );
     spikes.rotation.x = -Math.PI / 2;
     aura.add(ring, spikes);
     scene.add(aura);
-    runtime.executionAura = aura;
+    runtime.rogueAura = aura;
   }
 
   function triggerExecutionMode() {
-    ensureExecutionAura();
+    ensureRogueAura();
     runtime.activeRemaining = runtime.config.duration;
-    vfx.spawnImpactBurst(playerRigHolder.position.clone().setY(state.world.playerGroundY + 1.15), runtime.abilityDef.visualStyle.primary, 10, 2.5, 0.42, 0.82);
+    vfx.spawnImpactBurst(playerRigHolder.position.clone().setY(state.world.playerGroundY + 1.15), runtime.config.hudColor, 10, 2.5, 0.42, 0.82);
     return true;
   }
 
   function triggerAbility() {
-    if (!runtime.config || !runtime.abilityDef) return false;
-    switch (runtime.abilityDef.id) {
-      case 'focus_mark': return triggerFocusMark();
-      case 'holo_decoy': return triggerHoloDecoy();
-      case 'shield_ram': return triggerShieldRam();
-      case 'guardian_orbit': return triggerGuardianOrbit();
-      case 'execution_mode': return triggerExecutionMode();
-      default: return false;
+    if (!runtime.config || !runtime.characterDef) return false;
+    switch (runtime.config.id) {
+      case 'focus_mark':
+        return triggerFocusMark();
+      case 'holo_decoy':
+        return triggerHoloDecoy();
+      case 'shield_ram':
+        return triggerShieldRam();
+      case 'guardian_orbit':
+        return triggerGuardianOrbit();
+      case 'execution_mode':
+        return triggerExecutionMode();
+      default:
+        return false;
     }
   }
 
@@ -394,13 +410,17 @@ export function createSpecialAbilitySystem({
       return;
     }
     const mesh = ensureMarkMesh();
-    mesh.position.set(enemy.position.x, enemy.position.y + data.hitboxCenterOffsetY + data.hitboxHalfHeight + 0.42 + Math.sin(elapsed * 5.5) * 0.08, enemy.position.z);
+    mesh.position.set(
+      enemy.position.x,
+      enemy.position.y + data.hitboxCenterOffsetY + data.hitboxHalfHeight + 0.42 + Math.sin(elapsed * 5.5) * 0.08,
+      enemy.position.z,
+    );
     mesh.rotation.y += dt * 2;
     mesh.children[0].scale.setScalar(0.96 + Math.sin(elapsed * 8.2) * 0.08);
   }
 
   function updateDecoys(dt, elapsed) {
-    for (let i = runtime.decoys.length - 1; i >= 0; i -= 1) {
+    for (let i = runtime.decoys.length - 1; i >= 0; i--) {
       const decoy = runtime.decoys[i];
       decoy.life -= dt;
       if (decoy.life <= 0) {
@@ -412,9 +432,9 @@ export function createSpecialAbilitySystem({
       const alpha = THREE.MathUtils.clamp(decoy.life / decoy.maxLife, 0, 1);
       decoy.mesh.position.y = decoy.baseY + Math.sin(decoy.pulse) * 0.08;
       decoy.mesh.rotation.y += dt * 0.9;
-      decoy.mesh.children.forEach((child, index) => {
-        if (!child.material) return;
-        if ('opacity' in child.material) child.material.opacity = Math.max(0.12, alpha * (index === 1 ? 0.88 : 0.42) + 0.08 * Math.sin(elapsed * 7.5));
+      decoy.mesh.traverse((child) => {
+        if (!child.isMesh || !child.material) return;
+        child.material.opacity = Math.max(0.1, alpha * 0.42 + 0.08 * Math.sin(elapsed * 7.5));
       });
     }
   }
@@ -438,7 +458,11 @@ export function createSpecialAbilitySystem({
     for (const orbiter of runtime.orbiters) {
       const angle = elapsed * config.orbitSpeed + orbiter.angleOffset;
       const wobble = Math.sin(elapsed * 4 + orbiter.angleOffset) * 0.14;
-      orbiter.mesh.position.set(Math.cos(angle) * config.orbitRadius, config.orbitHeight + wobble, Math.sin(angle) * config.orbitRadius);
+      orbiter.mesh.position.set(
+        Math.cos(angle) * config.orbitRadius,
+        config.orbitHeight + wobble,
+        Math.sin(angle) * config.orbitRadius,
+      );
       orbiter.mesh.rotation.y += 0.06;
       collision.forEachEnemyNearPosition(orbiter.mesh.getWorldPosition(temp.vec3A), config.hitRadius + 1.4, (enemy) => {
         const data = getEnemyData(enemy);
@@ -457,31 +481,30 @@ export function createSpecialAbilitySystem({
           weaponProfile: getCharacterCombatProfile(),
         });
         temp.vec3C.copy(orbPos).lerp(enemy.position, 0.55).setY(enemy.position.y + 0.9);
-        vfx.spawnImpactBurst(temp.vec3C, runtime.abilityDef.visualStyle.primary, 5, 2.1, 0.2, 0.62);
+        vfx.spawnImpactBurst(temp.vec3C, config.hudColor, 5, 2.1, 0.2, 0.62);
       });
     }
   }
 
-  function updateExecutionAura(dt, elapsed) {
-    if (!runtime.executionAura) return;
+  function updateRogueAura(dt, elapsed) {
+    if (!runtime.rogueAura) return;
     if (runtime.activeRemaining <= 0) {
-      clearExecutionAura();
+      clearRogueAura();
       return;
     }
-    runtime.executionAura.position.copy(playerRigHolder.position).setY(state.world.playerGroundY + 0.22);
-    runtime.executionAura.rotation.y += dt * 2.8;
-    runtime.executionAura.children[0].scale.setScalar(1 + Math.sin(elapsed * 9) * 0.08);
-    runtime.executionAura.children[1].scale.setScalar(1 + Math.sin(elapsed * 5.2) * 0.12);
+    runtime.rogueAura.position.copy(playerRigHolder.position).setY(state.world.playerGroundY + 0.22);
+    runtime.rogueAura.rotation.y += dt * 2.8;
+    runtime.rogueAura.children[0].scale.setScalar(1 + Math.sin(elapsed * 9) * 0.08);
+    runtime.rogueAura.children[1].scale.setScalar(1 + Math.sin(elapsed * 5.2) * 0.12);
   }
 
   function update(dt, elapsed) {
     captureTrailPoint(dt);
-    if (!runtime.abilityDef) {
+    if (!runtime.config) {
       syncStateStatus();
       return;
     }
 
-    runtime.config = getAbilityConfig(runtime.abilityDef.id);
     runtime.cooldownRemaining = Math.max(0, runtime.cooldownRemaining - dt);
     runtime.activeRemaining = Math.max(0, runtime.activeRemaining - dt);
 
@@ -489,19 +512,19 @@ export function createSpecialAbilitySystem({
     updateDecoys(dt, elapsed);
     updateWaveMesh(dt, elapsed);
     updateOrbiters(elapsed);
-    updateExecutionAura(dt, elapsed);
+    updateRogueAura(dt, elapsed);
 
     if (runtime.cooldownRemaining <= 0 && triggerAbility()) runtime.cooldownRemaining = runtime.config.cooldown;
 
-    if (runtime.abilityDef.id === 'guardian_orbit' && runtime.activeRemaining <= 0 && runtime.orbitGroup) clearOrbiters();
-    if (runtime.abilityDef.id === 'execution_mode' && runtime.activeRemaining <= 0 && runtime.executionAura) clearExecutionAura();
-    if (runtime.abilityDef.id !== 'guardian_orbit' && runtime.orbitGroup) clearOrbiters();
-    if (runtime.abilityDef.id !== 'execution_mode' && runtime.executionAura) clearExecutionAura();
+    if (runtime.config.id === 'guardian_orbit' && runtime.activeRemaining <= 0 && runtime.orbitGroup) clearOrbiters();
+    if (runtime.config.id === 'execution_mode' && runtime.activeRemaining <= 0 && runtime.rogueAura) clearRogueAura();
+    if (runtime.config.id !== 'guardian_orbit' && runtime.orbitGroup) clearOrbiters();
+    if (runtime.config.id !== 'execution_mode' && runtime.rogueAura) clearRogueAura();
     syncStateStatus();
   }
 
   function getEnemyTarget(enemy, data) {
-    if (runtime.abilityDef?.id !== 'holo_decoy' || runtime.decoys.length === 0) {
+    if (runtime.config?.id !== 'holo_decoy' || runtime.decoys.length === 0) {
       data.targetDecoyId = null;
       return temp.player.position;
     }
@@ -530,12 +553,13 @@ export function createSpecialAbilitySystem({
   }
 
   function resolvePlayerHitDamage(enemy, bullet, amount) {
+    if (!runtime.characterDef || runtime.characterDef.id !== state.selection.characterId) return { amount };
     const data = getEnemyData(enemy);
-    if (!runtime.abilityDef || !data || data.dead) return { amount };
+    if (!data || data.dead) return { amount };
 
-    if (runtime.abilityDef.id === 'focus_mark') {
+    if (runtime.config?.id === 'focus_mark') {
       const mark = data.specialStates?.focusMark;
-      if (mark?.sourceAbilityId === runtime.abilityDef.id) {
+      if (mark?.sourceCharacterId === runtime.characterDef.id) {
         return {
           amount: amount * mark.damageMultiplier,
           impactEffects: { ...(bullet.userData.effects || {}), lightning: true },
@@ -543,13 +567,13 @@ export function createSpecialAbilitySystem({
       }
     }
 
-    if (runtime.abilityDef.id === 'execution_mode' && runtime.activeRemaining > 0) {
+    if (runtime.config?.id === 'execution_mode' && runtime.activeRemaining > 0) {
       const missingHp = Math.max(0, data.maxHp ? data.maxHp - data.hp : 0);
       const thresholdHp = Math.max(runtime.config.thresholdFlat, (data.maxHp || data.hp) * runtime.config.thresholdRatio);
       if (data.hp <= thresholdHp || missingHp >= thresholdHp * 0.9 || data.poisonDot > 0 || data.fireDot > 0 || data.iceSlowTimer > 0.25) {
         const bonus = Math.max(runtime.config.minimumBonus, thresholdHp * runtime.config.bonusRatio);
         temp.vec3A.copy(enemy.position).setY(enemy.position.y + data.hitboxCenterOffsetY + 0.35);
-        vfx.spawnImpactBurst(temp.vec3A, runtime.abilityDef.visualStyle.primary, 7, 3.2, 0.24, 0.74, 'shard');
+        vfx.spawnImpactBurst(temp.vec3A, runtime.config.hudColor, 7, 3.2, 0.24, 0.74, 'shard');
         return {
           amount: amount + bonus + Math.max(0, missingHp * 0.12),
           impactEffects: { ...(bullet.userData.effects || {}), fire: true },
@@ -561,7 +585,7 @@ export function createSpecialAbilitySystem({
   }
 
   return {
-    setAbility,
+    setCharacter,
     clear,
     resetRuntime,
     update,
