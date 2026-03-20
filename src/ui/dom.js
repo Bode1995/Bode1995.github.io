@@ -31,6 +31,7 @@ export function getUI() {
     selectedMissionLabel: document.getElementById('selectedMissionLabel'),
     selectedMissionStatus: document.getElementById('selectedMissionStatus'),
     selectedCharacterLabel: document.getElementById('selectedCharacterLabel'),
+    selectedAbilityLabel: document.getElementById('selectedAbilityLabel'),
     unlockedSummary: document.getElementById('unlockedSummary'),
     worldGrid: document.getElementById('worldGrid'),
     levelGrid: document.getElementById('levelGrid'),
@@ -52,6 +53,8 @@ export function getUI() {
     moveZone: document.getElementById('moveZone'),
     moveStick: document.getElementById('moveStick'),
     moveKnob: document.getElementById('moveKnob'),
+    characterCredits: document.getElementById('characterCredits'),
+    specialAbilityGrid: document.getElementById('specialAbilityGrid'),
     characterGrid: document.getElementById('characterGrid'),
   };
 }

@@ -99,6 +99,11 @@
                   <strong id="selectedCharacterLabel">Vanguard</strong>
                   <span>Jede Klasse besitzt ein eigenes Bewegungs- und Kampfprofil.</span>
                 </div>
+                <div class="info-card info-card--ability">
+                  <div class="info-label">Spezialfähigkeit</div>
+                  <strong id="selectedAbilityLabel">Fokusmodus</strong>
+                  <span>Fähigkeiten werden jetzt unabhängig vom Charakter ausgerüstet.</span>
+                </div>
               </div>
             </aside>
           </div>
@@ -264,8 +269,11 @@
             <div class="menu-page-heading">
               <div>
                 <div class="card-label">Pilotenhangar</div>
-                <h2>Charakterauswahl</h2>
-                <p>Jede Klasse bleibt deutlich fokussiert mit Vorschau, Rolle, Waffentyp und Kernstärken.</p>
+                <h2>Charakter & Spezialfähigkeiten</h2>
+                <p>Wähle zuerst die Spezialfähigkeit oberhalb der Piloten und kombiniere sie frei mit jedem Charakter.</p>
+              </div>
+              <div class="character-page-summary">
+                <div class="summary-pill summary-pill--bank"><span>Credits</span><strong id="characterCredits">0</strong></div>
               </div>
             </div>
           </header>
@@ -273,9 +281,19 @@
             <section class="menu-page-section card-surface">
               <div class="section-head section-head--stacked">
                 <div>
+                  <div class="card-label">Spezialfähigkeiten</div>
+                  <h3>Unabhängig auswählbare Loadouts</h3>
+                  <p>Alle Fähigkeiten sind für jeden Charakter auswählbar und können direkt hier mit Credits verbessert werden.</p>
+                </div>
+              </div>
+              <div class="ability-grid" id="specialAbilityGrid"></div>
+            </section>
+            <section class="menu-page-section card-surface">
+              <div class="section-head section-head--stacked">
+                <div>
                   <div class="card-label">Piloten</div>
                   <h3>Aktive Einsatzteams</h3>
-                  <p>Silhouetten, Werte und Spielstile bleiben klar strukturiert und mobil sauber anwählbar.</p>
+                  <p>Silhouetten, Werte und Spielstile bleiben klar strukturiert und lassen sich frei mit jeder Spezialfähigkeit kombinieren.</p>
                 </div>
               </div>
               <div class="character-grid" id="characterGrid"></div>

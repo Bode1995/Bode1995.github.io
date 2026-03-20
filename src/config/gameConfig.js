@@ -398,6 +398,180 @@ export const CHARACTER_DEFS = [
   },
 ];
 
+
+
+export const SPECIAL_ABILITY_DEFS = [
+  {
+    id: 'focus_mark',
+    label: 'Fokusmodus',
+    shortLabel: 'Mark',
+    hudColor: 0x69f0ff,
+    description: 'Markiert automatisch ein Ziel vor dir und erhöht allen verursachten Schaden auf dieses Ziel.',
+    tags: ['Präzision', 'Boss-DPS', 'Single Target'],
+    baseCost: 110,
+    costStep: 70,
+    maxLevel: 8,
+    baseConfig: {
+      cooldown: 7.5,
+      duration: 4.8,
+      retargetGrace: 0.4,
+      range: 34,
+      frontBias: 0.9,
+      damageMultiplier: 1.55,
+    },
+    scaleWithLevel(level) {
+      return {
+        cooldown: Math.max(4.8, 7.5 - level * 0.28),
+        duration: 4.8 + level * 0.28,
+        damageMultiplier: 1.55 + level * 0.12,
+        range: 34 + level * 0.6,
+      };
+    },
+  },
+  {
+    id: 'holo_decoy',
+    label: 'Holo-Decoy',
+    shortLabel: 'Decoy',
+    hudColor: 0x8df07c,
+    description: 'Erzeugt ein Hologramm aus deiner Bewegungsspur, das Gegner kurz umlenkt und Raum zum Repositionieren schafft.',
+    tags: ['Mobilität', 'Aggro', 'Kiting'],
+    baseCost: 105,
+    costStep: 68,
+    maxLevel: 8,
+    baseConfig: {
+      cooldown: 9,
+      duration: 4.2,
+      influenceRadius: 18,
+      lockDuration: 1.05,
+      spawnTrailDelay: 0.32,
+    },
+    scaleWithLevel(level) {
+      return {
+        cooldown: Math.max(5.8, 9 - level * 0.32),
+        duration: 4.2 + level * 0.3,
+        influenceRadius: 18 + level * 1.1,
+        lockDuration: 1.05 + level * 0.08,
+      };
+    },
+  },
+  {
+    id: 'shield_ram',
+    label: 'Schildstoß',
+    shortLabel: 'Ram',
+    hudColor: 0xffba66,
+    description: 'Entlädt einen frontalen Stoß, der Gegner vor dir trifft, zurückwirft und kurz unterbricht.',
+    tags: ['Front', 'Kontrolle', 'Burst'],
+    baseCost: 115,
+    costStep: 72,
+    maxLevel: 8,
+    baseConfig: {
+      cooldown: 8.5,
+      duration: 0.55,
+      range: 8.2,
+      coneDot: 0.54,
+      knockback: 8.5,
+      interrupt: 1.2,
+      impactDamage: 5.5,
+    },
+    scaleWithLevel(level) {
+      return {
+        cooldown: Math.max(5.6, 8.5 - level * 0.3),
+        range: 8.2 + level * 0.38,
+        knockback: 8.5 + level * 0.7,
+        interrupt: 1.2 + level * 0.08,
+        impactDamage: 5.5 + level * 1.1,
+      };
+    },
+  },
+  {
+    id: 'guardian_orbit',
+    label: 'Wächterkreis',
+    shortLabel: 'Orbit',
+    hudColor: 0xc698ff,
+    description: 'Orbitale Wächter kreisen um dich und treffen nahe Gegner fortlaufend für sichere Zonen-Kontrolle.',
+    tags: ['Orbit', 'Zone', 'Sustain'],
+    baseCost: 120,
+    costStep: 78,
+    maxLevel: 8,
+    baseConfig: {
+      cooldown: 10,
+      duration: 5.5,
+      orbCount: 3,
+      orbitRadius: 2.15,
+      orbitHeight: 1.25,
+      orbitSpeed: 2.8,
+      hitRadius: 1.25,
+      hitInterval: 0.28,
+      damage: 3.4,
+    },
+    scaleWithLevel(level) {
+      return {
+        cooldown: Math.max(6.2, 10 - level * 0.34),
+        duration: 5.5 + level * 0.4,
+        orbCount: Math.min(5, 3 + Math.floor(level / 3)),
+        hitRadius: 1.25 + level * 0.06,
+        damage: 3.4 + level * 0.72,
+      };
+    },
+  },
+  {
+    id: 'execution_mode',
+    label: 'Exekutionsmodus',
+    shortLabel: 'Exec',
+    hudColor: 0xff86ac,
+    description: 'Verstärkt Treffer gegen geschwächte oder bereits mit Statuseffekten belegte Ziele massiv.',
+    tags: ['Execute', 'DoT', 'Finisher'],
+    baseCost: 118,
+    costStep: 74,
+    maxLevel: 8,
+    baseConfig: {
+      cooldown: 8,
+      duration: 4,
+      thresholdRatio: 0.38,
+      thresholdFlat: 18,
+      bonusRatio: 0.42,
+      minimumBonus: 4,
+    },
+    scaleWithLevel(level) {
+      return {
+        cooldown: Math.max(5.2, 8 - level * 0.26),
+        duration: 4 + level * 0.24,
+        thresholdRatio: Math.min(0.58, 0.38 + level * 0.02),
+        thresholdFlat: 18 + level * 2.4,
+        bonusRatio: 0.42 + level * 0.035,
+        minimumBonus: 4 + level * 1.4,
+      };
+    },
+  },
+];
+
+export function getSpecialAbilityDefinition(abilityId) {
+  return SPECIAL_ABILITY_DEFS.find((entry) => entry.id === abilityId) || SPECIAL_ABILITY_DEFS[0];
+}
+
+export function getResolvedSpecialAbilityConfig(abilityId, level = 0) {
+  const def = getSpecialAbilityDefinition(abilityId);
+  if (!def) return null;
+  return {
+    id: def.id,
+    label: def.label,
+    shortLabel: def.shortLabel,
+    hudColor: def.hudColor,
+    description: def.description,
+    tags: [...(def.tags || [])],
+    level,
+    ...def.baseConfig,
+    ...(def.scaleWithLevel?.(level) || {}),
+  };
+}
+
+export function getSpecialAbilityUpgradeCost(abilityId, level = 0) {
+  const def = getSpecialAbilityDefinition(abilityId);
+  if (!def) return null;
+  if (def.maxLevel != null && level >= def.maxLevel) return null;
+  return def.baseCost + level * def.costStep;
+}
+
 export const UPGRADE_DEFS = [
   { id: 'baseDamage', group: 'Pilot Upgrades', label: 'Base Damage', description: 'Erhöht den Schaden jeder Kugel.', baseCost: 60, costStep: 35, maxLevel: 12, format: (lvl) => `${(1 + lvl * 0.22).toFixed(2)}x` },
   { id: 'attackSpeed', group: 'Pilot Upgrades', label: 'Attack Speed', description: 'Senkt das Feuerintervall deines Blasters.', baseCost: 70, costStep: 40, maxLevel: 10, format: (lvl) => `${Math.max(0.07, 0.18 * Math.pow(0.94, lvl)).toFixed(2)}s` },
