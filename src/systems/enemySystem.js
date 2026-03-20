@@ -1,4 +1,5 @@
 import { getEnemyData, logInvalidEnemyReference, removeInvalidEnemiesFromList } from './enemyRuntimeUtils.js';
+import { applyWorldStatusSlow, applyWorldStatusTickDamage, getWorldDefinition } from '../config/worlds.js';
 
 export function createEnemySystem({
   THREE,
@@ -24,13 +25,6 @@ export function createEnemySystem({
     weaponBarrel: new THREE.CylinderGeometry(0.12, 0.12, 0.9, 8),
     enemyProjectile: new THREE.SphereGeometry(0.16, 10, 10),
   };
-  const enemyProjectileMaterial = new THREE.MeshStandardMaterial({
-    color: 0xff8cf6,
-    emissive: 0xff8cf6,
-    emissiveIntensity: 1.35,
-    roughness: 0.18,
-    metalness: 0.18,
-  });
   const enemyStyle = {
     runner: { shell: 0xff6d78, dark: 0x30111d, main: 0x5d2030, glow: 0xffb39d },
     tank: { shell: 0xffb85c, dark: 0x251918, main: 0x635349, glow: 0xffdf8d },
@@ -42,6 +36,30 @@ export function createEnemySystem({
     bossAgile: { shell: 0x35f3d1, dark: 0x112437, main: 0x3f3f74, glow: 0xc6b7ff },
   };
 
+  const projectileMaterialCache = new Map();
+
+  function mixColor(baseHex, overlayHex, mix = 0.5) {
+    return new THREE.Color(baseHex).lerp(new THREE.Color(overlayHex), mix).getHex();
+  }
+
+  function getCurrentWorld() {
+    return getWorldDefinition(state.worldIndex);
+  }
+
+  function getProjectileMaterial(worldDef = getCurrentWorld()) {
+    if (projectileMaterialCache.has(worldDef.id)) return projectileMaterialCache.get(worldDef.id);
+    const color = worldDef.enemyVisuals?.projectileColor || 0xff8cf6;
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 1.1 + (worldDef.enemyVisuals?.emissiveBoost || 1) * 0.24,
+      roughness: 0.18,
+      metalness: 0.18,
+    });
+    projectileMaterialCache.set(worldDef.id, material);
+    return material;
+  }
+
   function syncActiveEnemyCount() {
     state.activeEnemyCount = state.entities.enemies.reduce((count, enemy) => {
       const data = getEnemyData(enemy);
@@ -50,14 +68,17 @@ export function createEnemySystem({
     return state.activeEnemyCount;
   }
 
-  function createMaterials(type) {
+  function createMaterials(type, worldDef = getCurrentWorld()) {
     const style = enemyStyle[type] || enemyStyle.runner;
+    const palette = worldDef.enemyVisuals?.palette || {};
+    const emissiveBoost = worldDef.enemyVisuals?.emissiveBoost || 1;
     return {
-      shell: new THREE.MeshStandardMaterial({ color: style.shell, emissive: style.shell, emissiveIntensity: 0.14, roughness: 0.38, metalness: 0.24 }),
-      dark: new THREE.MeshStandardMaterial({ color: style.dark, roughness: 0.7, metalness: 0.1 }),
-      main: new THREE.MeshStandardMaterial({ color: style.main, roughness: 0.46, metalness: 0.34 }),
-      glow: new THREE.MeshStandardMaterial({ color: style.glow, emissive: style.glow, emissiveIntensity: 0.32, roughness: 0.2, metalness: 0.34 }),
-      bone: new THREE.MeshStandardMaterial({ color: 0xf1d6bf, roughness: 0.6, metalness: 0.06 }),
+      shell: new THREE.MeshStandardMaterial({ color: mixColor(style.shell, palette.shell || style.shell, 0.56), emissive: mixColor(style.shell, palette.aura || palette.glow || style.shell, 0.48), emissiveIntensity: 0.14 * emissiveBoost, roughness: 0.38, metalness: 0.24 }),
+      dark: new THREE.MeshStandardMaterial({ color: mixColor(style.dark, palette.dark || style.dark, 0.68), roughness: 0.7, metalness: 0.1 }),
+      main: new THREE.MeshStandardMaterial({ color: mixColor(style.main, palette.main || style.main, 0.54), roughness: 0.46, metalness: 0.34 }),
+      glow: new THREE.MeshStandardMaterial({ color: mixColor(style.glow, palette.glow || style.glow, 0.58), emissive: mixColor(style.glow, palette.aura || palette.glow || style.glow, 0.5), emissiveIntensity: 0.32 * emissiveBoost, roughness: 0.2, metalness: 0.34 }),
+      bone: new THREE.MeshStandardMaterial({ color: mixColor(0xf1d6bf, palette.aura || 0xf1d6bf, 0.18), roughness: 0.6, metalness: 0.06 }),
+      detail: new THREE.MeshStandardMaterial({ color: mixColor(style.main, palette.aura || style.main, 0.72), emissive: palette.aura || style.glow, emissiveIntensity: 0.22 * emissiveBoost, roughness: 0.24, metalness: 0.28 }),
     };
   }
 
@@ -72,6 +93,22 @@ export function createEnemySystem({
     return mesh;
   }
 
+  function addWorldDetails(body, anim, mats, worldDef, type, add) {
+    const variant = worldDef.enemyVisuals?.variant || 'standard';
+    if (variant === 'standard') return;
+    const roleScale = type.includes('boss') ? 1.45 : type === 'swarm' ? 0.72 : 1;
+    if (variant === 'lava') {
+      add(sharedGeometries.box, mats.detail, [0, 1.18 * roleScale, -0.2 * roleScale], [0.12, 0, 0], [0.28 * roleScale, 0.18 * roleScale, 1.36 * roleScale]);
+      for (const side of [-1, 1]) add(sharedGeometries.spike, mats.glow, [side * 0.46 * roleScale, 1.2 * roleScale, 0.12 * roleScale], [Math.PI * 0.45, 0, side * 0.16], [0.82 * roleScale, 1.15 * roleScale, 0.82 * roleScale]);
+    } else if (variant === 'ice') {
+      add(sharedGeometries.cone, mats.detail, [0, 1.45 * roleScale, -0.18 * roleScale], [0, 0, Math.PI], [0.48 * roleScale, 0.82 * roleScale, 0.48 * roleScale]);
+      for (const side of [-1, 1]) add(sharedGeometries.cone, mats.glow, [side * 0.38 * roleScale, 1.05 * roleScale, 0.22 * roleScale], [Math.PI * 0.75, 0, side * 0.18], [0.28 * roleScale, 0.52 * roleScale, 0.28 * roleScale]);
+    } else if (variant === 'poison') {
+      add(sharedGeometries.box, mats.detail, [0, 1.02 * roleScale, -0.14 * roleScale], [0, 0.32, 0], [0.32 * roleScale, 0.2 * roleScale, 1.08 * roleScale]);
+      for (const side of [-1, 1]) add(sharedGeometries.box, mats.glow, [side * 0.48 * roleScale, 0.96 * roleScale, 0.08 * roleScale], [0.22, 0, 0], [0.22 * roleScale, 0.22 * roleScale, 0.34 * roleScale]);
+    }
+  }
+
   function removeEnemyProjectileAtIndex(index) {
     const projectile = state.entities.enemyProjectiles[index];
     if (!projectile) return;
@@ -80,7 +117,7 @@ export function createEnemySystem({
   }
 
   function spawnEnemyProjectile(enemy, data) {
-    const projectile = new THREE.Mesh(sharedGeometries.enemyProjectile, enemyProjectileMaterial);
+    const projectile = new THREE.Mesh(sharedGeometries.enemyProjectile, getProjectileMaterial(getCurrentWorld()));
     const muzzleOffset = data.type === 'shooter'
       ? data.hitboxRadius + 0.55
       : data.hitboxRadius + 0.35;
@@ -99,7 +136,7 @@ export function createEnemySystem({
     scene.add(projectile);
     state.entities.enemyProjectiles.push({
       mesh: projectile,
-      velocity: temp.vec3D.clone().multiplyScalar(12.5 + Math.min(3.5, data.range * 0.12)),
+      velocity: temp.vec3D.clone().multiplyScalar((12.5 + Math.min(3.5, data.range * 0.12)) * (data.worldModifiers?.projectileSpeedMultiplier || 1)),
       damage: data.damage * 0.18,
       life: 1.8,
       radius: 0.22,
@@ -124,7 +161,7 @@ export function createEnemySystem({
         vfx.spawnVfxParticle(
           projectile.mesh.position,
           temp.vec3D.copy(projectile.velocity).multiplyScalar(-0.04),
-          0xffb7ff,
+          getCurrentWorld().enemyVisuals?.projectileColor || 0xffb7ff,
           0.16,
           0.3,
         );
@@ -151,7 +188,8 @@ export function createEnemySystem({
   }
 
   function createEnemyModel(type) {
-    const mats = createMaterials(type);
+    const worldDef = getCurrentWorld();
+    const mats = createMaterials(type, worldDef);
     const root = new THREE.Group();
     const body = new THREE.Group();
     root.add(body);
@@ -271,6 +309,8 @@ export function createEnemySystem({
       anim.extras.push(rotor);
     }
 
+    addWorldDetails(body, anim, mats, worldDef, type, add);
+    root.userData.worldTheme = worldDef.key;
     return { root, anim };
   }
 
@@ -284,6 +324,8 @@ export function createEnemySystem({
   }
 
   function spawnEnemy(type, angle, dist, waveScale) {
+    const worldDef = getCurrentWorld();
+    const worldMods = worldDef.enemyModifiers || {};
     const model = createEnemyModel(type);
     const cfg = ENEMY_TYPES[type];
     const enemy = model.root;
@@ -291,19 +333,19 @@ export function createEnemySystem({
     enemy.userData = {
       type,
       role: cfg.role,
-      hp: Math.ceil((cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)) * (1 + state.worldIndex * 0.04 + state.levelIndex * 0.03)),
+      hp: Math.ceil((cfg.hp + waveScale * (cfg.role === 'boss' ? 1.2 : 0.45)) * (1 + state.worldIndex * 0.04 + state.levelIndex * 0.03) * (worldMods.healthMultiplier || 1)),
       speed:
         (cfg.speed * gameplayConfig.enemies.baseSpeedMultiplier[type] +
           waveScale * (cfg.role === 'boss' ? gameplayConfig.enemies.waveSpeedScale.boss : gameplayConfig.enemies.waveSpeedScale.field)) *
-        (1 - gameplayConfig.enemies.randomVariance + Math.random() * gameplayConfig.enemies.randomVariance * 2),
-      damage: cfg.damage * (1 + state.worldIndex * 0.05 + state.levelIndex * 0.035 + state.waveInLevel * 0.02),
+        (1 - gameplayConfig.enemies.randomVariance + Math.random() * gameplayConfig.enemies.randomVariance * 2) * (worldMods.speedMultiplier || 1),
+      damage: cfg.damage * (1 + state.worldIndex * 0.05 + state.levelIndex * 0.035 + state.waveInLevel * 0.02) * (worldMods.damageMultiplier || 1),
       radius: cfg.radius,
       score: cfg.score,
       range: cfg.range || 0,
       keepDistance: cfg.keepDistance || 0,
-      fireRate: cfg.fireRate || 0,
+      fireRate: (cfg.fireRate || 0) / (worldMods.fireRateMultiplier || 1),
       fireCooldown: Math.random(),
-      chargeSpeed: cfg.chargeSpeed || 0,
+      chargeSpeed: (cfg.chargeSpeed || 0) * (worldMods.aggression || 1),
       chargeCooldown: cfg.chargeCooldown || 0,
       chargeTimer: 0,
       chargeDuration: cfg.chargeDuration || 0,
@@ -332,6 +374,9 @@ export function createEnemySystem({
       impactVisualTimer: 0,
       impactVisualEffects: null,
       damageNumberEntry: null,
+      worldTheme: worldDef.key,
+      worldModifiers: worldMods,
+      elementalResistance: worldDef.elementalResistance || null,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
@@ -395,7 +440,7 @@ export function createEnemySystem({
 
       if (data.iceSlowTimer > 0) {
         data.iceSlowTimer = Math.max(0, data.iceSlowTimer - dt);
-        const slowPct = Math.min(0.72, runPowers.stacks.ice * 0.12);
+        const slowPct = applyWorldStatusSlow(state.worldIndex, 'iceSlowTimer', Math.min(0.72, runPowers.stacks.ice * 0.12));
         moveSpeedEnemy *= (1 - slowPct);
       }
 
@@ -409,15 +454,16 @@ export function createEnemySystem({
       data.impactVisualTimer = Math.max(0, data.impactVisualTimer - dt);
 
       const showStatusVisuals = data.impactVisualTimer > 0;
+      const signalIntensity = data.worldModifiers?.signalIntensity || 1;
       if (body) {
         body.scale.setScalar(1);
-        if (hasFire && showStatusVisuals) body.scale.x *= 1.01;
-        if (hasPoison && showStatusVisuals) body.scale.z *= 1.008;
+        if (hasFire && showStatusVisuals) body.scale.x *= 1 + (0.01 * signalIntensity);
+        if (hasPoison && showStatusVisuals) body.scale.z *= 1 + (0.008 * signalIntensity);
         if (hasIce && showStatusVisuals) {
           const pulse = 0.94 + Math.sin(data.statusPulse) * 0.02;
           body.scale.set(pulse, pulse, pulse);
         }
-        if (hasShock && showStatusVisuals) body.scale.y *= 1.012;
+        if (hasShock && showStatusVisuals) body.scale.y *= 1 + (0.012 * signalIntensity);
       }
 
       if (hasFire) {
@@ -427,7 +473,7 @@ export function createEnemySystem({
         if (data.fireTickTimer <= 0 && state.performance.frameBudgets.dotTicks < dotBudget) {
           data.fireTickTimer += tickInterval;
           state.performance.frameBudgets.dotTicks += 1;
-          temp.callbacks.damageEnemy(enemy, Math.max(1, Math.round(data.fireDot * 0.72)), { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { fire: true } });
+          temp.callbacks.damageEnemy(enemy, Math.max(1, Math.round(applyWorldStatusTickDamage(state.worldIndex, 'fireDot', data.fireDot * 0.72))), { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { fire: true } });
           if (data.dead) continue;
         }
       }
@@ -439,12 +485,14 @@ export function createEnemySystem({
         if (data.poisonTickTimer <= 0 && state.performance.frameBudgets.dotTicks < dotBudget) {
           data.poisonTickTimer += tickInterval;
           state.performance.frameBudgets.dotTicks += 1;
-          temp.callbacks.damageEnemy(enemy, Math.max(1, Math.round(data.poisonDot * 0.58)), { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { poison: true } });
+          temp.callbacks.damageEnemy(enemy, Math.max(1, Math.round(applyWorldStatusTickDamage(state.worldIndex, 'poisonDot', data.poisonDot * 0.58))), { allowLightningChain: false, isSecondaryEffect: true, impactEffects: { poison: true } });
           if (data.dead) continue;
         }
       }
 
       if (hasShock) data.shockTimer = Math.max(0, data.shockTimer - dt);
+
+      moveSpeedEnemy *= data.worldModifiers?.aggression || 1;
 
       if (data.type === 'shooter') {
         if (dist < data.keepDistance) {
