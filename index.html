@@ -191,9 +191,9 @@
             <button class="back-btn" type="button" data-screen="home">← Zurück zum Hauptmenü</button>
             <div class="menu-page-heading">
               <div>
-                <div class="card-label">Persistent Arsenal</div>
-                <h2>Upgrades</h2>
-                <p>Persistente Verbesserungen sind nach Gruppen gegliedert und visuell ruhiger organisiert.</p>
+                <div class="card-label">Fähigkeitenbaum</div>
+                <h2>Charakterentwicklung</h2>
+                <p>Deine gekauften Upgrades formen Angriff, Verteidigung und Geschwindigkeit und werden als kompakter Baum dargestellt.</p>
               </div>
               <div class="summary-pill summary-pill--bank"><span>Bank</span><strong id="upgradeCredits">0</strong></div>
             </div>
@@ -202,12 +202,29 @@
             <section class="menu-page-section card-surface">
               <div class="section-head section-head--stacked">
                 <div>
-                  <div class="card-label">Verbesserungen</div>
-                  <h3>Arsenal-Fortschritt</h3>
-                  <p>Jede Gruppe bleibt kompakt, klar lesbar und ohne unnötige visuelle Konkurrenz.</p>
+                  <div class="card-label">Charakterstärke</div>
+                  <h3>Aktives Build-Profil</h3>
+                  <p>Die Werte basieren auf deinem aktiven Charakter und allen bereits gekauften Upgrades.</p>
                 </div>
               </div>
-              <div class="upgrade-groups" id="upgradeGroups"></div>
+              <div class="upgrade-summary-grid">
+                <article class="upgrade-stat-card card-surface">
+                  <div class="card-label">Angriff</div>
+                  <strong id="upgradeAttackValue">0</strong>
+                  <span id="upgradeAttackMeta">0 Schaden · 0.00/s</span>
+                </article>
+                <article class="upgrade-stat-card card-surface">
+                  <div class="card-label">Verteidigung</div>
+                  <strong id="upgradeDefenseValue">0</strong>
+                  <span id="upgradeDefenseMeta">0 HP · 0 Schild</span>
+                </article>
+                <article class="upgrade-stat-card card-surface">
+                  <div class="card-label">Geschwindigkeit</div>
+                  <strong id="upgradeSpeedValue">0</strong>
+                  <span id="upgradeSpeedMeta">0.00x Bewegung</span>
+                </article>
+              </div>
+              <div class="upgrade-groups upgrade-groups--tree" id="upgradeGroups"></div>
             </section>
           </div>
         </section>
