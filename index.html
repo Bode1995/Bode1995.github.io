@@ -55,170 +55,116 @@
     <div class="stick" id="moveStick"><div class="knob" id="moveKnob"></div></div>
   </div>
 
-  <div class="overlay menu-overlay" id="menu">
+  <div class="overlay" id="menu">
     <div class="panel menu-panel">
-      <div class="menu-shell" id="menuShell" data-screen="hub">
-        <section class="menu-screen menu-screen--hub" data-screen="hub">
-          <div class="menu-hub-layout">
-            <section class="command-card command-card--title menu-hub-hero">
-              <div class="eyebrow">ORBITAL ARCADE // PHASED DEFENSE NETWORK</div>
-              <h1>Sky Blaster: Outpost Siege</h1>
-              <p class="menu-copy">Kompaktes Einsatz-Hub für Missionen, Piloten, Skill-Tree und Statistik – ohne Scroll-Zwang auf der Hauptseite.</p>
-              <div class="menu-hero-actions">
-                <button class="btn" id="startBtn">Deployment starten</button>
-                <button class="ghost-btn" id="quickWorldsBtn">Mission wählen</button>
-              </div>
-            </section>
+      <div class="menu-shell">
+        <div class="menu-hero-grid">
+          <section class="command-card command-card--title">
+            <div class="eyebrow">ORBITAL ARCADE // PHASED DEFENSE NETWORK</div>
+            <h1>Sky Blaster: Outpost Siege</h1>
+            <p class="menu-copy">Arcade-SciFi-Deployment mit klarer Einsatzhierarchie, aufgewerteter Pilot-Identität und einem modularen Arsenal-Fortschritt über 4 Welten.</p>
+            <div class="menu-hero-actions">
+              <button class="btn" id="startBtn">Deployment starten</button>
+              <button class="ghost-btn" id="quickWorldsBtn">Mission wählen</button>
+            </div>
+          </section>
 
-            <section class="command-card command-card--summary menu-hub-summary">
-              <div class="summary-stack summary-stack--menu">
-                <div class="summary-pill summary-pill--credits"><span>Credits</span><strong id="menuCredits">0</strong></div>
-                <div class="summary-pill summary-pill--wave"><span>Beste Welle</span><strong id="menuHighestWave">1</strong></div>
-              </div>
-              <div class="hero-mission-card">
-                <div class="card-label">Aktive Freigabe</div>
-                <strong id="selectedMissionLabel">World 1 · Level 1</strong>
-                <span id="selectedMissionStatus">10 Waves · Unlocked</span>
-              </div>
-            </section>
+          <section class="command-card command-card--summary">
+            <div class="summary-stack summary-stack--menu">
+              <div class="summary-pill summary-pill--credits"><span>Credits</span><strong id="menuCredits">0</strong></div>
+              <div class="summary-pill summary-pill--wave"><span>Beste Welle</span><strong id="menuHighestWave">1</strong></div>
+            </div>
+            <div class="hero-mission-card">
+              <div class="card-label">Aktive Freigabe</div>
+              <strong id="selectedMissionLabel">World 1 · Level 1</strong>
+              <span id="selectedMissionStatus">10 Waves · Unlocked</span>
+            </div>
+          </section>
+        </div>
 
-            <section class="hero-card hero-card--wide menu-hub-banner">
-              <div>
-                <div class="card-label">Bereit zur Ausbringung</div>
-                <h2>Command Hub</h2>
-                <p>Wähle einen Bereich. Jeder Menüpunkt öffnet als eigene Ansicht mit konsistentem Zurück-Button zurück ins Hub.</p>
-              </div>
-            </section>
+        <nav class="menu-nav" id="menuNav">
+          <button class="menu-tab is-active" data-screen="home">Command</button>
+          <button class="menu-tab" data-screen="worlds">Sektoren</button>
+          <button class="menu-tab" data-screen="upgrades">Arsenal</button>
+          <button class="menu-tab" data-screen="statistics">Telemetry</button>
+          <button class="menu-tab" data-screen="characters">Piloten</button>
+        </nav>
 
-            <section class="menu-hub-grid" aria-label="Hauptmenü">
-              <button class="hub-card card-surface" type="button" data-menu-target="worlds">
-                <div class="hub-card__icon">⚑</div>
-                <div class="card-label">Missionen</div>
-                <strong id="hubMissionButton">Mission W1 · L1 öffnen</strong>
-                <span>Sektoren und Level separat verwalten.</span>
-              </button>
-              <button class="hub-card card-surface" type="button" data-menu-target="upgrades">
-                <div class="hub-card__icon">⬡</div>
-                <div class="card-label">Fähigkeitenbaum</div>
-                <strong id="hubUpgradeButton">Skill-Tree öffnen</strong>
-                <span>Upgrades direkt im Tree kaufen.</span>
-              </button>
-              <button class="hub-card card-surface" type="button" data-menu-target="characters">
-                <div class="hub-card__icon">◈</div>
-                <div class="card-label">Piloten</div>
-                <strong id="hubCharacterButton">Pilot anpassen</strong>
-                <span>Klasse, Rolle und Waffenset wählen.</span>
-              </button>
-              <button class="hub-card card-surface" type="button" data-menu-target="statistics">
-                <div class="hub-card__icon">⌁</div>
-                <div class="card-label">Telemetry</div>
-                <strong>Statistiken prüfen</strong>
-                <span>Persistente Run-Daten und Fortschritt.</span>
-              </button>
-            </section>
-
-            <section class="info-grid compact-grid menu-hub-info">
-              <article class="info-card info-card--focus">
-                <div class="info-label">Freigeschaltet</div>
-                <strong id="unlockedSummary">1 / 20 Levels</strong>
-                <span>Neue Sektoren öffnen sich nach erfolgreichen Abschlüssen.</span>
-              </article>
-              <article class="info-card info-card--character">
-                <div class="info-label">Aktiver Pilot</div>
-                <strong id="selectedCharacterLabel">Vanguard</strong>
-                <span>Jede Klasse besitzt eigenes Bewegungsgefühl, Basiswaffe und Schussprofil.</span>
-              </article>
-              <article class="info-card info-card--intel">
-                <div class="info-label">Operationshinweis</div>
-                <strong>10 Waves pro Einsatz</strong>
-                <span>Kombiniere Buffs, Schild und Mobilität für saubere Boss-Fenster.</span>
-              </article>
-            </section>
+        <section class="menu-screen" data-screen="home">
+          <div class="hero-card hero-card--wide">
+            <div>
+              <div class="card-label">Bereit zur Ausbringung</div>
+              <h2>Deployment bereit</h2>
+              <p>Starte direkt in die markierte Mission oder optimiere Sektor, Upgrades und Pilot im taktischen Interface darunter.</p>
+            </div>
+          </div>
+          <div class="info-grid compact-grid">
+            <article class="info-card info-card--focus">
+              <div class="info-label">Freigeschaltet</div>
+              <strong id="unlockedSummary">1 / 20 Levels</strong>
+              <span>Neue Sektoren öffnen sich nach erfolgreichen Abschlüssen.</span>
+            </article>
+            <article class="info-card info-card--character">
+              <div class="info-label">Aktiver Pilot</div>
+              <strong id="selectedCharacterLabel">Vanguard</strong>
+              <span>Jede Klasse besitzt jetzt eigenes Bewegungsgefühl, Basiswaffe und Schussprofil.</span>
+            </article>
+            <article class="info-card info-card--intel">
+              <div class="info-label">Operationshinweis</div>
+              <strong>10 Waves pro Einsatz</strong>
+              <span>Kombiniere Buffs, Schild und Mobilität für saubere Boss-Fenster.</span>
+            </article>
           </div>
         </section>
 
-        <section class="menu-screen hidden menu-screen--detail" data-screen="worlds">
-          <div class="detail-shell">
-            <div class="section-head detail-head">
-              <div>
-                <div class="card-label">Sektor-Navigation</div>
-                <h2>Worlds / Levels</h2>
-                <p>Wähle zuerst eine Welt und danach eines der 5 Levels. Jeder Run hat genau 10 Waves.</p>
-              </div>
-              <div class="detail-head__actions">
-                <button class="ghost-btn menu-back-btn" type="button" data-menu-back="hub">← Zurück</button>
-                <button class="ghost-btn" id="startSelectedLevelBtn">Markierte Mission starten</button>
-              </div>
+        <section class="menu-screen hidden" data-screen="worlds">
+          <div class="section-head">
+            <div>
+              <div class="card-label">Sektor-Navigation</div>
+              <h2>Worlds / Levels</h2>
+              <p>Wähle zuerst eine Welt und danach eines der 5 Levels. Jeder Run hat genau 10 Waves.</p>
             </div>
-            <div class="detail-body">
-              <div class="world-grid" id="worldGrid"></div>
-              <div class="level-grid" id="levelGrid"></div>
-            </div>
+            <button class="ghost-btn" id="startSelectedLevelBtn">Markierte Mission starten</button>
           </div>
+          <div class="world-grid" id="worldGrid"></div>
+          <div class="level-grid" id="levelGrid"></div>
         </section>
 
-        <section class="menu-screen hidden menu-screen--detail" data-screen="upgrades">
-          <div class="detail-shell detail-shell--upgrades">
-            <div class="section-head detail-head">
-              <div>
-                <div class="card-label">Persistent Arsenal</div>
-                <h2>Fähigkeitenbaum</h2>
-                <p>Alle Upgrades sind als Skill-Tree organisiert. Das zentrale Limit+-Upgrade erhöht das Max-Level aller anderen Upgrades dauerhaft.</p>
-              </div>
-              <div class="detail-head__actions">
-                <div class="summary-pill summary-pill--bank"><span>Bank</span><strong id="upgradeCredits">0</strong></div>
-                <button class="ghost-btn menu-back-btn" type="button" data-menu-back="hub">← Zurück</button>
-              </div>
+        <section class="menu-screen hidden" data-screen="upgrades">
+          <div class="section-head">
+            <div>
+              <div class="card-label">Persistent Arsenal</div>
+              <h2>Upgrades</h2>
+              <p>Persistente Verbesserungen für Basiswerte und Power-up-Effekte. Jeder Kauf kostet Credits und stapelt sich.</p>
             </div>
-            <div class="detail-body detail-body--upgrades">
-              <div class="skill-tree-panel card-surface">
-                <div class="skill-tree-wrap">
-                  <svg class="skill-tree__svg" id="skillTreeSvg" aria-hidden="true"></svg>
-                  <div class="skill-tree" id="skillTree"></div>
-                </div>
-              </div>
-              <aside class="skill-detail card-surface" id="upgradeDetail"></aside>
-            </div>
+            <div class="summary-pill summary-pill--bank"><span>Bank</span><strong id="upgradeCredits">0</strong></div>
           </div>
+          <div class="upgrade-groups" id="upgradeGroups"></div>
         </section>
 
-        <section class="menu-screen hidden menu-screen--detail" data-screen="statistics">
-          <div class="detail-shell">
-            <div class="section-head detail-head">
-              <div>
-                <div class="card-label">Run Telemetry</div>
-                <h2>Statistics</h2>
-                <p>Alle Werte bleiben über Runs und Tode hinweg erhalten und werden live im Hintergrund aktualisiert.</p>
-              </div>
-              <div class="detail-head__actions">
-                <button class="ghost-btn menu-back-btn" type="button" data-menu-back="hub">← Zurück</button>
-              </div>
-            </div>
-            <div class="detail-body">
-              <div class="stats-grid" id="statsGrid"></div>
+        <section class="menu-screen hidden" data-screen="statistics">
+          <div class="section-head">
+            <div>
+              <div class="card-label">Run Telemetry</div>
+              <h2>Statistics</h2>
+              <p>Alle Werte bleiben über Runs und Tode hinweg erhalten und werden live im Hintergrund aktualisiert.</p>
             </div>
           </div>
+          <div class="stats-grid" id="statsGrid"></div>
         </section>
 
-        <section class="menu-screen hidden menu-screen--detail" data-screen="characters">
-          <div class="detail-shell">
-            <div class="section-head detail-head">
-              <div>
-                <div class="card-label">Pilotenhangar</div>
-                <h2>Character Selection</h2>
-                <p>Jede Klasse kommuniziert Rolle, Waffentyp, Spielstil und Kernstärken direkt in der Auswahl – inklusive Preview.</p>
-              </div>
-              <div class="detail-head__actions">
-                <button class="ghost-btn menu-back-btn" type="button" data-menu-back="hub">← Zurück</button>
-              </div>
-            </div>
-            <div class="detail-body">
-              <div class="character-grid" id="characterGrid"></div>
+        <section class="menu-screen hidden" data-screen="characters">
+          <div class="section-head">
+            <div>
+              <div class="card-label">Pilotenhangar</div>
+              <h2>Character Selection</h2>
+              <p>Jede Klasse kommuniziert jetzt Rolle, Waffentyp, Spielstil und Kernstärken direkt in der Auswahl – inklusive stärkerer Silhouette und klarer Preview.</p>
             </div>
           </div>
+          <div class="character-grid" id="characterGrid"></div>
         </section>
 
-        <div class="hint">Desktop: WASD bewegen (invertiert). Mobile/PWA: Drag auf dem Feld zum Bewegen. Gefeuert wird automatisch.</div>
+        <div class="hint">Desktop: WASD bewegen (invertiert). Mobile/PWA: Drag auf dem Feld zum Bewegen. Gefeuert wird jetzt immer automatisch.</div>
       </div>
     </div>
   </div>

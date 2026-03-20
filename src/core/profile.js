@@ -11,7 +11,7 @@ export function createDefaultProfile() {
   const unlockedLevels = {};
   for (let world = 1; world <= WORLDS_COUNT; world++) unlockedLevels[world] = world === 1 ? 1 : 0;
   return {
-    version: 3,
+    version: 2,
     credits: 0,
     upgrades: Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, 0])),
     stats: {
