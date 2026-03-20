@@ -65,113 +65,202 @@
   <div class="overlay" id="menu">
     <div class="panel menu-panel">
       <div class="menu-shell">
-        <div class="menu-hero-grid">
-          <section class="command-card command-card--title">
-            <div class="eyebrow">ORBITAL ARCADE // PHASED DEFENSE NETWORK</div>
-            <h1>Sky Blaster: Outpost Siege</h1>
-            <p class="menu-copy">Arcade-SciFi-Deployment mit klarer Einsatzhierarchie, aufgewerteter Pilot-Identität und einem modularen Arsenal-Fortschritt über 4 Welten.</p>
-            <div class="menu-hero-actions">
-              <button class="btn" id="startBtn">Deployment starten</button>
-              <button class="ghost-btn" id="quickWorldsBtn">Mission wählen</button>
+        <section class="menu-screen menu-screen--home" data-screen="home">
+          <div class="menu-home-grid">
+            <section class="menu-home-hero card-surface">
+              <div class="eyebrow">ORBITAL ARCADE // PHASED DEFENSE NETWORK</div>
+              <h1>Sky Blaster: Outpost Siege</h1>
+              <p class="menu-copy">Ein ruhiger Command-Hub für Missionen, Piloten, Upgrades und Telemetrie – klar gegliedert, mobil sauber bedienbar und direkt in den Spielfluss integriert.</p>
+              <div class="menu-hero-actions">
+                <button class="btn" id="startBtn">Deployment starten</button>
+                <button class="ghost-btn" id="quickWorldsBtn">Mission auswählen</button>
+              </div>
+            </section>
+
+            <aside class="menu-home-summary card-surface">
+              <div class="menu-section-kicker">Einsatzstatus</div>
+              <div class="summary-stack summary-stack--menu">
+                <div class="summary-pill summary-pill--credits"><span>Credits</span><strong id="menuCredits">0</strong></div>
+                <div class="summary-pill summary-pill--wave"><span>Beste Welle</span><strong id="menuHighestWave">1</strong></div>
+              </div>
+              <div class="hero-mission-card">
+                <div class="card-label">Aktive Mission</div>
+                <strong id="selectedMissionLabel">World 1 · Level 1</strong>
+                <span id="selectedMissionStatus">10 Waves · Unlocked</span>
+              </div>
+              <div class="menu-home-summary-meta">
+                <div class="info-card info-card--focus">
+                  <div class="info-label">Freigeschaltet</div>
+                  <strong id="unlockedSummary">1 / 20 Levels</strong>
+                  <span>Neue Sektoren werden durch erfolgreiche Einsätze freigeschaltet.</span>
+                </div>
+                <div class="info-card info-card--character">
+                  <div class="info-label">Aktiver Pilot</div>
+                  <strong id="selectedCharacterLabel">Vanguard</strong>
+                  <span>Jede Klasse besitzt ein eigenes Bewegungs- und Kampfprofil.</span>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <section class="menu-home-hub">
+            <div class="menu-page-heading">
+              <div>
+                <div class="card-label">Command Hub</div>
+                <h2>Wohin möchtest du als Nächstes?</h2>
+                <p>Jeder Bereich öffnet eine eigene, klar strukturierte Seite mit konsistenter Navigation zurück ins Hauptmenü.</p>
+              </div>
+            </div>
+            <div class="menu-hub-grid">
+              <button class="hub-card card-surface menu-route" type="button" data-screen="worlds">
+                <span class="hub-card__icon" aria-hidden="true">◎</span>
+                <span class="hub-card__content">
+                  <span class="card-label">Missionen</span>
+                  <strong>Welten & Einsätze</strong>
+                  <span>Welt wählen, Level prüfen und markierte Mission direkt starten.</span>
+                </span>
+              </button>
+              <button class="hub-card card-surface menu-route" type="button" data-screen="characters">
+                <span class="hub-card__icon" aria-hidden="true">◈</span>
+                <span class="hub-card__content">
+                  <span class="card-label">Piloten</span>
+                  <strong>Charakterauswahl</strong>
+                  <span>Klassen vergleichen, Rollen prüfen und deinen Pilot präzise auswählen.</span>
+                </span>
+              </button>
+              <button class="hub-card card-surface menu-route" type="button" data-screen="upgrades">
+                <span class="hub-card__icon" aria-hidden="true">⬒</span>
+                <span class="hub-card__content">
+                  <span class="card-label">Arsenal</span>
+                  <strong>Upgrades</strong>
+                  <span>Persistente Fortschritte sauber gruppiert und mit klarer Kaufentscheidung.</span>
+                </span>
+              </button>
+              <button class="hub-card card-surface menu-route" type="button" data-screen="statistics">
+                <span class="hub-card__icon" aria-hidden="true">▣</span>
+                <span class="hub-card__content">
+                  <span class="card-label">Telemetry</span>
+                  <strong>Statistiken</strong>
+                  <span>Alle Langzeitwerte kompakt lesbar und ohne visuelle Überladung.</span>
+                </span>
+              </button>
             </div>
           </section>
 
-          <section class="command-card command-card--summary">
-            <div class="summary-stack summary-stack--menu">
-              <div class="summary-pill summary-pill--credits"><span>Credits</span><strong id="menuCredits">0</strong></div>
-              <div class="summary-pill summary-pill--wave"><span>Beste Welle</span><strong id="menuHighestWave">1</strong></div>
-            </div>
-            <div class="hero-mission-card">
-              <div class="card-label">Aktive Freigabe</div>
-              <strong id="selectedMissionLabel">World 1 · Level 1</strong>
-              <span id="selectedMissionStatus">10 Waves · Unlocked</span>
-            </div>
-          </section>
-        </div>
-
-        <nav class="menu-nav" id="menuNav">
-          <button class="menu-tab is-active" data-screen="home">Command</button>
-          <button class="menu-tab" data-screen="worlds">Sektoren</button>
-          <button class="menu-tab" data-screen="upgrades">Arsenal</button>
-          <button class="menu-tab" data-screen="statistics">Telemetry</button>
-          <button class="menu-tab" data-screen="characters">Piloten</button>
-        </nav>
-
-        <section class="menu-screen" data-screen="home">
-          <div class="hero-card hero-card--wide">
-            <div>
-              <div class="card-label">Bereit zur Ausbringung</div>
-              <h2>Deployment bereit</h2>
-              <p>Starte direkt in die markierte Mission oder optimiere Sektor, Upgrades und Pilot im taktischen Interface darunter.</p>
-            </div>
-          </div>
-          <div class="info-grid compact-grid">
-            <article class="info-card info-card--focus">
-              <div class="info-label">Freigeschaltet</div>
-              <strong id="unlockedSummary">1 / 20 Levels</strong>
-              <span>Neue Sektoren öffnen sich nach erfolgreichen Abschlüssen.</span>
-            </article>
-            <article class="info-card info-card--character">
-              <div class="info-label">Aktiver Pilot</div>
-              <strong id="selectedCharacterLabel">Vanguard</strong>
-              <span>Jede Klasse besitzt jetzt eigenes Bewegungsgefühl, Basiswaffe und Schussprofil.</span>
-            </article>
-            <article class="info-card info-card--intel">
-              <div class="info-label">Operationshinweis</div>
-              <strong>10 Waves pro Einsatz</strong>
-              <span>Kombiniere Buffs, Schild und Mobilität für saubere Boss-Fenster.</span>
-            </article>
-          </div>
+          <div class="hint">Desktop: WASD oder Linksklick + Ziehen zum Bewegen. Mobile/PWA: Drag auf dem Feld zum Bewegen. Gefeuert wird automatisch.</div>
         </section>
 
         <section class="menu-screen hidden" data-screen="worlds">
-          <div class="section-head">
-            <div>
-              <div class="card-label">Sektor-Navigation</div>
-              <h2>Worlds / Levels</h2>
-              <p>Wähle zuerst eine Welt und danach eines der 5 Levels. Jeder Run hat genau 10 Waves.</p>
+          <header class="menu-page-header card-surface">
+            <button class="back-btn" type="button" data-screen="home">← Zurück zum Hauptmenü</button>
+            <div class="menu-page-heading">
+              <div>
+                <div class="card-label">Sektor-Navigation</div>
+                <h2>Welten & Missionen</h2>
+                <p>Wähle zuerst eine Welt und danach ein Level. Jede Mission bleibt klar sichtbar, ohne lange Sammelansicht.</p>
+              </div>
+              <button class="btn" id="startSelectedLevelBtn">Markierte Mission starten</button>
             </div>
-            <button class="ghost-btn" id="startSelectedLevelBtn">Markierte Mission starten</button>
+          </header>
+          <div class="menu-page-content">
+            <section class="menu-page-section card-surface">
+              <div class="section-head section-head--stacked">
+                <div>
+                  <div class="card-label">Welten</div>
+                  <h3>Verfügbare Einsatzgebiete</h3>
+                  <p>Welten sind kompakt gruppiert und zeigen Freischaltung sowie Status auf einen Blick.</p>
+                </div>
+              </div>
+              <div class="world-grid" id="worldGrid"></div>
+            </section>
+            <section class="menu-page-section card-surface">
+              <div class="section-head section-head--stacked">
+                <div>
+                  <div class="card-label">Level</div>
+                  <h3>Missionen der gewählten Welt</h3>
+                  <p>Levelauswahl mit klarer Priorisierung von Status, Abschluss und Startbereitschaft.</p>
+                </div>
+              </div>
+              <div class="level-grid" id="levelGrid"></div>
+            </section>
           </div>
-          <div class="world-grid" id="worldGrid"></div>
-          <div class="level-grid" id="levelGrid"></div>
         </section>
 
         <section class="menu-screen hidden" data-screen="upgrades">
-          <div class="section-head">
-            <div>
-              <div class="card-label">Persistent Arsenal</div>
-              <h2>Upgrades</h2>
-              <p>Persistente Verbesserungen für Basiswerte und Power-up-Effekte. Jeder Kauf kostet Credits und stapelt sich.</p>
+          <header class="menu-page-header card-surface">
+            <button class="back-btn" type="button" data-screen="home">← Zurück zum Hauptmenü</button>
+            <div class="menu-page-heading">
+              <div>
+                <div class="card-label">Persistent Arsenal</div>
+                <h2>Upgrades</h2>
+                <p>Persistente Verbesserungen sind nach Gruppen gegliedert und visuell ruhiger organisiert.</p>
+              </div>
+              <div class="summary-pill summary-pill--bank"><span>Bank</span><strong id="upgradeCredits">0</strong></div>
             </div>
-            <div class="summary-pill summary-pill--bank"><span>Bank</span><strong id="upgradeCredits">0</strong></div>
+          </header>
+          <div class="menu-page-content">
+            <section class="menu-page-section card-surface">
+              <div class="section-head section-head--stacked">
+                <div>
+                  <div class="card-label">Verbesserungen</div>
+                  <h3>Arsenal-Fortschritt</h3>
+                  <p>Jede Gruppe bleibt kompakt, klar lesbar und ohne unnötige visuelle Konkurrenz.</p>
+                </div>
+              </div>
+              <div class="upgrade-groups" id="upgradeGroups"></div>
+            </section>
           </div>
-          <div class="upgrade-groups" id="upgradeGroups"></div>
         </section>
 
         <section class="menu-screen hidden" data-screen="statistics">
-          <div class="section-head">
-            <div>
-              <div class="card-label">Run Telemetry</div>
-              <h2>Statistics</h2>
-              <p>Alle Werte bleiben über Runs und Tode hinweg erhalten und werden live im Hintergrund aktualisiert.</p>
+          <header class="menu-page-header card-surface">
+            <button class="back-btn" type="button" data-screen="home">← Zurück zum Hauptmenü</button>
+            <div class="menu-page-heading">
+              <div>
+                <div class="card-label">Run Telemetry</div>
+                <h2>Statistiken</h2>
+                <p>Langzeitwerte und Fortschritte in einer eigenständigen, ruhigen Auswertungssicht.</p>
+              </div>
             </div>
+          </header>
+          <div class="menu-page-content">
+            <section class="menu-page-section card-surface">
+              <div class="section-head section-head--stacked">
+                <div>
+                  <div class="card-label">Telemetry</div>
+                  <h3>Persistente Einsatzdaten</h3>
+                  <p>Alle Werte bleiben dauerhaft erhalten und sind für schnelle Orientierung in Karten gegliedert.</p>
+                </div>
+              </div>
+              <div class="stats-grid" id="statsGrid"></div>
+            </section>
           </div>
-          <div class="stats-grid" id="statsGrid"></div>
         </section>
 
         <section class="menu-screen hidden" data-screen="characters">
-          <div class="section-head">
-            <div>
-              <div class="card-label">Pilotenhangar</div>
-              <h2>Character Selection</h2>
-              <p>Jede Klasse kommuniziert jetzt Rolle, Waffentyp, Spielstil und Kernstärken direkt in der Auswahl – inklusive stärkerer Silhouette und klarer Preview.</p>
+          <header class="menu-page-header card-surface">
+            <button class="back-btn" type="button" data-screen="home">← Zurück zum Hauptmenü</button>
+            <div class="menu-page-heading">
+              <div>
+                <div class="card-label">Pilotenhangar</div>
+                <h2>Charakterauswahl</h2>
+                <p>Jede Klasse bleibt deutlich fokussiert mit Vorschau, Rolle, Waffentyp und Kernstärken.</p>
+              </div>
             </div>
+          </header>
+          <div class="menu-page-content">
+            <section class="menu-page-section card-surface">
+              <div class="section-head section-head--stacked">
+                <div>
+                  <div class="card-label">Piloten</div>
+                  <h3>Aktive Einsatzteams</h3>
+                  <p>Silhouetten, Werte und Spielstile bleiben klar strukturiert und mobil sauber anwählbar.</p>
+                </div>
+              </div>
+              <div class="character-grid" id="characterGrid"></div>
+            </section>
           </div>
-          <div class="character-grid" id="characterGrid"></div>
         </section>
-
-        <div class="hint">Desktop: WASD oder Linksklick + Ziehen zum Bewegen. Mobile/PWA: Drag auf dem Feld zum Bewegen. Gefeuert wird jetzt immer automatisch.</div>
       </div>
     </div>
   </div>
