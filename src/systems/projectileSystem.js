@@ -237,6 +237,23 @@ export function createProjectileSystem({
     trimBulletsToLimit(maxActiveBullets);
   }
 
+  function getPointToSegmentDistanceSq(pointX, pointZ, fromX, fromZ, toX, toZ) {
+    const dX = toX - fromX;
+    const dZ = toZ - fromZ;
+    const segmentLengthSq = (dX * dX) + (dZ * dZ);
+    if (segmentLengthSq <= 0.0001) {
+      const deltaX = pointX - toX;
+      const deltaZ = pointZ - toZ;
+      return (deltaX * deltaX) + (deltaZ * deltaZ);
+    }
+    const t = THREE.MathUtils.clamp((((pointX - fromX) * dX) + ((pointZ - fromZ) * dZ)) / segmentLengthSq, 0, 1);
+    const closestX = fromX + (dX * t);
+    const closestZ = fromZ + (dZ * t);
+    const deltaX = pointX - closestX;
+    const deltaZ = pointZ - closestZ;
+    return (deltaX * deltaX) + (deltaZ * deltaZ);
+  }
+
   function shoot() {
     const combatProfile = getCharacterCombatProfile();
     const weaponProfile = combatProfile.weaponProfile;
@@ -271,6 +288,8 @@ export function createProjectileSystem({
       }
       const prevX = bullet.position.x;
       const prevZ = bullet.position.z;
+      bullet.userData.prevX = prevX;
+      bullet.userData.prevZ = prevZ;
       bullet.userData.life -= dt;
       bullet.userData.age += dt;
       bullet.position.addScaledVector(bullet.userData.forward, bullet.userData.speed * dt);
@@ -320,21 +339,34 @@ export function createProjectileSystem({
       }
       let hitEnemy = null;
       let bestDistSq = Infinity;
-      const queryRadius = Math.max((bullet.userData.hitRadius || 0.18) + 1.35, bullet.userData.effects?.rockets ? 2.6 : 1.9);
-      collision.forEachEnemyNearPosition(bullet.position, queryRadius, (enemy) => {
+      const prevX = bullet.userData.prevX ?? bullet.position.x;
+      const prevZ = bullet.userData.prevZ ?? bullet.position.z;
+      const travelX = bullet.position.x - prevX;
+      const travelZ = bullet.position.z - prevZ;
+      const travelDistance = Math.hypot(travelX, travelZ);
+      const collisionForgiveness = bullet.userData.effects?.rockets ? 0.26 : 0.22;
+      temp.vec3A.set((prevX + bullet.position.x) * 0.5, bullet.position.y, (prevZ + bullet.position.z) * 0.5);
+      const queryRadius = Math.max((bullet.userData.hitRadius || 0.18) + 1.35 + travelDistance + collisionForgiveness, bullet.userData.effects?.rockets ? 2.75 : 2.05);
+      collision.forEachEnemyNearPosition(temp.vec3A, queryRadius, (enemy) => {
         const data = getEnemyData(enemy);
         if (!data) {
           logInvalidEnemyReference(state, 'projectile.hitResolution', enemy);
           return;
         }
         if (data.dead || bullet.userData.hitEnemies?.has(enemy)) return;
-        const dx = enemy.position.x - bullet.position.x;
-        const dz = enemy.position.z - bullet.position.z;
-        const horizontalDistSq = dx * dx + dz * dz;
-        const hitRadius = data.hitboxRadius + (bullet.userData.hitRadius || 0.18);
+        const horizontalDistSq = getPointToSegmentDistanceSq(
+          enemy.position.x,
+          enemy.position.z,
+          prevX,
+          prevZ,
+          bullet.position.x,
+          bullet.position.z,
+        );
+        const hitRadius = data.hitboxRadius + (bullet.userData.hitRadius || 0.18) + collisionForgiveness;
         if (horizontalDistSq > hitRadius * hitRadius) return;
         const yCenter = enemy.position.y + data.hitboxCenterOffsetY;
-        if (Math.abs(bullet.position.y - yCenter) > data.hitboxHalfHeight + 0.12) return;
+        const verticalTolerance = data.hitboxHalfHeight + 0.18 + Math.min(0.18, travelDistance * 0.2);
+        if (Math.abs(bullet.position.y - yCenter) > verticalTolerance) return;
         if (horizontalDistSq < bestDistSq) {
           bestDistSq = horizontalDistSq;
           hitEnemy = enemy;

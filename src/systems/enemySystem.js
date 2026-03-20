@@ -311,8 +311,9 @@ export function createEnemySystem({
       anim: model.anim,
       spawnTick: Math.random() * Math.PI * 2,
       dead: false,
-      hitboxRadius: cfg.radius * (type === 'swarm' ? 1.25 : 1.05),
-      hitboxHalfHeight: Math.max(0.45, cfg.radius * (cfg.role === 'boss' ? 1.2 : 0.95)),
+      bodyCollisionRadius: cfg.radius * (type === 'swarm' ? 1.32 : cfg.role === 'boss' ? 1.18 : 1.12),
+      hitboxRadius: cfg.radius * (type === 'swarm' ? 1.52 : cfg.role === 'boss' ? 1.34 : 1.22),
+      hitboxHalfHeight: Math.max(0.5, cfg.radius * (cfg.role === 'boss' ? 1.28 : 1.02)),
       hitboxCenterOffsetY: cfg.role === 'boss' ? 1.05 : type === 'swarm' ? 0.5 : 0.88,
       fireDot: 0,
       fireTickTimer: 0.12 + Math.random() * 0.08,
@@ -469,6 +470,19 @@ export function createEnemySystem({
       const enemyHalfArena = gameplayConfig.arena.size * 0.5 - gameplayConfig.arena.padding - 1.9;
       enemy.position.x = THREE.MathUtils.clamp(enemy.position.x, -enemyHalfArena, enemyHalfArena);
       enemy.position.z = THREE.MathUtils.clamp(enemy.position.z, -enemyHalfArena, enemyHalfArena);
+
+      temp.vec3D.set(enemy.position.x - temp.player.position.x, 0, enemy.position.z - temp.player.position.z);
+      const playerSeparation = Math.max(0.0001, temp.vec3D.length());
+      const bodyCollisionRadius = data.bodyCollisionRadius || data.radius;
+      const minPlayerDistance = state.world.playerCollisionRadius + bodyCollisionRadius;
+      if (playerSeparation < minPlayerDistance) {
+        if (playerSeparation <= 0.0001) temp.vec3D.set(Math.cos(elapsed + i), 0, Math.sin(elapsed + i));
+        else temp.vec3D.multiplyScalar(1 / playerSeparation);
+        enemy.position.addScaledVector(temp.vec3D, minPlayerDistance - playerSeparation);
+        collision.resolveWorldCollision(enemy.position, data.radius * 0.88);
+        enemy.position.x = THREE.MathUtils.clamp(enemy.position.x, -enemyHalfArena, enemyHalfArena);
+        enemy.position.z = THREE.MathUtils.clamp(enemy.position.z, -enemyHalfArena, enemyHalfArena);
+      }
       enemy.lookAt(temp.player.position.x, enemy.position.y, temp.player.position.z);
 
       const step = elapsed * (2.8 + moveSpeedEnemy * 0.9) + data.spawnTick;
@@ -482,7 +496,8 @@ export function createEnemySystem({
         extra.rotation.y = Math.sin(step + extraIdx) * 0.28;
       });
 
-      if (dist < data.radius + 0.7) onDamagePlayer(data.damage * dt);
+      const distanceToPlayer = Math.hypot(enemy.position.x - temp.player.position.x, enemy.position.z - temp.player.position.z);
+      if (distanceToPlayer < (data.bodyCollisionRadius || data.radius) + state.world.playerCollisionRadius + 0.16) onDamagePlayer(data.damage * dt);
     }
   }
 
