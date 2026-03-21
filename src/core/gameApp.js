@@ -495,10 +495,10 @@ export function startGameApp() {
   function getMissionLabel(mission = state.currentMission) {
     if (mission.type === 'boss') {
       const group = getCampaignGroupDefinition(mission.campaignGroupId || 'earth');
-      return `${group.menuLabel} · ${state.boss.name || mission.label || 'Boss'}`;
+      return `${group.name} · ${state.boss.name || mission.label || 'Boss'}`;
     }
     const worldDef = getWorldDefinition(mission.world || state.worldIndex);
-    return `W${mission.world || state.worldIndex} ${worldDef.themeName} · L${mission.level || state.levelIndex}`;
+    return `${worldDef.themeName} · Level ${mission.level || state.levelIndex}`;
   }
 
   function getPauseDescription(reason = state.pauseReason) {

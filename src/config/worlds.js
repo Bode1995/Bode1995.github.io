@@ -49,8 +49,8 @@ export const WORLD_DEFS = {
   1: createWorldDefinition({
     id: 1,
     key: 'frontier',
-    themeName: 'Frontier Outpost',
-    menuLabel: 'Orbital Cluster',
+    themeName: 'Die Blütezeit',
+    menuLabel: 'Die Blütezeit',
     hudBadge: 'Standard',
     environment: {
       style: 'frontier',
@@ -95,8 +95,8 @@ export const WORLD_DEFS = {
   2: createWorldDefinition({
     id: 2,
     key: 'lava',
-    themeName: 'Ember Caldera',
-    menuLabel: 'Lava',
+    themeName: 'Der Aufbruch des Feuers',
+    menuLabel: 'Der Aufbruch des Feuers',
     hudBadge: 'Feuerresistenz',
     environment: {
       style: 'lava',
@@ -157,8 +157,8 @@ export const WORLD_DEFS = {
   3: createWorldDefinition({
     id: 3,
     key: 'ice',
-    themeName: 'Cryo Shelf',
-    menuLabel: 'Eis',
+    themeName: 'Die große Erstarrung',
+    menuLabel: 'Die große Erstarrung',
     hudBadge: 'Eisresistenz',
     environment: {
       style: 'ice',
@@ -219,8 +219,8 @@ export const WORLD_DEFS = {
   4: createWorldDefinition({
     id: 4,
     key: 'poison',
-    themeName: 'Venom Bloom',
-    menuLabel: 'Gift',
+    themeName: 'Das giftige Zeitalter',
+    menuLabel: 'Das giftige Zeitalter',
     hudBadge: 'Giftresistenz',
     environment: {
       style: 'poison',

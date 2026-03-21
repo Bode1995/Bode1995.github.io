@@ -495,7 +495,7 @@ export function createBossSystem({
     state.boss.hp = bossData.hp;
     state.boss.maxHp = bossData.maxHp;
     state.boss.defeated = false;
-    setBossLabel('Earth Titan erwacht', 1.8);
+    setBossLabel('Der Titan des Kerns erwacht', 1.8);
   }
 
   function update(dt, elapsed) {
@@ -508,7 +508,7 @@ export function createBossSystem({
       if (!encounter.defeatedHandled) {
         encounter.defeatedHandled = true;
         state.boss.defeated = true;
-        state.boss.telegraphLabel = 'Earth Titan gefallen';
+        state.boss.telegraphLabel = 'Der Titan des Kerns gefallen';
         onBossDefeated(encounter.id);
       }
       return;
