@@ -4,12 +4,15 @@
 - `src/core/gameApp.js`: verkabelt Renderer, State, UI, Profile und die Fachsysteme; enthält nur noch App-Lifecycle, HUD-Aktualisierung und Run-/Menü-Orchestrierung.
 - `src/core/state.js`: zentrale Laufzeitstruktur für Run-State, Eingaben, Entities, UI, Performance und World-Daten.
 - `src/core/profile.js`: persistentes Profil, Charakterwahl und Missionsfortschritt über eine konsistente `createProfileApi()`.
+- `src/config/campaigns.js`: definiert übergeordnete Kampagnengruppen (z. B. Erde über World 1–4) inklusive Fortschritts-/Completion-Helfern.
+- `src/config/bosses.js`: wiederverwendbare Gruppen-Endboss-Definitionen inklusive Freischalt- und Reward-Metadaten.
 
 ## Gameplay-Systeme
 - `src/systems/inputSystem.js`: kapselt Tastatur-/Pointer-Input, Stick-Visualisierung und Bewegungszonen.
 - `src/systems/collisionSystem.js`: Arena-/World-Kollision, Spawn-Punkte, Pickup-Validierung und Enemy-Spatial-Grid.
 - `src/systems/projectileSystem.js`: Projektil-Spawn, Spread/Volley-Berechnung, Bullet-Lifecycle und Hit-Erkennung.
 - `src/systems/enemySystem.js`: Enemy-Modelle, Spawn, Update-Loop, Bewegung, KI-Verhalten und Death-Handling.
+- `src/systems/bossSystem.js`: eigenständige Boss-Encounter-Logik für Phasen, Telegraphs, Arenadruck und Boss-spezifische Attack-Pattern.
 - `src/systems/combatSystem.js`: Schaden, Status-Effekte, Splash-/Lightning-Logik, Shields und Run-Power-ups.
 - `src/systems/vfxSystem.js`: Impact-/Status-Partikel, Damage Numbers, Chain Beams und Explosionsringe.
 - `src/systems/performanceSystem.js`: adaptive Qualitätsstufen, Frame-Budgets und das Debug-Overlay.
@@ -22,6 +25,8 @@
 
 ## Wo neue Features künftig hingehören
 - **Neue Gegnerarten**: `src/config/gameConfig.js` für Werte + `src/systems/enemySystem.js` für Modell, Spawn- und KI-Verhalten.
+- **Neue Gruppen-Endbosse**: `src/config/bosses.js` für Definitionen, `src/systems/bossSystem.js` für Phasen/Patterns und `src/systems/worldSystem.js` für Boss-Arenen.
+- **Neue Kampagnengruppen**: `src/config/campaigns.js` für Gruppenlogik und `src/core/profile.js` für Unlock-/Completion-Ableitung.
 - **Neue Power-ups**: `src/config/gameConfig.js` für Definitionen + `src/systems/combatSystem.js` für Wirkung + optional `src/core/gameApp.js` für Pickup-Spawn/HUD-Text.
 - **Kampflogik anpassen**: `src/systems/combatSystem.js` und `src/systems/projectileSystem.js`.
 - **UI-Erweiterungen**: `src/ui/menu.js`, `src/ui/characterSelection.js`, `src/ui/dom.js`.
@@ -32,6 +37,7 @@
 - `createCollisionSystem()`: Collider-API, Pickup-/Arena-Checks, Spatial-Grid-Queries.
 - `createProjectileSystem()`: `shoot()`, `update()`, `clear()`, `getSafeProjectileCountFromDoublers()`.
 - `createEnemySystem()`: `pickEnemyType()`, `spawnEnemy()`, `update()`, `destroyEnemy()`, `clear()`.
+- `createBossSystem()`: `startMission()`, `update()`, `clear()`, `isBossMissionActive()`.
 - `createCombatSystem()`: `damagePlayer()`, `damageEnemy()`, `applyProjectilePower()`, `applyRunPower()`, `resetRunPowerUps()`.
 - `createVfxSystem()`: Impact-/Status-/Damage-Number- und Beam-APIs plus `update()` / `clear()`.
 - `createPerformanceSystem()`: `getAdaptiveLimit()`, `resetFrameBudgets()`, `update()`, `renderDebug()`, `toggleDebug()`.

@@ -27,8 +27,11 @@ import { createPerformanceSystem } from '../systems/performanceSystem.js';
 import { createProjectileSystem } from '../systems/projectileSystem.js';
 import { createSynergySystem } from '../systems/synergySystem.js';
 import { createVfxSystem } from '../systems/vfxSystem.js';
+import { createBossSystem } from '../systems/bossSystem.js';
 import { registerServiceWorker } from '../pwa/register-sw.js';
 import { getWorldDefinition } from '../config/worlds.js';
+import { getBossDefinition } from '../config/bosses.js';
+import { getCampaignGroupDefinition } from '../config/campaigns.js';
 import {
   getSpecialAbilityDef,
   getSpecialAbilityLevel as getStoredSpecialAbilityLevel,
@@ -41,7 +44,7 @@ export function startGameApp() {
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
-    'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'specialAbilityHud', 'specialAbilityIcon', 'specialAbilityLabel', 'specialAbilityStatus', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
+    'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'specialAbilityHud', 'specialAbilityIcon', 'specialAbilityLabel', 'specialAbilityStatus', 'bossHud', 'bossName', 'bossPhase', 'bossTelegraph', 'bossHpBar', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
     'skillTreeMap', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
@@ -323,6 +326,18 @@ export function startGameApp() {
   combat.api.destroyEnemy = enemySystem.destroyEnemy;
   enemySystem.registerCallbacks({ damageEnemy: combat.damageEnemy });
 
+  const bossSystem = createBossSystem({
+    THREE,
+    scene,
+    state,
+    collision,
+    vfx,
+    temp,
+    enemySystem,
+    onDamagePlayer: combat.damagePlayer,
+    onBossDefeated: () => finishRun(true),
+  });
+
   const inputSystem = createInputSystem({
     THREE,
     ui,
@@ -425,6 +440,35 @@ export function startGameApp() {
     return getSpecialAbilityUpgradeCost(abilityId, getSpecialAbilityLevel(abilityId));
   }
 
+  function normalizeMissionSelection(worldOrMission = profile.progression.selectedWorld, level = profile.progression.selectedLevel) {
+    if (worldOrMission && typeof worldOrMission === 'object') {
+      if (worldOrMission.type === 'boss') {
+        const boss = getBossDefinition(worldOrMission.id);
+        return {
+          type: 'boss',
+          id: boss.id,
+          world: boss.presentationWorldIndex,
+          menuWorldIndex: boss.menuWorldIndex,
+          campaignGroupId: boss.campaignGroupId,
+          level: null,
+          label: boss.name,
+        };
+      }
+      return {
+        type: 'level',
+        world: worldOrMission.world,
+        level: worldOrMission.level,
+        label: `Level ${worldOrMission.level}`,
+      };
+    }
+    return {
+      type: 'level',
+      world: worldOrMission,
+      level,
+      label: `Level ${level}`,
+    };
+  }
+
   function selectSpecialAbility(abilityId) {
     profile.specialAbilities.selectedId = getSpecialAbilityDef(abilityId).id;
     state.specialAbility.selectedId = profile.specialAbilities.selectedId;
@@ -448,9 +492,13 @@ export function startGameApp() {
     return ((world - 1) * LEVELS_PER_WORLD + (level - 1)) * WAVES_PER_LEVEL + waveInLevel;
   }
 
-  function getMissionLabel(world = state.worldIndex, level = state.levelIndex) {
-    const worldDef = getWorldDefinition(world);
-    return `W${world} ${worldDef.themeName} · L${level}`;
+  function getMissionLabel(mission = state.currentMission) {
+    if (mission.type === 'boss') {
+      const group = getCampaignGroupDefinition(mission.campaignGroupId || 'earth');
+      return `${group.menuLabel} · ${state.boss.name || mission.label || 'Boss'}`;
+    }
+    const worldDef = getWorldDefinition(mission.world || state.worldIndex);
+    return `W${mission.world || state.worldIndex} ${worldDef.themeName} · L${mission.level || state.levelIndex}`;
   }
 
   function getPauseDescription(reason = state.pauseReason) {
@@ -599,7 +647,9 @@ export function startGameApp() {
         true,
       ]);
 
-    ui.wave.textContent = `${state.waveInLevel}/${WAVES_PER_LEVEL}`;
+    ui.wave.textContent = state.currentMission.type === 'boss'
+      ? `P${state.boss.phase}/${state.boss.phaseCount}`
+      : `${state.waveInLevel}/${WAVES_PER_LEVEL}`;
     ui.enemyCount.textContent = String(state.activeEnemyCount);
     ui.score.textContent = String(state.score);
     ui.hpValue.textContent = String(roundedHp);
@@ -615,6 +665,14 @@ export function startGameApp() {
     ui.specialAbilityHud.style.borderColor = `${state.specialAbility.hudColor || '#ffffff'}66`;
     ui.specialAbilityHud.style.boxShadow = `0 0 0 1px ${(state.specialAbility.hudColor || '#ffffff')}22, inset 0 0 16px ${(state.specialAbility.hudColor || '#ffffff')}12`;
     ui.specialAbilityIcon.style.color = state.specialAbility.hudColor || '#ffffff';
+    ui.bossHud.classList.toggle('hidden', !state.boss.active);
+    if (state.boss.active) {
+      const bossHpPercent = THREE.MathUtils.clamp((Math.max(0, state.boss.hp) / Math.max(1, state.boss.maxHp)) * 100, 0, 100);
+      ui.bossName.textContent = state.boss.name || 'Boss';
+      ui.bossPhase.textContent = `Phase ${state.boss.phase} / ${state.boss.phaseCount}${state.boss.vulnerable ? ' · Verwundbar' : ''}`;
+      ui.bossTelegraph.textContent = state.boss.telegraphLabel || (state.boss.vulnerable ? 'Kern freigelegt' : '');
+      ui.bossHpBar.style.width = `${bossHpPercent}%`;
+    }
 
     ui.activePowers.innerHTML = '';
     for (const [def, count, isSynergy] of [...activePowerEntries, ...activeSynergyEntries]) {
@@ -680,6 +738,7 @@ export function startGameApp() {
   }
 
   function clearRunObjects() {
+    bossSystem.clear();
     specialAbilitySystem.clear();
     enemySystem.clear();
     projectileSystem.clear();
@@ -741,15 +800,37 @@ export function startGameApp() {
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
-    if (success) profileApi.unlockNextMission(state.worldIndex, state.levelIndex);
-    profile.credits += state.runCredits + (success ? 40 + state.levelIndex * 10 + state.worldIndex * 15 : 0);
+    const bossAlreadyCompleted = !!profile.progression.completedBossMissions?.[state.currentMission.bossId];
+    if (success) {
+      if (state.currentMission.type === 'boss') profileApi.completeBossMission(state.currentMission.bossId);
+      else profileApi.unlockNextMission(state.worldIndex, state.levelIndex);
+    }
+    const victoryCredits = success
+      ? state.currentMission.type === 'boss'
+        ? (bossAlreadyCompleted
+          ? getBossDefinition(state.currentMission.bossId).repeatRewardCredits
+          : getBossDefinition(state.currentMission.bossId).rewardCredits)
+        : 40 + state.levelIndex * 10 + state.worldIndex * 15
+      : 0;
+    profile.credits += state.runCredits + victoryCredits;
     profile.stats.timePlayed += Math.max(0, state.elapsedRunTime - state.savedRunTime);
     profile.stats.highestWaveReached = Math.max(profile.stats.highestWaveReached, state.wave);
     if (success) {
-      const nextMission = getNextMission(state.worldIndex, state.levelIndex);
-      if (nextMission && profileApi.isLevelUnlocked(nextMission.world, nextMission.level)) profileApi.selectMission(nextMission.world, nextMission.level);
+      if (state.currentMission.type === 'boss') {
+        profileApi.selectBossMission(state.currentMission.bossId);
+      } else {
+        const nextMission = getNextMission(state.worldIndex, state.levelIndex);
+        if (nextMission && profileApi.isLevelUnlocked(nextMission.world, nextMission.level)) profileApi.selectMission(nextMission.world, nextMission.level);
+      }
     }
     profileApi.save();
+    state.pendingResult = {
+      mission: { ...state.currentMission },
+      boss: { ...state.boss },
+      wave: state.wave,
+      score: state.score,
+      credits: state.runCredits,
+    };
     combat.resetRunPowerUps();
     clearRunObjects();
     ui.controls.classList.add('hidden');
@@ -770,7 +851,12 @@ export function startGameApp() {
     if (state.input.keys) state.input.keys.clear();
   }
 
-  function validateMission(world, level) {
+  function validateMission(mission) {
+    if (mission.type === 'boss') {
+      if (!profileApi.isBossMissionUnlocked(mission.id)) throw new Error(`Boss mission is locked: id=${mission.id}`);
+      return;
+    }
+    const { world, level } = mission;
     if (!Number.isInteger(world) || !Number.isInteger(level)) {
       throw new Error(`Invalid mission selection: world=${world}, level=${level}`);
     }
@@ -797,30 +883,41 @@ export function startGameApp() {
     reportRuntimeError(context, err, extra);
   }
 
-  function startGame(world = profile.progression.selectedWorld, level = profile.progression.selectedLevel) {
+  function startGame(worldOrMission = profileApi.getSelectedMission(), level = profile.progression.selectedLevel) {
     try {
       clearRuntimeError();
-      validateMission(world, level);
+      const mission = normalizeMissionSelection(worldOrMission, level);
+      validateMission(mission);
       const characterDef = getCharacterDef(state.selection.characterId);
       if (!characterDef) throw new Error('No character definition available for run start.');
       if (!playerRig) setPlayerCharacter(characterDef.id);
       if (!playerRig) throw new Error('Player rig could not be created.');
 
-      profileApi.selectMission(world, level);
+      if (mission.type === 'boss') profileApi.selectBossMission(mission.id);
+      else profileApi.selectMission(mission.world, mission.level);
       profile.stats.totalRuns += 1;
       profileApi.save();
 
       state.running = true;
       state.paused = false;
       state.pauseReason = null;
-      state.worldIndex = world;
-      state.levelIndex = level;
-      applyWorldPresentation(world);
-      createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worldIndex: world });
+      state.currentMission = {
+        type: mission.type,
+        world: mission.world,
+        menuWorldIndex: mission.menuWorldIndex || mission.world,
+        campaignGroupId: mission.campaignGroupId || null,
+        level: mission.level,
+        bossId: mission.id || null,
+        label: mission.label || '',
+      };
+      state.worldIndex = mission.world;
+      state.levelIndex = mission.level || 1;
+      applyWorldPresentation(mission.world);
+      createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worldIndex: mission.world, mission: state.currentMission });
       state.hp = getPlayerMaxHp();
       state.score = 0;
       state.waveInLevel = 1;
-      state.wave = getDifficultyIndex(world, level, 1);
+      state.wave = mission.type === 'boss' ? 1 : getDifficultyIndex(mission.world, mission.level, 1);
       state.spawnLeft = 0;
       state.fireCooldown = 0;
       state.waveTimer = WAVE_INTERVAL_SECONDS;
@@ -837,6 +934,9 @@ export function startGameApp() {
       state.weaponState.burstTimer = 0;
       state.movement.velocityX = 0;
       state.movement.velocityZ = 0;
+      state.boss.active = false;
+      state.boss.telegraphLabel = '';
+      state.boss.defeated = false;
       playerRigHolder.position.set(0, 0.2, 0);
       resetTransientInputState();
       clearRunObjects();
@@ -844,8 +944,13 @@ export function startGameApp() {
       synergySystem.applyThresholdUnlocks();
       synergySystem.rebuildActiveSynergies(getCharacterCombatProfile());
       specialAbilitySystem.initRun();
-      spawnWave();
-      if (state.entities.enemies.length === 0) throw new Error('Wave spawn returned no enemies.');
+      if (mission.type === 'boss') {
+        bossSystem.startMission({ type: 'boss', id: mission.id });
+        if (!bossSystem.isBossMissionActive()) throw new Error(`Boss mission failed to initialize: ${mission.id}`);
+      } else {
+        spawnWave();
+        if (state.entities.enemies.length === 0) throw new Error('Wave spawn returned no enemies.');
+      }
       updateHUD();
       ui.menu.classList.add('hidden');
       ui.gameOver.classList.add('hidden');
@@ -853,7 +958,7 @@ export function startGameApp() {
       ui.controls.classList.remove('hidden');
       ui.hud.classList.remove('hidden');
     } catch (err) {
-      handleRunCrash('Run start failed', err, `world=${world}, level=${level}, character=${state.selection.characterId}`);
+      handleRunCrash('Run start failed', err, `mission=${JSON.stringify(normalizeMissionSelection(worldOrMission, level))}, character=${state.selection.characterId}`);
     }
   }
 
@@ -875,11 +980,16 @@ export function startGameApp() {
       getSpecialAbilityLevel,
       getSelectedSpecialAbilityId,
       isLevelUnlocked: profileApi.isLevelUnlocked,
+      isBossMissionUnlocked: profileApi.isBossMissionUnlocked,
       getLevelKey: profileApi.getLevelKey,
     },
     actions: {
       selectMission(world, level) {
         profileApi.selectMission(world, level);
+        menuController.renderMenu();
+      },
+      selectBossMission(bossId) {
+        profileApi.selectBossMission(bossId);
         menuController.renderMenu();
       },
       purchaseUpgrade,
@@ -1024,10 +1134,15 @@ export function startGameApp() {
           data.currentTargetPosition = targetInfo?.position || playerRigHolder.position;
         }
         enemySystem.update(dt, elapsed, state.runPowers);
+        bossSystem.update(dt, elapsed);
         projectileSystem.update(dt, { damageEnemy: combat.damageEnemy, applyProjectilePower: combat.applyProjectilePower });
 
-        state.waveTimer -= dt;
-        if (state.waveTimer <= 0 || shouldAdvanceWave()) advanceWave();
+        if (state.currentMission.type !== 'boss') {
+          state.waveTimer -= dt;
+          if (state.waveTimer <= 0 || shouldAdvanceWave()) advanceWave();
+        } else {
+          state.wave = Math.max(1, state.boss.phase);
+        }
 
         if (state.lastProfileSaveAt >= 2) {
           profile.stats.timePlayed += state.lastProfileSaveAt;
@@ -1110,9 +1225,9 @@ export function startGameApp() {
   ui.quickWorldsBtn.addEventListener('click', () => menuController.openMenu('worlds'));
   ui.startSelectedLevelBtn.addEventListener('click', () => {
     const mission = profileApi.getSelectedMission();
-    startGame(mission.world, mission.level);
+    startGame(mission);
   });
-  ui.restartBtn.addEventListener('click', () => startGame(state.worldIndex, state.levelIndex));
+  ui.restartBtn.addEventListener('click', () => startGame(state.currentMission));
   ui.menuBtn.addEventListener('click', () => menuController.openMenu('home'));
   ui.nextLevelBtn.addEventListener('click', () => {
     const nextMission = getNextMission(state.worldIndex, state.levelIndex);
@@ -1120,11 +1235,11 @@ export function startGameApp() {
       menuController.openMenu('worlds');
       return;
     }
-    startGame(nextMission.world, nextMission.level);
+    startGame(nextMission);
   });
   ui.pauseBtn.addEventListener('click', () => pauseRun('manual'));
   ui.pauseResumeBtn.addEventListener('click', () => resumeRun());
-  ui.pauseRestartBtn.addEventListener('click', () => startGame(state.worldIndex, state.levelIndex));
+  ui.pauseRestartBtn.addEventListener('click', () => startGame(state.currentMission));
   ui.pauseMenuBtn.addEventListener('click', () => abandonRunToMenu('home'));
 
   window.addEventListener('keydown', (event) => {

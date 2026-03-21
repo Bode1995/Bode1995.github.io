@@ -1,5 +1,6 @@
 import { getWorldDefinition } from '../config/worlds.js';
 import { getWorldLayout } from '../config/worldLayouts.js';
+import { EARTH_BOSS_ID } from '../config/bosses.js';
 
 function disposeMaterial(material) {
   if (!material) return;
@@ -25,7 +26,7 @@ export function clearWorldMap(mapRoot) {
   }
 }
 
-export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worldIndex = 1 }) {
+export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worldIndex = 1, mission = null }) {
   clearWorldMap(mapRoot);
   collision.clearColliders();
 
@@ -201,6 +202,29 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worl
     footprint: { type: 'rect', x: 0, z: 0, width: gameplayConfig.arena.size, depth: gameplayConfig.arena.size, rotation: 0 },
   });
 
+  if (mission?.type === 'boss' && mission.id === EARTH_BOSS_ID) {
+    buildEarthBossArena({
+      THREE,
+      shared,
+      varyMaterial,
+      addBox,
+      addCylinder,
+      addDecal,
+      addSphere,
+      addCluster,
+      registerWorldObject,
+      buildableHalf,
+      hash,
+    });
+    const audit = collision.finalizeWorldAudit();
+    if (audit.missingColliderObjects.length || audit.colliderWarnings.length) {
+      console.warn('[WorldAudit] Collider audit detected issues.', { world: `${world.themeName} Boss`, ...audit });
+    } else {
+      console.info('[WorldAudit] Blocking world objects audited successfully.', { world: `${world.themeName} Boss`, ...audit });
+    }
+    return audit;
+  }
+
   addWorldSurfaceDecor({ THREE, world, env, layout, shared, varyMaterial, addDecal, addBox, addSphere, addCluster, hash, buildableHalf });
   buildWorldStructures({
     THREE,
@@ -333,6 +357,121 @@ function buildWorldStructures(context) {
     return;
   }
   buildPoisonWorld(context);
+}
+
+function buildEarthBossArena({
+  THREE,
+  shared,
+  varyMaterial,
+  addBox,
+  addCylinder,
+  addDecal,
+  addSphere,
+  addCluster,
+  registerWorldObject,
+  buildableHalf,
+  hash,
+}) {
+  const ringMaterial = shared.glowPlane.clone();
+  ringMaterial.opacity = 0.16;
+  addDecal({ x: 0, z: 0, sx: 58, sz: 58, rotation: 0, material: ringMaterial, source: 'earth-boss-ring-outer' });
+  addDecal({ x: 0, z: 0, sx: 32, sz: 32, rotation: Math.PI * 0.25, material: shared.mistPlane.clone(), source: 'earth-boss-ring-inner' });
+
+  const centralPlatform = new THREE.Group();
+  centralPlatform.position.set(0, 0, 0);
+  const platformBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(15.5, 17.5, 2.8, 10),
+    varyMaterial(shared.structureDark, 0, 0, 301, { light: 0.04, sat: 0.02 }),
+  );
+  platformBase.position.y = 1.3;
+  platformBase.castShadow = true;
+  platformBase.receiveShadow = true;
+  centralPlatform.add(platformBase);
+  const platformTop = new THREE.Mesh(
+    new THREE.CylinderGeometry(14.2, 15.3, 0.8, 10),
+    varyMaterial(shared.structure, 0, 0, 302, { light: 0.08, sat: 0.04 }),
+  );
+  platformTop.position.y = 3.1;
+  platformTop.castShadow = true;
+  platformTop.receiveShadow = true;
+  centralPlatform.add(platformTop);
+  const coreRing = new THREE.Mesh(
+    new THREE.TorusGeometry(6.8, 0.5, 12, 48),
+    shared.accent,
+  );
+  coreRing.rotation.x = Math.PI / 2;
+  coreRing.position.y = 3.28;
+  coreRing.castShadow = true;
+  centralPlatform.add(coreRing);
+  registerWorldObject({
+    mesh: centralPlatform,
+    source: 'earth-boss-platform',
+    blocking: false,
+    footprint: { type: 'circle', x: 0, z: 0, radius: 15.8 },
+  });
+
+  for (let index = 0; index < 8; index += 1) {
+    const angle = (index / 8) * Math.PI * 2;
+    const radius = 26 + (index % 2) * 4;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    addCylinder({
+      x,
+      y: 2.8,
+      z,
+      rt: 1.8 + (index % 3) * 0.2,
+      rb: 2.2 + (index % 2) * 0.4,
+      h: 5.6 + (index % 2) * 1.8,
+      material: varyMaterial(shared.structureDark, x, z, 320 + index),
+      source: `earth-boss-monolith-${index + 1}`,
+      blocking: true,
+      collider: { type: 'circle', x, z, radius: 2.3 + (index % 2) * 0.2 },
+    });
+    addCluster({
+      x: x + Math.cos(angle + 0.45) * 2.8,
+      z: z + Math.sin(angle + 0.45) * 2.8,
+      radius: 1.6,
+      count: 4,
+      source: `earth-boss-crystals-${index + 1}`,
+      material: shared.trim,
+      height: 2.5 + (index % 3) * 0.5,
+      spike: true,
+    });
+  }
+
+  for (let index = 0; index < 6; index += 1) {
+    const angle = (index / 6) * Math.PI * 2 + 0.35;
+    const x = Math.cos(angle) * 39;
+    const z = Math.sin(angle) * 39;
+    addBox({
+      x,
+      y: 1.15,
+      z,
+      sx: 7.5,
+      sy: 2.3,
+      sz: 4.8,
+      material: varyMaterial(shared.structure, x, z, 340 + index, { light: 0.06 }),
+      rotation: angle + Math.PI * 0.5,
+      source: `earth-boss-ruin-${index + 1}`,
+      blocking: true,
+      collider: { type: 'rect', x, z, width: 6.9, depth: 4.2, rotation: angle + Math.PI * 0.5 },
+    });
+  }
+
+  for (let index = 0; index < 14; index += 1) {
+    const x = -buildableHalf + 8 + (index * 7.4) % (buildableHalf * 2 - 12);
+    const z = -buildableHalf + 8 + ((index * 11.1) % (buildableHalf * 2 - 12));
+    if (Math.hypot(x, z) < 24) continue;
+    addSphere({
+      x,
+      z,
+      y: 0.34 + hash(index, z, 360) * 0.16,
+      r: 0.5 + hash(x, index, 361) * 0.35,
+      material: varyMaterial(shared.soil, x, z, 362 + index),
+      source: `earth-boss-boulder-${index + 1}`,
+      scale: [1.35, 0.74, 1.22],
+    });
+  }
 }
 
 function buildFrontierWorld({ THREE, layout, shared, varyMaterial, addBox, addCylinder, buildableHalf, mapRoot, registerWorldObject, setShadow, hash }) {

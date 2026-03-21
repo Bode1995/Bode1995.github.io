@@ -6,6 +6,8 @@ import {
   getSpecialAbilityUpgradeValue,
 } from '../config/specialAbilities.js';
 import { getWorldDefinition } from '../config/worlds.js';
+import { getBossesForWorld } from '../config/bosses.js';
+import { getCampaignGroupDefinition } from '../config/campaigns.js';
 
 const SKILL_TREE_LAYOUT = {
   canvasPadding: 96,
@@ -284,6 +286,24 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       button.addEventListener('click', () => actions.selectMission(selectedWorld, level));
       ui.levelGrid.appendChild(button);
     }
+
+    getBossesForWorld(selectedWorld).forEach((boss) => {
+      const unlocked = helpers.isBossMissionUnlocked(boss.id);
+      const completed = !!profile.progression.completedBossMissions?.[boss.id];
+      const selected = profile.progression.selectedMissionType === 'boss' && profile.progression.selectedBossMissionId === boss.id;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `level-card level-card--boss card-surface${selected ? ' is-selected' : ''}${unlocked ? '' : ' is-locked'}${completed ? ' is-complete' : ''}`;
+      button.disabled = !unlocked;
+      button.innerHTML = `
+        <div class="card-topline"><span class="card-chip">${boss.menuChip}</span><span class="card-state">${completed ? 'Cleared' : unlocked ? 'Ready' : 'Locked'}</span></div>
+        <div class="card-label">${boss.menuLabel}</div>
+        <strong>${boss.name}</strong>
+        <span>${boss.phases} Phasen · ${completed ? 'Wiederholbar' : 'Freischaltung nach Erd-Kampagne'}</span>
+      `;
+      button.addEventListener('click', () => actions.selectBossMission(boss.id));
+      ui.levelGrid.appendChild(button);
+    });
   }
 
   function getUpgradeDef(id) {
@@ -853,8 +873,14 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.menuHighestWave.textContent = String(profile.stats.highestWaveReached);
     const worldDef = getWorldDefinition(mission.world);
     const specialAbility = getSpecialAbilityDef(actions.getSelectedSpecialAbilityId());
-    ui.selectedMissionLabel.textContent = `World ${mission.world} · ${worldDef.themeName} · Level ${mission.level}`;
-    ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'} · ${worldDef.hudBadge} · Spezial: ${specialAbility.name}`;
+    if (mission.type === 'boss') {
+      const group = getCampaignGroupDefinition(mission.campaignGroupId || 'earth');
+      ui.selectedMissionLabel.textContent = `${group.menuLabel} · ${mission.name}`;
+      ui.selectedMissionStatus.textContent = `Gruppen-Endboss · ${helpers.isBossMissionUnlocked(mission.id) ? 'Unlocked' : 'Locked'} · Zugang über World ${mission.world} · Spezial: ${specialAbility.name}`;
+    } else {
+      ui.selectedMissionLabel.textContent = `World ${mission.world} · ${worldDef.themeName} · Level ${mission.level}`;
+      ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'} · ${worldDef.hudBadge} · Spezial: ${specialAbility.name}`;
+    }
     ui.unlockedSummary.textContent = `${actions.getUnlockedLevelCount()} / ${WORLDS_COUNT * LEVELS_PER_WORLD} Levels`;
     ui.selectedCharacterLabel.textContent = actions.getSelectedCharacterName();
   }
@@ -868,15 +894,28 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
   }
 
   function showRunResult(success) {
+    const snapshot = state.pendingResult || null;
+    const mission = snapshot?.mission || state.currentMission || { type: 'level', world: state.worldIndex, level: state.levelIndex };
+    const bossState = snapshot?.boss || state.boss;
     ui.resultEyebrow.textContent = success ? 'MISSION COMPLETE' : 'EINSATZ BEENDET';
-    ui.resultTitle.textContent = success ? `World ${state.worldIndex} · Level ${state.levelIndex} gesichert` : 'Outpost verloren';
+    ui.resultTitle.textContent = success
+      ? mission.type === 'boss'
+        ? `${bossState.name || mission.label || 'Boss'} besiegt`
+        : `World ${state.worldIndex} · Level ${state.levelIndex} gesichert`
+      : mission.type === 'boss'
+        ? 'Bosskampf gescheitert'
+        : 'Outpost verloren';
     ui.resultSummary.textContent = success
-      ? `Alle ${WAVES_PER_LEVEL} Waves abgeschlossen. Höchste Schwierigkeitswelle: ${state.wave}`
-      : `Erreichte Welle: ${state.wave}`;
-    ui.finalWave.textContent = String(state.wave);
-    ui.finalScore.textContent = String(state.score);
-    ui.finalCredits.textContent = String(state.runCredits);
-    const nextMission = actions.getNextMission(state.worldIndex, state.levelIndex);
+      ? mission.type === 'boss'
+        ? `Earth Titan überwunden. Finale Phase: ${bossState.phase} / ${bossState.phaseCount}`
+        : `Alle ${WAVES_PER_LEVEL} Waves abgeschlossen. Höchste Schwierigkeitswelle: ${state.wave}`
+      : mission.type === 'boss'
+        ? `Bossphase erreicht: ${bossState.phase} / ${bossState.phaseCount}`
+        : `Erreichte Welle: ${state.wave}`;
+    ui.finalWave.textContent = String(snapshot?.wave ?? state.wave);
+    ui.finalScore.textContent = String(snapshot?.score ?? state.score);
+    ui.finalCredits.textContent = String(snapshot?.credits ?? state.runCredits);
+    const nextMission = mission.type === 'boss' ? null : actions.getNextMission(state.worldIndex, state.levelIndex);
     ui.nextLevelBtn.classList.toggle('hidden', !success || !nextMission || !helpers.isLevelUnlocked(nextMission.world, nextMission.level));
   }
 
