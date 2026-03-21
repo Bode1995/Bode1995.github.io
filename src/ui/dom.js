@@ -39,7 +39,6 @@ export function getUI() {
     worldGrid: document.getElementById('worldGrid'),
     levelGrid: document.getElementById('levelGrid'),
     skillTreeMap: document.getElementById('skillTreeMap'),
-    skillTreeDetails: document.getElementById('skillTreeDetails'),
     upgradeCredits: document.getElementById('upgradeCredits'),
     statsGrid: document.getElementById('statsGrid'),
     menuScreens: Array.from(document.querySelectorAll('.menu-screen')),
