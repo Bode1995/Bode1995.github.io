@@ -60,7 +60,7 @@ const SKILL_TREE_BRANCHES = [
 
 const SKILL_TREE_CANVAS = { width: 1600, height: 1140, root: { x: 800, y: 480 } };
 const SKILL_TREE_CAMERA = {
-  minScale: 0.65,
+  minScale: 0.35,
   maxScale: 1.75,
   zoomStep: 0.15,
   dragThreshold: 8,
@@ -745,14 +745,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       releasePointer(event.pointerId);
     });
 
-    rootEl.querySelector('[data-zoom="in"]')?.addEventListener('click', () => {
-      const rect = viewport.getBoundingClientRect();
-      zoomAt(view.scale + SKILL_TREE_CAMERA.zoomStep, rect.width / 2, rect.height / 2);
-    });
-    rootEl.querySelector('[data-zoom="out"]')?.addEventListener('click', () => {
-      const rect = viewport.getBoundingClientRect();
-      zoomAt(view.scale - SKILL_TREE_CAMERA.zoomStep, rect.width / 2, rect.height / 2);
-    });
     rootEl.querySelector('[data-zoom="reset"]')?.addEventListener('click', () => centerSkillTreeViewport(viewport, content, rootEl));
   }
 
@@ -780,8 +772,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       <div class="skill-tree-toolbar" aria-label="Skill-Tree Steuerung">
         <span class="skill-tree-toolbar__hint">Drag zum Verschieben · Wheel/Pinch zum Zoomen</span>
         <div class="skill-tree-toolbar__actions">
-          <button class="ghost-btn" type="button" data-zoom="out" aria-label="Rauszoomen">−</button>
-          <button class="ghost-btn" type="button" data-zoom="in" aria-label="Reinzoomen">＋</button>
           <button class="ghost-btn" type="button" data-zoom="reset">Zentrieren</button>
         </div>
       </div>
