@@ -291,17 +291,24 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       const completed = !!profile.progression.completedBossMissions?.[boss.id];
       const selected = profile.progression.selectedMissionType === 'boss' && profile.progression.selectedBossMissionId === boss.id;
       const campaign = getCampaignGroupDefinition(boss.campaignGroupId || 'earth');
+      const stateLabel = completed ? 'Cleared' : unlocked ? 'Ready' : 'Locked';
+      const statusText = completed
+        ? 'Wiederholbar'
+        : unlocked
+          ? 'Boss-Mission bereit'
+          : `Freischaltung nach Abschluss der ${campaign.name}`;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `level-card level-card--boss card-surface${selected ? ' is-selected' : ''}${unlocked ? '' : ' is-locked'}${completed ? ' is-complete' : ''}`;
       button.disabled = !unlocked;
+      button.title = unlocked ? `${boss.name} starten` : statusText;
       button.innerHTML = `
-        <div class="card-topline"><span class="card-chip">${boss.menuChip}</span><span class="card-state">${completed ? 'Cleared' : unlocked ? 'Ready' : 'Locked'}</span></div>
+        <div class="card-topline"><span class="card-chip">${boss.menuChip}</span><span class="card-state">${stateLabel}</span></div>
         <div class="card-label">${boss.menuLabel}</div>
         <strong>${boss.name}</strong>
-        <span>${boss.phases} Phasen · ${completed ? 'Wiederholbar' : `Freischaltung nach ${campaign.name}`}</span>
+        <span>${boss.phases} Phasen · ${statusText}</span>
       `;
-      button.addEventListener('click', () => actions.selectBossMission(boss.id));
+      if (unlocked) button.addEventListener('click', () => actions.selectBossMission(boss.id));
       ui.levelGrid.appendChild(button);
     });
   }
