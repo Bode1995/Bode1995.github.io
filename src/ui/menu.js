@@ -259,9 +259,8 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       button.className = `world-card card-surface${profile.progression.selectedWorld === world ? ' is-selected' : ''}${unlockedCount === 0 ? ' is-locked' : ''}`;
       button.disabled = unlockedCount === 0;
       button.innerHTML = `
-        <div class="card-topline"><span class="card-chip">W${world}</span><span class="card-state">${unlockedCount > 0 ? 'Online' : 'Locked'}</span></div>
-        <div class="card-label">${worldDef.menuLabel}</div>
-        <strong>World ${world} · ${worldDef.themeName}</strong>
+        <div class="card-topline"><span class="card-state">${unlockedCount > 0 ? 'Online' : 'Locked'}</span></div>
+        <strong>${worldDef.themeName}</strong>
         <span>${Math.max(unlockedCount, 0)} / ${LEVELS_PER_WORLD} Levels freigeschaltet</span>
       `;
       button.addEventListener('click', () => actions.selectMission(world, Math.min(profile.progression.selectedLevel, Math.max(1, unlockedCount || 1))));
@@ -291,6 +290,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       const unlocked = helpers.isBossMissionUnlocked(boss.id);
       const completed = !!profile.progression.completedBossMissions?.[boss.id];
       const selected = profile.progression.selectedMissionType === 'boss' && profile.progression.selectedBossMissionId === boss.id;
+      const campaign = getCampaignGroupDefinition(boss.campaignGroupId || 'earth');
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `level-card level-card--boss card-surface${selected ? ' is-selected' : ''}${unlocked ? '' : ' is-locked'}${completed ? ' is-complete' : ''}`;
@@ -299,7 +299,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         <div class="card-topline"><span class="card-chip">${boss.menuChip}</span><span class="card-state">${completed ? 'Cleared' : unlocked ? 'Ready' : 'Locked'}</span></div>
         <div class="card-label">${boss.menuLabel}</div>
         <strong>${boss.name}</strong>
-        <span>${boss.phases} Phasen · ${completed ? 'Wiederholbar' : 'Freischaltung nach Erd-Kampagne'}</span>
+        <span>${boss.phases} Phasen · ${completed ? 'Wiederholbar' : `Freischaltung nach ${campaign.name}`}</span>
       `;
       button.addEventListener('click', () => actions.selectBossMission(boss.id));
       ui.levelGrid.appendChild(button);
@@ -875,10 +875,11 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     const specialAbility = getSpecialAbilityDef(actions.getSelectedSpecialAbilityId());
     if (mission.type === 'boss') {
       const group = getCampaignGroupDefinition(mission.campaignGroupId || 'earth');
-      ui.selectedMissionLabel.textContent = `${group.menuLabel} · ${mission.name}`;
-      ui.selectedMissionStatus.textContent = `Gruppen-Endboss · ${helpers.isBossMissionUnlocked(mission.id) ? 'Unlocked' : 'Locked'} · Zugang über World ${mission.world} · Spezial: ${specialAbility.name}`;
+      const accessWorld = getWorldDefinition(mission.world);
+      ui.selectedMissionLabel.textContent = `${group.name} · ${mission.name}`;
+      ui.selectedMissionStatus.textContent = `Gruppen-Endboss · ${helpers.isBossMissionUnlocked(mission.id) ? 'Unlocked' : 'Locked'} · Zugang über ${accessWorld.themeName} · Spezial: ${specialAbility.name}`;
     } else {
-      ui.selectedMissionLabel.textContent = `World ${mission.world} · ${worldDef.themeName} · Level ${mission.level}`;
+      ui.selectedMissionLabel.textContent = `${worldDef.themeName} · Level ${mission.level}`;
       ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'} · ${worldDef.hudBadge} · Spezial: ${specialAbility.name}`;
     }
     ui.unlockedSummary.textContent = `${actions.getUnlockedLevelCount()} / ${WORLDS_COUNT * LEVELS_PER_WORLD} Levels`;
@@ -901,13 +902,13 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.resultTitle.textContent = success
       ? mission.type === 'boss'
         ? `${bossState.name || mission.label || 'Boss'} besiegt`
-        : `World ${state.worldIndex} · Level ${state.levelIndex} gesichert`
+        : `${getWorldDefinition(state.worldIndex).themeName} · Level ${state.levelIndex} gesichert`
       : mission.type === 'boss'
         ? 'Bosskampf gescheitert'
         : 'Outpost verloren';
     ui.resultSummary.textContent = success
       ? mission.type === 'boss'
-        ? `Earth Titan überwunden. Finale Phase: ${bossState.phase} / ${bossState.phaseCount}`
+        ? `${bossState.name || mission.label || 'Boss'} überwunden. Finale Phase: ${bossState.phase} / ${bossState.phaseCount}`
         : `Alle ${WAVES_PER_LEVEL} Waves abgeschlossen. Höchste Schwierigkeitswelle: ${state.wave}`
       : mission.type === 'boss'
         ? `Bossphase erreicht: ${bossState.phase} / ${bossState.phaseCount}`

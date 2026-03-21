@@ -108,7 +108,7 @@ export function createGameState(profile, helpers) {
       colliders: [],
       objects: [],
       themeKey: 'frontier',
-      themeName: 'Frontier Outpost',
+      themeName: 'Die Blütezeit',
       hudBadge: 'Standard',
       elementalResistance: null,
       playerCollisionRadius: 0.94,

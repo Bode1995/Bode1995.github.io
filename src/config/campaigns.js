@@ -14,8 +14,8 @@ function createCampaignDefinition(config) {
 export const CAMPAIGN_GROUP_DEFS = {
   earth: createCampaignDefinition({
     id: 'earth',
-    name: 'Erde',
-    menuLabel: 'Erd-Kampagne',
+    name: 'Der Zerfall der Erde',
+    menuLabel: 'Der Zerfall der Erde',
     worldIndexes: [1, 2, 3, 4],
   }),
 };
