@@ -1516,6 +1516,7 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 .skill-tree-toolbar {
   justify-content: space-between;
   flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 .skill-tree-toolbar__hint {
@@ -1525,10 +1526,14 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   text-transform: uppercase;
 }
 
+.skill-tree-toolbar__actions {
+  margin-left: auto;
+}
+
 .skill-tree-toolbar__actions .ghost-btn {
   min-width: 0;
   min-height: 40px;
-  padding: 10px 14px;
+  padding: 10px 16px;
 }
 
 .skill-tree-viewport__window {
