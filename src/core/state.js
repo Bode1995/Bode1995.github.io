@@ -63,6 +63,18 @@ export function createGameState(profile, helpers) {
       activeMenuScreen: 'home',
       synergyFlash: null,
     },
+    specialAbility: {
+      selectedId: profile.specialAbilities?.selectedId || null,
+      activeId: null,
+      name: '',
+      shortLabel: '',
+      icon: '',
+      hudColor: '#ffffff',
+      status: 'ready',
+      detail: 'Bereit',
+      cooldownRemaining: 0,
+      activeRemaining: 0,
+    },
     world: {
       colliders: [],
       objects: [],

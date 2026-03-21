@@ -51,6 +51,14 @@
           <span class="hud-badge__icon">¤</span>
           <strong class="hud-badge__value" id="creditsValue">0</strong>
         </article>
+        <article class="hud-chip hud-chip--special" id="specialAbilityHud" aria-label="Aktive Spezialfähigkeit">
+          <span class="hud-chip__icon" id="specialAbilityIcon">✹</span>
+          <span class="hud-chip__content">
+            <span class="hud-chip__label">Spezialfähigkeit</span>
+            <strong class="hud-chip__value" id="specialAbilityLabel">Granate</strong>
+            <span class="hud-chip__subline"><span class="hud-chip__subicon">◔</span><span id="specialAbilityStatus">Bereit</span></span>
+          </span>
+        </article>
         <div class="power-stack" id="activePowers" aria-label="Aktive Power-ups"></div>
       </div>
     </div>
@@ -201,6 +209,14 @@
           <div class="menu-page-content">
             <section class="menu-page-section card-surface">
               <div class="section-head section-head--stacked">
+                <div>
+                  <div class="card-label">Spezialfähigkeiten</div>
+                  <h3>Eigenständiger Build-Slot</h3>
+                  <p>Genau eine Fähigkeit ist ausgerüstet. Jede Fähigkeit hat ihre eigene Upgrade-Achse und funktioniert für alle Charaktere.</p>
+                </div>
+              </div>
+              <div class="special-ability-grid" id="specialAbilityGrid"></div>
+              <div class="section-head section-head--stacked section-head--spaced">
                 <div>
                   <div class="card-label">Verbesserungen</div>
                   <h3>Arsenal-Fortschritt</h3>

@@ -6,12 +6,17 @@ import {
   UPGRADE_DEFS,
   WORLDS_COUNT,
 } from '../config/gameConfig.js';
+import {
+  createDefaultSpecialAbilityLevels,
+  createDefaultSpecialAbilityProfile,
+  resolveSpecialAbilityId,
+} from '../config/specialAbilities.js';
 
 export function createDefaultProfile() {
   const unlockedLevels = {};
   for (let world = 1; world <= WORLDS_COUNT; world++) unlockedLevels[world] = world === 1 ? 1 : 0;
   return {
-    version: 2,
+    version: 3,
     credits: 0,
     upgrades: Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, 0])),
     stats: {
@@ -29,6 +34,7 @@ export function createDefaultProfile() {
       unlockedLevels,
       completedLevels: {},
     },
+    specialAbilities: createDefaultSpecialAbilityProfile(),
   };
 }
 
@@ -37,8 +43,10 @@ export function loadProfile() {
     const raw = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || 'null');
     const base = createDefaultProfile();
     if (!raw || typeof raw !== 'object') return base;
+    const specialBase = createDefaultSpecialAbilityProfile();
+    const rawSpecial = raw.specialAbilities || {};
     return {
-      version: Math.max(2, Number(raw.version) || 0),
+      version: Math.max(3, Number(raw.version) || 0),
       credits: Number.isFinite(raw.credits) ? raw.credits : base.credits,
       upgrades: { ...base.upgrades, ...(raw.upgrades || {}) },
       stats: { ...base.stats, ...(raw.stats || {}) },
@@ -47,6 +55,12 @@ export function loadProfile() {
         ...(raw.progression || {}),
         unlockedLevels: { ...base.progression.unlockedLevels, ...((raw.progression || {}).unlockedLevels || {}) },
         completedLevels: { ...base.progression.completedLevels, ...((raw.progression || {}).completedLevels || {}) },
+      },
+      specialAbilities: {
+        ...specialBase,
+        ...rawSpecial,
+        selectedId: resolveSpecialAbilityId(rawSpecial.selectedId),
+        levels: { ...createDefaultSpecialAbilityLevels(), ...specialBase.levels, ...(rawSpecial.levels || {}) },
       },
     };
   } catch {

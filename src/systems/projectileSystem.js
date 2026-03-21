@@ -162,11 +162,11 @@ export function createProjectileSystem({
     bullet.position.addScaledVector(right, 0);
   }
 
-  function spawnProjectileSet() {
-    const combatProfile = getCharacterCombatProfile();
-    const weaponProfile = combatProfile.weaponProfile;
+  function spawnProjectileSet(options = {}) {
+    const combatProfile = options.combatProfile || getCharacterCombatProfile();
+    const weaponProfile = options.weaponProfile || combatProfile.weaponProfile;
     const volley = getVolleyProfile(state.projectileCount);
-    const baseYaw = state.yaw;
+    const baseYaw = options.yawOverride ?? state.yaw;
     const fx = getProjectileEffects();
     const perFrameSpawnCap = performance.getAdaptiveLimit(sceneResources.SAFETY_LIMITS.maxBulletsSpawnPerFrame, 0.7, 0.4);
     const projectileSynergy = getWeaponSynergyProfile(combatProfile, fx);
@@ -203,7 +203,8 @@ export function createProjectileSystem({
       temp.vec3B.set(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
 
       const bullet = new THREE.Mesh(geometry, material);
-      bullet.position.copy(playerRigHolder.position)
+      const spawnOrigin = options.originOverride || playerRigHolder.position;
+      bullet.position.copy(spawnOrigin)
         .addScaledVector(temp.vec3A, muzzleForward)
         .addScaledVector(temp.vec3B, offset.lateralOffset || 0)
         .setY(muzzleHeight);
@@ -258,14 +259,14 @@ export function createProjectileSystem({
     const combatProfile = getCharacterCombatProfile();
     const weaponProfile = combatProfile.weaponProfile;
     if (state.weaponState.burstShotsRemaining > 0) {
-      if (state.weaponState.burstTimer > 0) return;
+      if (state.weaponState.burstTimer > 0) return false;
       spawnProjectileSet();
       state.weaponState.burstShotsRemaining -= 1;
       if (state.weaponState.burstShotsRemaining > 0) state.weaponState.burstTimer = weaponProfile.burstInterval || 0.05;
-      return;
+      return true;
     }
 
-    if (state.fireCooldown > 0) return;
+    if (state.fireCooldown > 0) return false;
     state.fireCooldown = getAttackCooldown();
     spawnProjectileSet();
 
@@ -274,6 +275,11 @@ export function createProjectileSystem({
       state.weaponState.burstShotsRemaining = burstCount - 1;
       state.weaponState.burstTimer = weaponProfile.burstInterval || 0.05;
     }
+    return true;
+  }
+
+  function spawnBonusVolley(options = {}) {
+    spawnProjectileSet(options);
   }
 
   function update(dt, callbacks) {
@@ -398,6 +404,7 @@ export function createProjectileSystem({
     getSafeProjectileCountFromDoublers,
     getVolleyProfile,
     shoot,
+    spawnBonusVolley,
     update,
     clear,
   };

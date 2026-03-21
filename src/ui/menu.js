@@ -1,4 +1,10 @@
 import { LEVELS_PER_WORLD, STAT_DEFS, UPGRADE_DEFS, WAVES_PER_LEVEL, WORLDS_COUNT } from '../config/gameConfig.js';
+import {
+  SPECIAL_ABILITY_DEFS,
+  getSpecialAbilityDef,
+  getSpecialAbilityUpgradeCost,
+  getSpecialAbilityUpgradeValue,
+} from '../config/specialAbilities.js';
 import { getWorldDefinition } from '../config/worlds.js';
 
 export function createMenuController({ ui, profile, state, helpers, actions }) {
@@ -55,8 +61,53 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     }
   }
 
+  function renderSpecialAbilities() {
+    ui.specialAbilityGrid.innerHTML = '';
+    const selectedId = helpers.getSelectedSpecialAbilityId();
+
+    SPECIAL_ABILITY_DEFS.forEach((ability) => {
+      const level = helpers.getSpecialAbilityLevel(ability.id);
+      const upgradeValue = getSpecialAbilityUpgradeValue(ability.id, level);
+      const nextCost = getSpecialAbilityUpgradeCost(ability.id, level);
+      const card = document.createElement('article');
+      const equipped = selectedId === ability.id;
+      card.className = `special-ability-card card-surface${equipped ? ' is-selected' : ''}`;
+      card.style.setProperty('--special-accent', ability.hudColor);
+      card.innerHTML = `
+        <div class="card-topline"><span class="card-chip">${ability.icon} ${ability.shortLabel}</span><span class="card-state">${equipped ? 'Ausgerüstet' : 'Bereit'}</span></div>
+        <div class="card-label">${ability.upgrade.label}</div>
+        <strong>${ability.name}</strong>
+        <p>${ability.description}</p>
+        <div class="card-row"><span>Cooldown: ${ability.cooldown.toFixed(1)}s</span><span>Level ${level} / ${ability.upgrade.maxLevel}</span></div>
+        <div class="card-row"><span>Aktuell: ${ability.upgrade.format(upgradeValue)}</span><span>${nextCost == null ? 'MAX' : `Upgrade: ${nextCost}`}</span></div>
+      `;
+
+      const actionsWrap = document.createElement('div');
+      actionsWrap.className = 'special-ability-card__actions';
+
+      const equipButton = document.createElement('button');
+      equipButton.type = 'button';
+      equipButton.className = equipped ? 'ghost-btn' : 'btn';
+      equipButton.textContent = equipped ? 'Ausgerüstet' : 'Ausrüsten';
+      equipButton.disabled = equipped;
+      equipButton.addEventListener('click', () => actions.selectSpecialAbility(ability.id));
+
+      const upgradeButton = document.createElement('button');
+      upgradeButton.type = 'button';
+      upgradeButton.className = 'ghost-btn';
+      upgradeButton.textContent = nextCost == null ? 'Maxed' : 'Upgrade';
+      upgradeButton.disabled = nextCost == null || profile.credits < nextCost;
+      upgradeButton.addEventListener('click', () => actions.purchaseSpecialAbilityUpgrade(ability.id));
+
+      actionsWrap.append(equipButton, upgradeButton);
+      card.appendChild(actionsWrap);
+      ui.specialAbilityGrid.appendChild(card);
+    });
+  }
+
   function renderUpgradesScreen() {
     ui.upgradeCredits.textContent = String(profile.credits);
+    renderSpecialAbilities();
     ui.upgradeGroups.innerHTML = '';
     const grouped = UPGRADE_DEFS.reduce((map, def) => {
       (map[def.group] ||= []).push(def);
@@ -121,8 +172,9 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     ui.menuCredits.textContent = String(profile.credits);
     ui.menuHighestWave.textContent = String(profile.stats.highestWaveReached);
     const worldDef = getWorldDefinition(mission.world);
+    const specialAbility = getSpecialAbilityDef(actions.getSelectedSpecialAbilityId());
     ui.selectedMissionLabel.textContent = `World ${mission.world} · ${worldDef.themeName} · Level ${mission.level}`;
-    ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'} · ${worldDef.hudBadge}`;
+    ui.selectedMissionStatus.textContent = `${WAVES_PER_LEVEL} Waves · ${helpers.isLevelUnlocked(mission.world, mission.level) ? 'Unlocked' : 'Locked'} · ${worldDef.hudBadge} · Spezial: ${specialAbility.name}`;
     ui.unlockedSummary.textContent = `${actions.getUnlockedLevelCount()} / ${WORLDS_COUNT * LEVELS_PER_WORLD} Levels`;
     ui.selectedCharacterLabel.textContent = actions.getSelectedCharacterName();
   }
