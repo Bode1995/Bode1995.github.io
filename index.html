@@ -84,7 +84,6 @@
             <section class="menu-home-hero card-surface">
               <div class="eyebrow">ORBITAL ARCADE // PHASED DEFENSE NETWORK</div>
               <h1>Bode Survive!</h1>
-              <p class="menu-copy">Ein ruhiger Command-Hub für Missionen, Piloten, Upgrades und Telemetrie – klar gegliedert, mobil sauber bedienbar und direkt in den Spielfluss integriert.</p>
               <div class="menu-hero-actions">
                 <button class="btn" id="startBtn">Deployment starten</button>
                 <button class="ghost-btn" id="quickWorldsBtn">Mission auswählen</button>
@@ -106,12 +105,10 @@
                 <div class="info-card info-card--focus">
                   <div class="info-label">Freigeschaltet</div>
                   <strong id="unlockedSummary">1 / 20 Levels</strong>
-                  <span>Neue Sektoren werden durch erfolgreiche Einsätze freigeschaltet.</span>
                 </div>
                 <div class="info-card info-card--character">
                   <div class="info-label">Aktiver Pilot</div>
                   <strong id="selectedCharacterLabel">Vanguard</strong>
-                  <span>Jede Klasse besitzt ein eigenes Bewegungs- und Kampfprofil.</span>
                 </div>
               </div>
             </aside>
@@ -122,7 +119,6 @@
               <div>
                 <div class="card-label">Command Hub</div>
                 <h2>Wohin möchtest du als Nächstes?</h2>
-                <p>Jeder Bereich öffnet eine eigene, klar strukturierte Seite mit konsistenter Navigation zurück ins Hauptmenü.</p>
               </div>
             </div>
             <div class="menu-hub-grid">
@@ -131,7 +127,6 @@
                 <span class="hub-card__content">
                   <span class="card-label">Missionen</span>
                   <strong>Welten & Einsätze</strong>
-                  <span>Welt wählen, Level prüfen und markierte Mission direkt starten.</span>
                 </span>
               </button>
               <button class="hub-card card-surface menu-route" type="button" data-screen="characters">
@@ -139,7 +134,6 @@
                 <span class="hub-card__content">
                   <span class="card-label">Piloten</span>
                   <strong>Charakterauswahl</strong>
-                  <span>Klassen vergleichen, Rollen prüfen und deinen Pilot präzise auswählen.</span>
                 </span>
               </button>
               <button class="hub-card card-surface menu-route" type="button" data-screen="upgrades">
@@ -147,7 +141,6 @@
                 <span class="hub-card__content">
                   <span class="card-label">Arsenal</span>
                   <strong>Upgrades</strong>
-                  <span>Persistente Fortschritte sauber gruppiert und mit klarer Kaufentscheidung.</span>
                 </span>
               </button>
               <button class="hub-card card-surface menu-route" type="button" data-screen="statistics">
@@ -155,7 +148,6 @@
                 <span class="hub-card__content">
                   <span class="card-label">Telemetry</span>
                   <strong>Statistiken</strong>
-                  <span>Alle Langzeitwerte kompakt lesbar und ohne visuelle Überladung.</span>
                 </span>
               </button>
             </div>
@@ -171,7 +163,6 @@
               <div>
                 <div class="card-label">Sektor-Navigation</div>
                 <h2>Welten & Missionen</h2>
-                <p>Wähle zuerst eine Welt und danach ein Level. Jede Mission bleibt klar sichtbar, ohne lange Sammelansicht.</p>
               </div>
               <button class="btn" id="startSelectedLevelBtn">Markierte Mission starten</button>
             </div>
@@ -182,7 +173,6 @@
                 <div>
                   <div class="card-label">Welten</div>
                   <h3>Verfügbare Einsatzgebiete</h3>
-                  <p>Welten sind kompakt gruppiert und zeigen Freischaltung sowie Status auf einen Blick.</p>
                 </div>
               </div>
               <div class="world-grid" id="worldGrid"></div>
@@ -192,7 +182,6 @@
                 <div>
                   <div class="card-label">Level</div>
                   <h3>Missionen der gewählten Welt</h3>
-                  <p>Levelauswahl mit klarer Priorisierung von Status, Abschluss und Startbereitschaft.</p>
                 </div>
               </div>
               <div class="level-grid" id="levelGrid"></div>
@@ -207,7 +196,6 @@
               <div>
                 <div class="card-label">Persistent Arsenal</div>
                 <h2>Upgrades</h2>
-                <p>Persistente Verbesserungen sind nach Gruppen gegliedert und visuell ruhiger organisiert.</p>
               </div>
               <div class="summary-pill summary-pill--bank"><span>Bank</span><strong id="upgradeCredits">0</strong></div>
             </div>
@@ -218,7 +206,6 @@
                 <div>
                   <div class="card-label">Skill Tree</div>
                   <h3>Zentraler Upgrade-Pfad</h3>
-                  <p>Upgrade Limit bildet den Root-Knoten. Von dort verzweigen Fähigkeiten, Arsenal und Power Ups – die bestehende Kauf- und Speicherlogik bleibt unverändert.</p>
                 </div>
               </div>
               <div class="skill-tree-map" id="skillTreeMap" aria-label="Upgrade Skill Tree"></div>
@@ -234,7 +221,6 @@
               <div>
                 <div class="card-label">Run Telemetry</div>
                 <h2>Statistiken</h2>
-                <p>Langzeitwerte und Fortschritte in einer eigenständigen, ruhigen Auswertungssicht.</p>
               </div>
             </div>
           </header>
@@ -244,7 +230,6 @@
                 <div>
                   <div class="card-label">Telemetry</div>
                   <h3>Persistente Einsatzdaten</h3>
-                  <p>Alle Werte bleiben dauerhaft erhalten und sind für schnelle Orientierung in Karten gegliedert.</p>
                 </div>
               </div>
               <div class="stats-grid" id="statsGrid"></div>
@@ -259,7 +244,6 @@
               <div>
                 <div class="card-label">Pilotenhangar</div>
                 <h2>Charakterauswahl</h2>
-                <p>Jede Klasse bleibt deutlich fokussiert mit Vorschau, Rolle, Waffentyp und Kernstärken.</p>
               </div>
             </div>
           </header>
@@ -269,7 +253,6 @@
                 <div>
                   <div class="card-label">Piloten</div>
                   <h3>Aktive Einsatzteams</h3>
-                  <p>Silhouetten, Werte und Spielstile bleiben klar strukturiert und mobil sauber anwählbar.</p>
                 </div>
               </div>
               <div class="character-grid" id="characterGrid"></div>
