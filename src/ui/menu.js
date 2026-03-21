@@ -7,54 +7,58 @@ import {
 } from '../config/specialAbilities.js';
 import { getWorldDefinition } from '../config/worlds.js';
 
+const SKILL_TREE_LAYOUT = {
+  canvasPadding: 96,
+  nodeDiameter: 76,
+  rootDiameter: 92,
+  branchDiameter: 108,
+  minNodeGap: 28,
+  minBranchGap: 34,
+};
+
 const SKILL_TREE_BRANCHES = [
   {
     id: 'abilities',
     label: 'Fähigkeiten',
     accent: '#73d5ff',
     icon: '✹',
-    anchor: { x: 420, y: 350 },
+    anchor: { x: 430, y: 290 },
     nodeKeys: SPECIAL_ABILITY_DEFS.map((ability) => `special:${ability.id}`),
-    positions: [
-      { x: 250, y: 190 },
-      { x: 430, y: 150 },
-      { x: 610, y: 190 },
-      { x: 420, y: 280 },
-    ],
+    layout: {
+      radius: 180,
+      startAngleDeg: 135,
+      spreadDeg: 270,
+    },
   },
   {
     id: 'arsenal',
     label: 'Arsenal',
     accent: '#ffb55b',
     icon: '⬒',
-    anchor: { x: 1180, y: 350 },
+    anchor: { x: 1170, y: 290 },
     nodeKeys: ['upgrade:baseDamage', 'upgrade:attackSpeed', 'upgrade:maxHealth', 'upgrade:movementSpeed'],
-    positions: [
-      { x: 1010, y: 190 },
-      { x: 1190, y: 150 },
-      { x: 1370, y: 190 },
-      { x: 1180, y: 280 },
-    ],
+    layout: {
+      radius: 180,
+      startAngleDeg: -45,
+      spreadDeg: 270,
+    },
   },
   {
     id: 'powerUps',
     label: 'Power Ups',
     accent: '#8dffd5',
     icon: '⚡',
-    anchor: { x: 800, y: 790 },
+    anchor: { x: 800, y: 810 },
     nodeKeys: ['upgrade:burnDamage', 'upgrade:poisonDamage', 'upgrade:slowDuration', 'upgrade:lightningRange', 'upgrade:rocketRadius', 'upgrade:shieldCapacity'],
-    positions: [
-      { x: 500, y: 690 },
-      { x: 680, y: 610 },
-      { x: 860, y: 610 },
-      { x: 1040, y: 610 },
-      { x: 620, y: 790 },
-      { x: 980, y: 790 },
-    ],
+    layout: {
+      radius: 214,
+      startAngleDeg: 210,
+      spreadDeg: 300,
+    },
   },
 ];
 
-const SKILL_TREE_CANVAS = { width: 1600, height: 1100, root: { x: 800, y: 420 } };
+const SKILL_TREE_CANVAS = { width: 1600, height: 1140, root: { x: 800, y: 480 } };
 const SKILL_TREE_CAMERA = {
   minScale: 0.65,
   maxScale: 1.75,
@@ -110,36 +114,25 @@ function createNodeButton(node, selectedKey, { onSelect, shouldSuppressSelection
     onSelect(node);
   });
 
-  const badge = document.createElement('span');
-  badge.className = 'skill-node__badge';
-  badge.textContent = node.statusBadge;
-
   const icon = document.createElement('span');
   icon.className = 'skill-node__icon';
   icon.setAttribute('aria-hidden', 'true');
   icon.textContent = node.icon;
 
-  const title = document.createElement('strong');
-  title.className = 'skill-node__title';
-  title.textContent = node.title;
+  const ring = document.createElement('span');
+  ring.className = 'skill-node__ring';
+  ring.setAttribute('aria-hidden', 'true');
 
   const level = document.createElement('span');
   level.className = 'skill-node__level';
-  level.textContent = node.shortLevelLabel;
-
-  const footer = document.createElement('div');
-  footer.className = 'skill-node__footer';
+  level.textContent = `${node.level}`;
+  level.setAttribute('aria-hidden', 'true');
 
   const status = document.createElement('span');
-  status.className = 'skill-node__status';
-  status.textContent = node.status;
+  status.className = 'skill-node__state-dot';
+  status.setAttribute('aria-hidden', 'true');
 
-  const cost = document.createElement('span');
-  cost.className = 'skill-node__cost';
-  cost.textContent = node.shortCostLabel;
-
-  footer.append(status, cost);
-  button.append(badge, icon, title, level, footer);
+  button.append(ring, icon, level, status);
   return button;
 }
 
@@ -151,12 +144,21 @@ function createBranchMarker(branch) {
   marker.style.top = `${branch.anchor.y}px`;
   marker.innerHTML = `
     <span class="skill-tree-branch-marker__icon" aria-hidden="true">${branch.icon}</span>
-    <div>
-      <span class="card-label">Hauptast</span>
-      <strong>${branch.label}</strong>
-    </div>
+    <strong>${branch.label}</strong>
   `;
   return marker;
+}
+
+function toRadians(angleDeg) {
+  return (angleDeg * Math.PI) / 180;
+}
+
+function clampPointToCanvas(point, size = SKILL_TREE_LAYOUT.nodeDiameter) {
+  const padding = SKILL_TREE_LAYOUT.canvasPadding + (size / 2);
+  return {
+    x: clamp(point.x, padding, SKILL_TREE_CANVAS.width - padding),
+    y: clamp(point.y, padding, SKILL_TREE_CANVAS.height - padding),
+  };
 }
 
 function createConnectionPath(points) {
@@ -165,14 +167,50 @@ function createConnectionPath(points) {
   for (let index = 1; index < points.length; index += 1) {
     const prev = points[index - 1];
     const next = points[index];
-    if (index === points.length - 1) {
-      const curveStrength = Math.max(30, Math.abs(next.x - prev.x) * 0.35);
-      path += ` C ${prev.x} ${prev.y + 28}, ${next.x - Math.sign(next.x - prev.x || 1) * curveStrength} ${next.y - 30}, ${next.x} ${next.y}`;
-    } else {
-      path += ` L ${next.x} ${next.y}`;
-    }
+    const deltaX = next.x - prev.x;
+    const deltaY = next.y - prev.y;
+    const controlA = {
+      x: prev.x + (deltaX * 0.35),
+      y: prev.y + (Math.abs(deltaX) > Math.abs(deltaY) ? 0 : deltaY * 0.2),
+    };
+    const controlB = {
+      x: next.x - (deltaX * 0.35),
+      y: next.y - (Math.abs(deltaX) > Math.abs(deltaY) ? 0 : deltaY * 0.2),
+    };
+    path += ` C ${controlA.x} ${controlA.y}, ${controlB.x} ${controlB.y}, ${next.x} ${next.y}`;
   }
   return path;
+}
+
+function calculateBranchNodeRadius(branch, nodeCount) {
+  const branchRadius = SKILL_TREE_LAYOUT.branchDiameter / 2;
+  const nodeRadius = SKILL_TREE_LAYOUT.nodeDiameter / 2;
+  const minimumCenterDistance = branchRadius + nodeRadius + SKILL_TREE_LAYOUT.minBranchGap;
+  if (nodeCount <= 1) return Math.max(branch.layout?.radius || minimumCenterDistance, minimumCenterDistance);
+
+  const spreadDeg = branch.layout?.spreadDeg || 360;
+  const divisor = Math.max(nodeCount - 1, 1);
+  const stepRad = toRadians(spreadDeg / divisor);
+  const minimumNodeDistance = SKILL_TREE_LAYOUT.nodeDiameter + SKILL_TREE_LAYOUT.minNodeGap;
+  const radiusFromNodeGap = minimumNodeDistance / (2 * Math.sin(Math.max(stepRad, 0.35) / 2));
+  return Math.max(branch.layout?.radius || minimumCenterDistance, minimumCenterDistance, radiusFromNodeGap);
+}
+
+function createBranchNodePositions(branch, nodeCount) {
+  if (nodeCount <= 0) return [];
+  const radius = calculateBranchNodeRadius(branch, nodeCount);
+  const startAngle = branch.layout?.startAngleDeg || 0;
+  const spreadDeg = branch.layout?.spreadDeg || 360;
+  const divisor = nodeCount === 1 ? 1 : Math.max(nodeCount - 1, 1);
+
+  return Array.from({ length: nodeCount }, (_, index) => {
+    const angleDeg = startAngle + ((spreadDeg / divisor) * index);
+    const angle = toRadians(angleDeg);
+    return clampPointToCanvas({
+      x: branch.anchor.x + (Math.cos(angle) * radius),
+      y: branch.anchor.y + (Math.sin(angle) * radius),
+    });
+  });
 }
 
 export function createMenuController({ ui, profile, state, helpers, actions }) {
@@ -341,13 +379,14 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     }
 
     const branches = SKILL_TREE_BRANCHES.map((branch) => {
+      const positions = createBranchNodePositions(branch, branch.nodeKeys.length);
       const nodes = branch.nodeKeys.map((key, index) => {
         const [type, id] = key.split(':');
         const node = type === 'special'
           ? buildSpecialAbilityNode(getSpecialAbilityDef(id))
           : buildUpgradeNode(id);
         if (!node) return null;
-        const position = branch.positions[index] || branch.anchor;
+        const position = positions[index] || branch.anchor;
         node.x = position.x;
         node.y = position.y;
         node.branchId = branch.id;
@@ -356,14 +395,26 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         connections.push({
           key: `${branch.id}:${node.key}`,
           accent: branch.accent,
+          type: 'branch-node',
           path: createConnectionPath([
-            SKILL_TREE_CANVAS.root,
             { x: branch.anchor.x, y: branch.anchor.y },
             { x: node.x, y: node.y },
           ]),
         });
         return node;
       }).filter(Boolean);
+
+      if (nodes.length > 0) {
+        connections.push({
+          key: `root:${branch.id}`,
+          accent: branch.accent,
+          type: 'root-branch',
+          path: createConnectionPath([
+            SKILL_TREE_CANVAS.root,
+            { x: branch.anchor.x, y: branch.anchor.y },
+          ]),
+        });
+      }
 
       return {
         ...branch,
