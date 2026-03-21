@@ -37,11 +37,9 @@ export function loadProfile() {
     const raw = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || 'null');
     const base = createDefaultProfile();
     if (!raw || typeof raw !== 'object') return base;
-    const { specialAbilities: _ignoredSpecialAbilities, ...legacySafeRaw } = raw;
     return {
-      ...base,
-      ...legacySafeRaw,
       version: Math.max(2, Number(raw.version) || 0),
+      credits: Number.isFinite(raw.credits) ? raw.credits : base.credits,
       upgrades: { ...base.upgrades, ...(raw.upgrades || {}) },
       stats: { ...base.stats, ...(raw.stats || {}) },
       progression: {

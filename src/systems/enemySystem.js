@@ -380,11 +380,9 @@ export function createEnemySystem({
       worldTheme: worldDef.key,
       worldModifiers: worldMods,
       elementalResistance: worldDef.elementalResistance || null,
-      specialStates: {},
       interruptTimer: 0,
       externalImpulseX: 0,
       externalImpulseZ: 0,
-      targetDecoyId: null,
       currentTargetPosition: null,
     };
     scene.add(enemy);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sky-blaster-3d-v5';
+const CACHE_NAME = 'sky-blaster-3d-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -9,7 +9,6 @@ const ASSETS = [
   './assets/icons/apple-touch-icon.svg',
   './src/main.js',
   './src/config/gameConfig.js',
-  './src/config/specialAbilities.js',
   './src/config/worlds.js',
   './src/core/gameApp.js',
   './src/core/profile.js',
@@ -27,7 +26,6 @@ const ASSETS = [
   './src/systems/inputSystem.js',
   './src/systems/performanceSystem.js',
   './src/systems/projectileSystem.js',
-  './src/systems/specialAbilitySystem.js',
   './src/systems/synergySystem.js',
   './src/systems/vfxSystem.js',
   './src/systems/worldSystem.js',
