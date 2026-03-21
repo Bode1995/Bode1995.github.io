@@ -37,7 +37,24 @@ export function createEnemySystem({
     bossAgile: { shell: 0x35f3d1, dark: 0x112437, main: 0x3f3f74, glow: 0xc6b7ff },
   };
 
+  const enemyMaterialCache = new Map();
   const projectileMaterialCache = new Map();
+
+  function getEnemyMaterialCacheKey(type, worldDef = getCurrentWorld()) {
+    return `${worldDef.id}:${type}`;
+  }
+
+  function disposeMaterialSet(materialSet) {
+    if (!materialSet) return;
+    Object.values(materialSet).forEach((material) => material?.dispose?.());
+  }
+
+  function clearMaterialCaches() {
+    enemyMaterialCache.forEach(disposeMaterialSet);
+    enemyMaterialCache.clear();
+    projectileMaterialCache.forEach((material) => material?.dispose?.());
+    projectileMaterialCache.clear();
+  }
 
   function mixColor(baseHex, overlayHex, mix = 0.5) {
     return new THREE.Color(baseHex).lerp(new THREE.Color(overlayHex), mix).getHex();
@@ -70,10 +87,13 @@ export function createEnemySystem({
   }
 
   function createMaterials(type, worldDef = getCurrentWorld()) {
+    const cacheKey = getEnemyMaterialCacheKey(type, worldDef);
+    if (enemyMaterialCache.has(cacheKey)) return enemyMaterialCache.get(cacheKey);
+
     const style = enemyStyle[type] || enemyStyle.runner;
     const palette = worldDef.enemyVisuals?.palette || {};
     const emissiveBoost = worldDef.enemyVisuals?.emissiveBoost || 1;
-    return {
+    const materialSet = {
       shell: new THREE.MeshStandardMaterial({ color: mixColor(style.shell, palette.shell || style.shell, 0.56), emissive: mixColor(style.shell, palette.aura || palette.glow || style.shell, 0.48), emissiveIntensity: 0.14 * emissiveBoost, roughness: 0.38, metalness: 0.24 }),
       dark: new THREE.MeshStandardMaterial({ color: mixColor(style.dark, palette.dark || style.dark, 0.68), roughness: 0.7, metalness: 0.1 }),
       main: new THREE.MeshStandardMaterial({ color: mixColor(style.main, palette.main || style.main, 0.54), roughness: 0.46, metalness: 0.34 }),
@@ -81,6 +101,9 @@ export function createEnemySystem({
       bone: new THREE.MeshStandardMaterial({ color: mixColor(0xf1d6bf, palette.aura || 0xf1d6bf, 0.18), roughness: 0.6, metalness: 0.06 }),
       detail: new THREE.MeshStandardMaterial({ color: mixColor(style.main, palette.aura || style.main, 0.72), emissive: palette.aura || style.glow, emissiveIntensity: 0.22 * emissiveBoost, roughness: 0.24, metalness: 0.28 }),
     };
+
+    enemyMaterialCache.set(cacheKey, materialSet);
+    return materialSet;
   }
 
   function addMesh(parent, geometry, material, position, rotation = [0, 0, 0], scale = [1, 1, 1]) {
@@ -606,6 +629,10 @@ export function createEnemySystem({
     destroyEnemy,
     update,
     clear,
+    dispose() {
+      clear();
+      clearMaterialCaches();
+    },
     registerCallbacks(callbacks) {
       temp.callbacks = callbacks;
     },
