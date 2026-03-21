@@ -207,23 +207,16 @@
             </div>
           </header>
           <div class="menu-page-content">
-            <section class="menu-page-section card-surface">
+            <section class="menu-page-section card-surface skill-tree-section">
               <div class="section-head section-head--stacked">
                 <div>
-                  <div class="card-label">Spezialfähigkeiten</div>
-                  <h3>Eigenständiger Build-Slot</h3>
-                  <p>Genau eine Fähigkeit ist ausgerüstet. Jede Fähigkeit hat ihre eigene Upgrade-Achse und funktioniert für alle Charaktere.</p>
+                  <div class="card-label">Skill Tree</div>
+                  <h3>Zentraler Upgrade-Pfad</h3>
+                  <p>Upgrade Limit bildet den Root-Knoten. Von dort verzweigen Fähigkeiten, Arsenal und Power Ups – die bestehende Kauf- und Speicherlogik bleibt unverändert.</p>
                 </div>
               </div>
-              <div class="special-ability-grid" id="specialAbilityGrid"></div>
-              <div class="section-head section-head--stacked section-head--spaced">
-                <div>
-                  <div class="card-label">Verbesserungen</div>
-                  <h3>Arsenal-Fortschritt</h3>
-                  <p>Jede Gruppe bleibt kompakt, klar lesbar und ohne unnötige visuelle Konkurrenz.</p>
-                </div>
-              </div>
-              <div class="upgrade-groups" id="upgradeGroups"></div>
+              <div class="skill-tree-map" id="skillTreeMap" aria-label="Upgrade Skill Tree"></div>
+              <div class="skill-tree-details card-surface" id="skillTreeDetails" aria-live="polite"></div>
             </section>
           </div>
         </section>

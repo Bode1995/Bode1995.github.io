@@ -61,6 +61,7 @@ export function createGameState(profile, helpers) {
     },
     ui: {
       activeMenuScreen: 'home',
+      activeSkillTreeNode: 'upgrade:upgradeLimit',
       synergyFlash: null,
     },
     specialAbility: {
