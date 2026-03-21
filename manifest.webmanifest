@@ -1,6 +1,6 @@
 {
-  "name": "Sky Blaster",
-  "short_name": "SkyBlaster",
+  "name": "Bode Survive!",
+  "short_name": "Bode Survive!",
   "description": "Mobiles 3D-Arena-Survival-Spiel als installierbare PWA.",
   "lang": "de",
   "start_url": "./index.html",
