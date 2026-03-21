@@ -12,6 +12,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
   const DAMAGE_NUMBER_LIFETIME = 2;
   const DAMAGE_NUMBER_PULSE_LIFETIME = 0.22;
   const damageNumberPool = [];
+  const vfxParticlePool = [];
 
   const EFFECT_COLORS = {
     fire: 0xff8a4f,
@@ -27,8 +28,70 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     return Math.min(MAX_IMPACT_VISUAL_LIFETIME, life);
   }
 
-  function createParticleMaterial(color) {
+  function createParticleMaterial(color = 0xffffff) {
     return new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false });
+  }
+
+  function resetVfxParticle(entry) {
+    if (!entry) return entry;
+    entry.vel.set(0, 0, 0);
+    entry.life = 0;
+    entry.maxLife = 0;
+    entry.drag = 1;
+    entry.baseScale = 1;
+    entry.spin = 0;
+    entry.kind = 'orb';
+    entry.mesh.visible = false;
+    entry.mesh.position.set(0, 0, 0);
+    entry.mesh.rotation.set(0, 0, 0);
+    entry.mesh.scale.setScalar(1);
+    entry.mesh.geometry = VFX.particleGeometry;
+    entry.mesh.material.color.setHex(0xffffff);
+    entry.mesh.material.opacity = 0;
+    return entry;
+  }
+
+  function createVfxParticlePoolEntry() {
+    const material = createParticleMaterial();
+    const mesh = new THREE.Mesh(VFX.particleGeometry, material);
+    return resetVfxParticle({
+      mesh,
+      vel: new THREE.Vector3(),
+      life: 0,
+      maxLife: 0,
+      drag: 1,
+      baseScale: 1,
+      spin: 0,
+      kind: 'orb',
+    });
+  }
+
+  function recycleVfxParticle(entry) {
+    if (!entry) return;
+    scene.remove(entry.mesh);
+    resetVfxParticle(entry);
+    vfxParticlePool.push(entry);
+  }
+
+  function acquireVfxParticle(position, velocity, color, life, scale, kind) {
+    const entry = vfxParticlePool.pop() || createVfxParticlePoolEntry();
+    const resolvedLife = getImpactVisualLifetime(life);
+    entry.mesh.geometry = kind === 'shard' ? VFX.shardGeometry : VFX.particleGeometry;
+    entry.mesh.visible = true;
+    entry.mesh.position.copy(position);
+    entry.mesh.rotation.set(0, 0, 0);
+    entry.mesh.scale.setScalar(scale);
+    entry.mesh.material.color.set(color);
+    entry.mesh.material.opacity = 0.95;
+    entry.vel.copy(velocity);
+    entry.life = resolvedLife;
+    entry.maxLife = resolvedLife;
+    entry.drag = 0.88 + Math.random() * 0.08;
+    entry.baseScale = scale;
+    entry.spin = (Math.random() - 0.5) * 8;
+    entry.kind = kind;
+    scene.add(entry.mesh);
+    return entry;
   }
 
   function spawnVfxParticle(position, velocity, color, life = 0.35, scale = 1, kind = 'orb') {
@@ -39,26 +102,10 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     const maxParticles = performance.getAdaptiveLimit(VFX.maxParticles, 0.62, 0.36);
     if (state.entities.vfxParticles.length >= maxParticles) {
       const oldest = state.entities.vfxParticles.shift();
-      if (oldest) {
-        scene.remove(oldest.mesh);
-        oldest.mesh.material.dispose();
-      }
+      if (oldest) recycleVfxParticle(oldest);
     }
 
-    const mesh = new THREE.Mesh(kind === 'shard' ? VFX.shardGeometry : VFX.particleGeometry, createParticleMaterial(color));
-    mesh.position.copy(position);
-    mesh.scale.setScalar(scale);
-    scene.add(mesh);
-    state.entities.vfxParticles.push({
-      mesh,
-      vel: velocity.clone(),
-      life: getImpactVisualLifetime(life),
-      maxLife: getImpactVisualLifetime(life),
-      drag: 0.88 + Math.random() * 0.08,
-      baseScale: scale,
-      spin: (Math.random() - 0.5) * 8,
-      kind,
-    });
+    state.entities.vfxParticles.push(acquireVfxParticle(position, velocity, color, life, scale, kind));
   }
 
   function maybeSpawnStatusVfx(position, velocity, color, life, scale, kind = 'orb') {
@@ -572,9 +619,8 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       const fx = state.entities.vfxParticles[i];
       fx.life -= dt;
       if (fx.life <= 0) {
-        scene.remove(fx.mesh);
-        fx.mesh.material.dispose();
         state.entities.vfxParticles.splice(i, 1);
+        recycleVfxParticle(fx);
         continue;
       }
       fx.mesh.position.addScaledVector(fx.vel, dt);
@@ -607,19 +653,23 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
   }
 
   function clear() {
-    state.entities.vfxParticles.forEach((fx) => {
-      scene.remove(fx.mesh);
-      fx.mesh.material.dispose();
-    });
+    while (state.entities.vfxParticles.length > 0) recycleVfxParticle(state.entities.vfxParticles.pop());
     state.entities.chainBeams.forEach(disposeChainBeam);
     for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) removeDamageNumberAtIndex(i);
-    state.entities.vfxParticles.length = 0;
     state.entities.chainBeams.length = 0;
     state.entities.damageNumbers.length = 0;
   }
 
   function dispose() {
     clear();
+    while (vfxParticlePool.length > 0) {
+      const entry = vfxParticlePool.pop();
+      entry.mesh.material.dispose();
+    }
+    VFX.particleGeometry.dispose();
+    VFX.shardGeometry.dispose();
+    VFX.ringGeometry.dispose();
+    VFX.chainGeometry.dispose();
     while (damageNumberPool.length > 0) disposeDamageNumberEntry(damageNumberPool.pop());
   }
 
