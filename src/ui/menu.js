@@ -66,6 +66,12 @@ const SKILL_TREE_CAMERA = {
   dragThreshold: 8,
   suppressClickMs: 160,
 };
+const SKILL_TREE_DETAIL_LAYOUT = {
+  width: 280,
+  minHeight: 188,
+  preferredGap: 28,
+  edgePadding: 22,
+};
 
 const UPGRADE_NODE_META = {
   upgradeLimit: { icon: '⬢', accent: '#d8b1ff' },
@@ -451,13 +457,59 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     actions.selectSpecialAbility(node.id);
   }
 
-  function renderSkillTreeDetails(node) {
-    if (!ui.skillTreeDetails) return;
-    ui.skillTreeDetails.innerHTML = '';
-    ui.skillTreeDetails.style.setProperty('--detail-accent', node?.accent || '#73d5ff');
-    ui.skillTreeDetails.classList.toggle('hidden', !node);
+  function getSkillTreeDetailPlacement(node) {
+    const estimatedHeight = node.type === 'special' ? 236 : 212;
+    const overlaySize = {
+      width: SKILL_TREE_DETAIL_LAYOUT.width,
+      height: Math.max(SKILL_TREE_DETAIL_LAYOUT.minHeight, estimatedHeight),
+    };
+    const nodeRadius = node.isRoot ? (SKILL_TREE_LAYOUT.rootDiameter / 2) : (SKILL_TREE_LAYOUT.nodeDiameter / 2);
+    const candidateDirections = [
+      { name: 'right', x: node.x + nodeRadius + SKILL_TREE_DETAIL_LAYOUT.preferredGap, y: node.y - (overlaySize.height / 2) },
+      { name: 'left', x: node.x - nodeRadius - SKILL_TREE_DETAIL_LAYOUT.preferredGap - overlaySize.width, y: node.y - (overlaySize.height / 2) },
+      { name: 'top', x: node.x - (overlaySize.width / 2), y: node.y - nodeRadius - SKILL_TREE_DETAIL_LAYOUT.preferredGap - overlaySize.height },
+      { name: 'bottom', x: node.x - (overlaySize.width / 2), y: node.y + nodeRadius + SKILL_TREE_DETAIL_LAYOUT.preferredGap },
+    ];
+    const minX = SKILL_TREE_DETAIL_LAYOUT.edgePadding;
+    const minY = SKILL_TREE_DETAIL_LAYOUT.edgePadding;
+    const maxX = SKILL_TREE_CANVAS.width - overlaySize.width - SKILL_TREE_DETAIL_LAYOUT.edgePadding;
+    const maxY = SKILL_TREE_CANVAS.height - overlaySize.height - SKILL_TREE_DETAIL_LAYOUT.edgePadding;
+    const clampCoordinate = (value, min, max) => (max < min ? min : clamp(value, min, max));
 
-    if (!node) return;
+    const scoredCandidates = candidateDirections.map((candidate) => {
+      const x = clampCoordinate(candidate.x, minX, maxX);
+      const y = clampCoordinate(candidate.y, minY, maxY);
+      const overflow = Math.abs(candidate.x - x) + Math.abs(candidate.y - y);
+      const centerX = x + (overlaySize.width / 2);
+      const centerY = y + (overlaySize.height / 2);
+      const distance = Math.hypot(centerX - node.x, centerY - node.y);
+      return {
+        direction: candidate.name,
+        x,
+        y,
+        score: overflow + distance,
+      };
+    });
+
+    const bestCandidate = scoredCandidates.sort((left, right) => left.score - right.score)[0];
+    return {
+      x: bestCandidate.x,
+      y: bestCandidate.y,
+      direction: bestCandidate.direction,
+      width: overlaySize.width,
+    };
+  }
+
+  function renderSkillTreeDetails(node) {
+    const details = document.createElement('aside');
+    details.className = 'skill-tree-details';
+    details.dataset.nodeDetail = 'true';
+    details.style.setProperty('--detail-accent', node.accent || '#73d5ff');
+    const placement = getSkillTreeDetailPlacement(node);
+    details.style.left = `${placement.x}px`;
+    details.style.top = `${placement.y}px`;
+    details.style.width = `${placement.width}px`;
+    details.dataset.detailDirection = placement.direction;
 
     const header = document.createElement('div');
     header.className = 'skill-tree-details__header';
@@ -480,10 +532,12 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     stateChip.textContent = node.status;
 
     const closeButton = createSkillTreeActionButton({
-      label: 'Schließen',
+      label: '×',
       onClick: closeSkillTreeDetails,
     });
     closeButton.classList.add('skill-tree-details__close');
+    closeButton.setAttribute('aria-label', 'Details schließen');
+    closeButton.title = 'Details schließen';
 
     side.append(stateChip, closeButton);
     header.append(titleWrap, side);
@@ -542,7 +596,8 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     }));
 
     body.append(description, stats, actionsWrap);
-    ui.skillTreeDetails.append(header, body);
+    details.append(header, body);
+    return details;
   }
 
   function centerSkillTreeViewport(windowEl, content, rootEl = windowEl) {
@@ -716,7 +771,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         <span>Die Daten für das Upgrade-Menü konnten nicht vollständig geladen werden. Bitte Seite neu laden.</span>
       `;
       ui.skillTreeMap.appendChild(emptyState);
-      renderSkillTreeDetails(null);
       return;
     }
 
@@ -768,10 +822,20 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       nodesLayer.appendChild(wrap);
     });
 
-    content.append(svg, nodesLayer);
+    const detailOverlay = selectedNode ? renderSkillTreeDetails(selectedNode) : null;
+    if (detailOverlay) content.append(svg, nodesLayer, detailOverlay);
+    else content.append(svg, nodesLayer);
     ui.skillTreeMap.appendChild(viewport);
     attachSkillTreeViewport(viewport, content);
-    renderSkillTreeDetails(selectedNode);
+
+    const viewportWindow = viewport.querySelector('.skill-tree-viewport__window');
+    viewportWindow.addEventListener('click', (event) => {
+      if (shouldSuppressSelection()) return;
+      if (event.target.closest('[data-node-key]')) return;
+      if (event.target.closest('[data-node-detail="true"]')) return;
+      if (!state.ui.activeSkillTreeNode) return;
+      closeSkillTreeDetails();
+    });
   }
 
   function renderUpgradesScreen() {
