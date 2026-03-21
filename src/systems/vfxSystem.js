@@ -10,6 +10,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
   };
   const MAX_IMPACT_VISUAL_LIFETIME = 0.5;
   const DAMAGE_NUMBER_LIFETIME = 2;
+  const DAMAGE_NUMBER_PULSE_LIFETIME = 0.22;
 
   const EFFECT_COLORS = {
     fire: 0xff8a4f,
@@ -114,6 +115,119 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     entry.mesh.material.dispose();
   }
 
+  function getEnemyDamageNumberMetrics(enemy, data = getEnemyData(enemy)) {
+    if (!data || data.dead) return null;
+    const baseHeight = data.hitboxCenterOffsetY + data.hitboxHalfHeight + Math.max(0.35, data.hitboxRadius * 0.5);
+    const mergeRadius = Math.max(0.24, Math.min(data.hitboxRadius * 0.58 + 0.12, data.hitboxRadius * 0.85));
+    return {
+      enemy,
+      data,
+      anchorX: enemy.position.x,
+      anchorY: enemy.position.y + baseHeight,
+      anchorZ: enemy.position.z,
+      baseHeight,
+      mergeRadius,
+      hitboxRadius: data.hitboxRadius,
+      hitboxHalfHeight: data.hitboxHalfHeight,
+    };
+  }
+
+  function getDamageNumberMergeDistance(entry, metrics) {
+    const entryRadius = entry?.mergeRadius ?? 0;
+    const metricsRadius = metrics?.mergeRadius ?? 0;
+    return Math.max(0.24, Math.min(entryRadius, metricsRadius) + 0.12);
+  }
+
+  function removeEnemyFromDamageNumberEntry(entry, enemy, data = getEnemyData(enemy)) {
+    if (!entry?.members || !enemy) return;
+    entry.members.delete(enemy);
+    if (data?.damageNumberEntry === entry) data.damageNumberEntry = null;
+  }
+
+  function recalculateDamageNumberAnchor(entry, dt = 0) {
+    if (!entry) return 0;
+    let sumX = 0;
+    let sumY = 0;
+    let sumZ = 0;
+    let sumBaseHeight = 0;
+    let sumMergeRadius = 0;
+    let sumHitboxRadius = 0;
+    let liveCount = 0;
+
+    if (entry.members?.size) {
+      for (const enemy of entry.members) {
+        const metrics = getEnemyDamageNumberMetrics(enemy);
+        if (!metrics) {
+          removeEnemyFromDamageNumberEntry(entry, enemy);
+          continue;
+        }
+        sumX += metrics.anchorX;
+        sumY += metrics.anchorY;
+        sumZ += metrics.anchorZ;
+        sumBaseHeight += metrics.baseHeight;
+        sumMergeRadius += metrics.mergeRadius;
+        sumHitboxRadius += metrics.hitboxRadius;
+        liveCount += 1;
+      }
+    }
+
+    if (liveCount <= 0) return 0;
+
+    const inv = 1 / liveCount;
+    const targetAnchorX = sumX * inv;
+    const targetAnchorY = sumY * inv;
+    const targetAnchorZ = sumZ * inv;
+    const smoothing = dt > 0 ? 1 - Math.exp(-dt * 12) : 1;
+
+    if (entry.anchorX == null) {
+      entry.anchorX = targetAnchorX;
+      entry.anchorY = targetAnchorY;
+      entry.anchorZ = targetAnchorZ;
+    } else if (smoothing >= 1) {
+      entry.anchorX = targetAnchorX;
+      entry.anchorY = targetAnchorY;
+      entry.anchorZ = targetAnchorZ;
+    } else {
+      entry.anchorX = THREE.MathUtils.lerp(entry.anchorX, targetAnchorX, smoothing);
+      entry.anchorY = THREE.MathUtils.lerp(entry.anchorY, targetAnchorY, smoothing);
+      entry.anchorZ = THREE.MathUtils.lerp(entry.anchorZ, targetAnchorZ, smoothing);
+    }
+
+    entry.baseHeight = sumBaseHeight * inv;
+    entry.mergeRadius = sumMergeRadius * inv;
+    entry.hitboxRadius = sumHitboxRadius * inv;
+    return liveCount;
+  }
+
+  function findDamageNumberMergeCandidate(metrics, preferredEntry = null) {
+    if (!metrics) return null;
+
+    const matchesEntry = (entry) => {
+      if (!entry) return false;
+      const mergeDistance = getDamageNumberMergeDistance(entry, metrics);
+      temp.vec3A.set(entry.anchorX ?? 0, entry.anchorY ?? 0, entry.anchorZ ?? 0);
+      temp.vec3B.set(metrics.anchorX, metrics.anchorY, metrics.anchorZ);
+      return temp.vec3A.distanceToSquared(temp.vec3B) <= mergeDistance * mergeDistance;
+    };
+
+    if (matchesEntry(preferredEntry)) return preferredEntry;
+
+    let bestEntry = null;
+    let bestDistanceSq = Infinity;
+    for (let i = 0; i < state.entities.damageNumbers.length; i++) {
+      const entry = state.entities.damageNumbers[i];
+      if (entry === preferredEntry || !matchesEntry(entry)) continue;
+      temp.vec3A.set(entry.anchorX ?? 0, entry.anchorY ?? 0, entry.anchorZ ?? 0);
+      temp.vec3B.set(metrics.anchorX, metrics.anchorY, metrics.anchorZ);
+      const distanceSq = temp.vec3A.distanceToSquared(temp.vec3B);
+      if (distanceSq < bestDistanceSq) {
+        bestDistanceSq = distanceSq;
+        bestEntry = entry;
+      }
+    }
+    return bestEntry;
+  }
+
   function createChainBeam(from, to) {
     const budgets = state.performance.frameBudgets;
     const maxChainsPerFrame = performance.getAdaptiveLimit(SAFETY_LIMITS.maxLightningChainsPerFrame, 0.65, 0.4);
@@ -168,8 +282,13 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     scene.remove(entry.sprite);
     entry.sprite.material.map?.dispose();
     entry.sprite.material.dispose();
-    const enemyData = getEnemyData(entry.enemy);
-    if (enemyData?.damageNumberEntry === entry) enemyData.damageNumberEntry = null;
+    if (entry.members?.size) {
+      for (const enemy of entry.members) {
+        const enemyData = getEnemyData(enemy);
+        if (enemyData?.damageNumberEntry === entry) enemyData.damageNumberEntry = null;
+      }
+      entry.members.clear();
+    }
     state.entities.damageNumbers.splice(index, 1);
   }
 
@@ -178,8 +297,13 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     const entry = data?.damageNumberEntry;
     if (!entry) return;
     const index = state.entities.damageNumbers.indexOf(entry);
-    if (index >= 0) removeDamageNumberAtIndex(index);
-    else if (data) data.damageNumberEntry = null;
+    if (index < 0) {
+      if (data) data.damageNumberEntry = null;
+      return;
+    }
+
+    removeEnemyFromDamageNumberEntry(entry, enemy, data);
+    if (!entry.members?.size) removeDamageNumberAtIndex(index);
   }
 
   function createDamageNumberTexture() {
@@ -243,7 +367,15 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     const resolvedAmount = Math.max(0, amount);
     if (!data || data.dead || resolvedAmount <= 0) return;
 
+    const metrics = getEnemyDamageNumberMetrics(enemy, data);
+    if (!metrics) return;
+
     let entry = data.damageNumberEntry;
+    if (entry && !state.entities.damageNumbers.includes(entry)) {
+      data.damageNumberEntry = null;
+      entry = null;
+    }
+    entry = findDamageNumberMergeCandidate(metrics, entry);
     if (!entry) {
       const maxDamageNumbers = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers || 24, 0.75, 0.5);
       if (state.entities.damageNumbers.length >= maxDamageNumbers) removeDamageNumberAtIndex(0);
@@ -260,7 +392,6 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       sprite.renderOrder = 18;
       scene.add(sprite);
       entry = {
-        enemy,
         sprite,
         totalDamage: 0,
         life: DAMAGE_NUMBER_LIFETIME,
@@ -268,29 +399,40 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
         pulse: 0,
         pulseStrength: 0,
         floatPhase: Math.random() * Math.PI * 2,
-        baseHeight: 0,
+        baseHeight: metrics.baseHeight,
+        anchorX: metrics.anchorX,
+        anchorY: metrics.anchorY,
+        anchorZ: metrics.anchorZ,
+        mergeRadius: metrics.mergeRadius,
+        hitboxRadius: metrics.hitboxRadius,
         driftX: (Math.random() - 0.5) * 0.22,
         driftZ: (Math.random() - 0.5) * 0.22,
+        members: new Set(),
         ...spriteData,
       };
       state.entities.damageNumbers.push(entry);
-      data.damageNumberEntry = entry;
     }
+
+    if (data.damageNumberEntry && data.damageNumberEntry !== entry) {
+      removeEnemyFromDamageNumberEntry(data.damageNumberEntry, enemy, data);
+    }
+    entry.members.add(enemy);
+    data.damageNumberEntry = entry;
 
     entry.totalDamage += resolvedAmount;
     entry.life = DAMAGE_NUMBER_LIFETIME;
     entry.maxLife = DAMAGE_NUMBER_LIFETIME;
-    entry.pulse = 0.22;
+    entry.pulse = DAMAGE_NUMBER_PULSE_LIFETIME;
     entry.pulseStrength = Math.min(1.45, 0.55 + Math.log10(entry.totalDamage + 10) * 0.48);
-    entry.baseHeight = data.hitboxCenterOffsetY + data.hitboxHalfHeight + Math.max(0.35, data.hitboxRadius * 0.5);
+    recalculateDamageNumberAnchor(entry);
     redrawDamageNumber(entry);
   }
 
   function updateDamageNumbers(dt) {
     for (let i = state.entities.damageNumbers.length - 1; i >= 0; i--) {
       const entry = state.entities.damageNumbers[i];
-      const data = getEnemyData(entry.enemy);
-      if (!data || data.dead) {
+      const liveMembers = recalculateDamageNumberAnchor(entry, dt);
+      if (liveMembers <= 0) {
         removeDamageNumberAtIndex(i);
         continue;
       }
@@ -305,7 +447,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       entry.pulse = Math.max(0, entry.pulse - dt);
       const alpha = THREE.MathUtils.clamp(entry.life / entry.maxLife, 0, 1);
       const fade = alpha < 0.32 ? alpha / 0.32 : 1;
-      const pulseT = 1 - (entry.pulse / 0.22);
+      const pulseT = 1 - (entry.pulse / DAMAGE_NUMBER_PULSE_LIFETIME);
       const pulseWave = entry.pulse > 0 ? Math.sin(pulseT * Math.PI) : 0;
       const pulseBoost = 1 + pulseWave * entry.pulseStrength * 0.32;
       const driftLift = (1 - alpha) * 0.55;
@@ -313,9 +455,9 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       const scale = getDamageNumberScale(entry.totalDamage) * pulseBoost;
 
       entry.sprite.position.set(
-        entry.enemy.position.x + entry.driftX,
-        entry.enemy.position.y + entry.baseHeight + driftLift + hover,
-        entry.enemy.position.z + entry.driftZ,
+        entry.anchorX + entry.driftX,
+        entry.anchorY + driftLift + hover,
+        entry.anchorZ + entry.driftZ,
       );
       entry.sprite.material.opacity = THREE.MathUtils.clamp(0.25 + fade * 0.95, 0, 1);
       entry.sprite.scale.set(1.85 * scale, 0.96 * scale, 1);
