@@ -135,7 +135,29 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
   function getDamageNumberMergeDistance(entry, metrics) {
     const entryRadius = entry?.mergeRadius ?? 0;
     const metricsRadius = metrics?.mergeRadius ?? 0;
-    return Math.max(0.24, Math.min(entryRadius, metricsRadius) + 0.12);
+    const largerRadius = Math.max(entryRadius, metricsRadius);
+    const smallerRadius = Math.min(entryRadius, metricsRadius);
+    return THREE.MathUtils.clamp(0.42 + largerRadius * 1.45 + smallerRadius * 0.45, 0.42, 1.05);
+  }
+
+  function getDamageNumberMergeVerticalAllowance(entry, metrics) {
+    const entryHeight = entry?.baseHeight ?? 0;
+    const metricsHeight = metrics?.baseHeight ?? 0;
+    return THREE.MathUtils.clamp(Math.max(0.3, Math.min(entryHeight, metricsHeight) * 0.28), 0.3, 0.75);
+  }
+
+  function getDamageNumberMergeFit(entry, metrics) {
+    if (!entry || !metrics) return null;
+    const dx = (entry.anchorX ?? 0) - metrics.anchorX;
+    const dz = (entry.anchorZ ?? 0) - metrics.anchorZ;
+    const xzDistanceSq = dx * dx + dz * dz;
+    const mergeDistance = getDamageNumberMergeDistance(entry, metrics);
+    if (xzDistanceSq > mergeDistance * mergeDistance) return null;
+
+    const dy = Math.abs((entry.anchorY ?? metrics.anchorY) - metrics.anchorY);
+    if (dy > getDamageNumberMergeVerticalAllowance(entry, metrics)) return null;
+
+    return { xzDistanceSq, dy };
   }
 
   function removeEnemyFromDamageNumberEntry(entry, enemy, data = getEnemyData(enemy)) {
@@ -146,33 +168,71 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
 
   function recalculateDamageNumberAnchor(entry, dt = 0) {
     if (!entry) return 0;
+    const memberMetrics = [];
+
+    if (entry.members?.size) {
+      for (const enemy of [...entry.members]) {
+        const metrics = getEnemyDamageNumberMetrics(enemy);
+        if (!metrics) {
+          removeEnemyFromDamageNumberEntry(entry, enemy);
+          continue;
+        }
+        memberMetrics.push(metrics);
+      }
+    }
+
+    if (memberMetrics.length <= 0) return 0;
+
+    let clusteredMetrics = memberMetrics;
+    if (memberMetrics.length > 1) {
+      let centroidX = 0;
+      let centroidZ = 0;
+      let averageMergeRadius = 0;
+      for (const metrics of memberMetrics) {
+        centroidX += metrics.anchorX;
+        centroidZ += metrics.anchorZ;
+        averageMergeRadius += metrics.mergeRadius;
+      }
+      centroidX /= memberMetrics.length;
+      centroidZ /= memberMetrics.length;
+      averageMergeRadius /= memberMetrics.length;
+
+      const splitDistance = THREE.MathUtils.clamp(averageMergeRadius * 2.15 + 0.22, 0.55, 1.18);
+      const splitDistanceSq = splitDistance * splitDistance;
+      clusteredMetrics = memberMetrics.filter((metrics) => {
+        const dx = metrics.anchorX - centroidX;
+        const dz = metrics.anchorZ - centroidZ;
+        return dx * dx + dz * dz <= splitDistanceSq;
+      });
+
+      if (clusteredMetrics.length <= 0) clusteredMetrics = memberMetrics;
+      if (clusteredMetrics.length < memberMetrics.length) {
+        const clusteredEnemies = new Set(clusteredMetrics.map((metrics) => metrics.enemy));
+        for (const metrics of memberMetrics) {
+          if (!clusteredEnemies.has(metrics.enemy)) {
+            removeEnemyFromDamageNumberEntry(entry, metrics.enemy, metrics.data);
+          }
+        }
+      }
+    }
+
     let sumX = 0;
     let sumY = 0;
     let sumZ = 0;
     let sumBaseHeight = 0;
     let sumMergeRadius = 0;
     let sumHitboxRadius = 0;
-    let liveCount = 0;
 
-    if (entry.members?.size) {
-      for (const enemy of entry.members) {
-        const metrics = getEnemyDamageNumberMetrics(enemy);
-        if (!metrics) {
-          removeEnemyFromDamageNumberEntry(entry, enemy);
-          continue;
-        }
-        sumX += metrics.anchorX;
-        sumY += metrics.anchorY;
-        sumZ += metrics.anchorZ;
-        sumBaseHeight += metrics.baseHeight;
-        sumMergeRadius += metrics.mergeRadius;
-        sumHitboxRadius += metrics.hitboxRadius;
-        liveCount += 1;
-      }
+    for (const metrics of clusteredMetrics) {
+      sumX += metrics.anchorX;
+      sumY += metrics.anchorY;
+      sumZ += metrics.anchorZ;
+      sumBaseHeight += metrics.baseHeight;
+      sumMergeRadius += metrics.mergeRadius;
+      sumHitboxRadius += metrics.hitboxRadius;
     }
 
-    if (liveCount <= 0) return 0;
-
+    const liveCount = clusteredMetrics.length;
     const inv = 1 / liveCount;
     const targetAnchorX = sumX * inv;
     const targetAnchorY = sumY * inv;
@@ -202,26 +262,20 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
   function findDamageNumberMergeCandidate(metrics, preferredEntry = null) {
     if (!metrics) return null;
 
-    const matchesEntry = (entry) => {
-      if (!entry) return false;
-      const mergeDistance = getDamageNumberMergeDistance(entry, metrics);
-      temp.vec3A.set(entry.anchorX ?? 0, entry.anchorY ?? 0, entry.anchorZ ?? 0);
-      temp.vec3B.set(metrics.anchorX, metrics.anchorY, metrics.anchorZ);
-      return temp.vec3A.distanceToSquared(temp.vec3B) <= mergeDistance * mergeDistance;
-    };
+    const matchesEntry = (entry) => getDamageNumberMergeFit(entry, metrics);
 
     if (matchesEntry(preferredEntry)) return preferredEntry;
 
     let bestEntry = null;
-    let bestDistanceSq = Infinity;
+    let bestScore = Infinity;
     for (let i = 0; i < state.entities.damageNumbers.length; i++) {
       const entry = state.entities.damageNumbers[i];
-      if (entry === preferredEntry || !matchesEntry(entry)) continue;
-      temp.vec3A.set(entry.anchorX ?? 0, entry.anchorY ?? 0, entry.anchorZ ?? 0);
-      temp.vec3B.set(metrics.anchorX, metrics.anchorY, metrics.anchorZ);
-      const distanceSq = temp.vec3A.distanceToSquared(temp.vec3B);
-      if (distanceSq < bestDistanceSq) {
-        bestDistanceSq = distanceSq;
+      if (entry === preferredEntry) continue;
+      const fit = matchesEntry(entry);
+      if (!fit) continue;
+      const score = fit.xzDistanceSq + fit.dy * 0.08;
+      if (score < bestScore) {
+        bestScore = score;
         bestEntry = entry;
       }
     }
@@ -373,6 +427,10 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     let entry = data.damageNumberEntry;
     if (entry && !state.entities.damageNumbers.includes(entry)) {
       data.damageNumberEntry = null;
+      entry = null;
+    }
+    if (entry && !getDamageNumberMergeFit(entry, metrics)) {
+      removeEnemyFromDamageNumberEntry(entry, enemy, data);
       entry = null;
     }
     entry = findDamageNumberMergeCandidate(metrics, entry);
