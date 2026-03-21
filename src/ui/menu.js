@@ -48,9 +48,21 @@ const UPGRADE_NODE_META = {
   shieldCapacity: { icon: '🛡', accent: '#8fdfff' },
 };
 
+const UPGRADE_DEFS_BY_ID = new Map(UPGRADE_DEFS.map((def) => [def.id, def]));
+
 function formatUpgradeStatus(cost, credits) {
   if (cost == null) return 'Maxed';
   return credits >= cost ? 'Kaufbar' : 'Nicht genug Credits';
+}
+
+function createSkillTreeActionButton({ variant = 'ghost-btn', label, disabled = false, onClick }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = variant;
+  button.textContent = label;
+  button.disabled = disabled;
+  if (!disabled && typeof onClick === 'function') button.addEventListener('click', onClick);
+  return button;
 }
 
 function createNodeButton(node, selectedKey, { onSelect, onUpgrade }) {
@@ -161,7 +173,14 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     }
   }
 
-  function buildUpgradeNode(def) {
+  function getUpgradeDef(id) {
+    return UPGRADE_DEFS_BY_ID.get(id) || null;
+  }
+
+  function buildUpgradeNode(defOrId) {
+    const def = typeof defOrId === 'string' ? getUpgradeDef(defOrId) : defOrId;
+    if (!def) return null;
+
     const level = helpers.getUpgradeLevel(def.id);
     const maxLevel = helpers.getUpgradeMaxLevel(def.id);
     const cost = helpers.getUpgradeCost(def.id);
@@ -240,24 +259,25 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
 
   function buildSkillTreeData() {
     const nodeMap = new Map();
-    const rootNode = buildUpgradeNode(UPGRADE_DEFS.find((def) => def.id === 'upgradeLimit'));
-    nodeMap.set(rootNode.key, rootNode);
+    const rootNode = buildUpgradeNode('upgradeLimit');
+    if (rootNode) nodeMap.set(rootNode.key, rootNode);
 
     const branches = SKILL_TREE_BRANCHES.map((branch) => {
       const nodes = branch.nodeKeys.map((key) => {
         const [type, id] = key.split(':');
         const node = type === 'special'
           ? buildSpecialAbilityNode(getSpecialAbilityDef(id))
-          : buildUpgradeNode(UPGRADE_DEFS.find((def) => def.id === id));
+          : buildUpgradeNode(id);
+        if (!node) return null;
         nodeMap.set(node.key, node);
         return node;
-      });
+      }).filter(Boolean);
 
       return {
         ...branch,
         nodes,
       };
-    });
+    }).filter((branch) => branch.nodes.length > 0);
 
     return { rootNode, branches, nodeMap };
   }
@@ -282,17 +302,8 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     else actions.purchaseUpgrade(node.id);
   }
 
-  function createSkillTreeActionButton({ variant = 'ghost-btn', label, disabled = false, onClick }) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = variant;
-    button.textContent = label;
-    button.disabled = disabled;
-    if (!disabled && typeof onClick === 'function') button.addEventListener('click', onClick);
-    return button;
-  }
-
   function renderSkillTreeDetails(node) {
+    if (!ui.skillTreeDetails) return;
     ui.skillTreeDetails.innerHTML = '';
     ui.skillTreeDetails.style.setProperty('--detail-accent', node?.accent || '#73d5ff');
 
@@ -378,16 +389,33 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
   }
 
   function renderSkillTree(data) {
+    if (!ui.skillTreeMap) return;
     const selectedNode = getSelectedSkillTreeNode(data);
     const selectedKey = selectedNode?.key || null;
     ui.skillTreeMap.innerHTML = '';
 
+    if (!data.rootNode && data.branches.length === 0) {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'skill-tree-empty card-surface';
+      emptyState.innerHTML = `
+        <div class="card-label">Upgrade-System</div>
+        <strong>Keine Upgrade-Knoten verfügbar</strong>
+        <span>Die Daten für das Upgrade-Menü konnten nicht vollständig geladen werden. Bitte Seite neu laden.</span>
+      `;
+      ui.skillTreeMap.appendChild(emptyState);
+      renderSkillTreeDetails(null);
+      return;
+    }
+
     const layout = document.createElement('div');
     layout.className = 'skill-tree-layout';
 
-    const rootWrap = document.createElement('div');
-    rootWrap.className = 'skill-tree-root';
-    rootWrap.appendChild(createNodeButton(data.rootNode, selectedKey, { onSelect: selectSkillTreeNode, onUpgrade: triggerNodeUpgrade }));
+    if (data.rootNode) {
+      const rootWrap = document.createElement('div');
+      rootWrap.className = 'skill-tree-root';
+      rootWrap.appendChild(createNodeButton(data.rootNode, selectedKey, { onSelect: selectSkillTreeNode, onUpgrade: triggerNodeUpgrade }));
+      layout.appendChild(rootWrap);
+    }
 
     const branchAreas = {
       abilities: 'skill-tree-branch skill-tree-branch--abilities',
@@ -398,6 +426,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     const branchOrder = ['abilities', 'arsenal', 'powerUps'];
     branchOrder.forEach((branchId) => {
       const branch = data.branches.find((entry) => entry.id === branchId);
+      if (!branch) return;
       const section = document.createElement('section');
       section.className = branchAreas[branch.id];
       section.style.setProperty('--branch-accent', branch.accent);
@@ -420,14 +449,13 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       layout.appendChild(section);
     });
 
-    layout.appendChild(rootWrap);
     ui.skillTreeMap.appendChild(layout);
 
     renderSkillTreeDetails(selectedNode);
   }
 
   function renderUpgradesScreen() {
-    ui.upgradeCredits.textContent = String(profile.credits);
+    if (ui.upgradeCredits) ui.upgradeCredits.textContent = String(profile.credits);
     renderSkillTree(buildSkillTreeData());
   }
 
