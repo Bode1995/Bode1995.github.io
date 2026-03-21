@@ -249,20 +249,112 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     return { rootNode, branches, nodeMap };
   }
 
-  function ensureSelectedSkillTreeNode(data) {
-    const keys = [data.rootNode.key, ...data.branches.flatMap((branch) => branch.nodes.map((node) => node.key))];
-    if (!keys.includes(state.ui.activeSkillTreeNode)) state.ui.activeSkillTreeNode = data.rootNode.key;
-    return state.ui.activeSkillTreeNode;
+  function getSelectedSkillTreeNode(data) {
+    if (!state.ui.activeSkillTreeNode) return null;
+    return data.nodeMap.get(state.ui.activeSkillTreeNode) || null;
   }
 
   function selectSkillTreeNode(nodeKey) {
-    state.ui.activeSkillTreeNode = nodeKey;
+    state.ui.activeSkillTreeNode = state.ui.activeSkillTreeNode === nodeKey ? null : nodeKey;
     renderUpgradesScreen();
+  }
+
+  function createSkillTreeActionButton({ variant = 'ghost-btn', label, disabled = false, onClick }) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = variant;
+    button.textContent = label;
+    button.disabled = disabled;
+    if (!disabled && typeof onClick === 'function') button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function renderSkillTreeActions(node) {
+    const actionsWrap = document.createElement('div');
+    actionsWrap.className = 'skill-tree-details__actions skill-tree-details__actions--dual';
+
+    if (!node) {
+      actionsWrap.append(
+        createSkillTreeActionButton({ label: 'Ausrüsten', disabled: true }),
+        createSkillTreeActionButton({ label: 'Upgrade kaufen', disabled: true }),
+      );
+      return actionsWrap;
+    }
+
+    const equipButtonConfig = node.type === 'special'
+      ? {
+          label: node.actionLabel,
+          variant: node.isEquipped ? 'ghost-btn' : 'btn',
+          disabled: node.isEquipped,
+          onClick: () => actions.selectSpecialAbility(node.id),
+        }
+      : {
+          label: 'Ausrüsten',
+          variant: 'ghost-btn',
+          disabled: true,
+        };
+
+    const buyButtonConfig = node.type === 'special'
+      ? {
+          label: node.upgradeLabel,
+          variant: node.canAfford ? 'btn' : 'ghost-btn',
+          disabled: node.nextCost == null || profile.credits < node.nextCost,
+          onClick: () => actions.purchaseSpecialAbilityUpgrade(node.id),
+        }
+      : {
+          label: node.actionLabel,
+          variant: node.canAfford ? 'btn' : 'ghost-btn',
+          disabled: node.nextCost == null || profile.credits < node.nextCost,
+          onClick: () => actions.purchaseUpgrade(node.id),
+        };
+
+    actionsWrap.append(
+      createSkillTreeActionButton(equipButtonConfig),
+      createSkillTreeActionButton(buyButtonConfig),
+    );
+
+    return actionsWrap;
   }
 
   function renderSkillTreeDetails(node) {
     ui.skillTreeDetails.innerHTML = '';
-    ui.skillTreeDetails.style.setProperty('--detail-accent', node.accent);
+    ui.skillTreeDetails.style.setProperty('--detail-accent', node?.accent || '#73d5ff');
+
+    if (!node) {
+      const header = document.createElement('div');
+      header.className = 'skill-tree-details__header';
+      header.innerHTML = `
+        <div class="skill-tree-details__titlewrap">
+          <span class="skill-tree-details__icon" aria-hidden="true">◎</span>
+          <div>
+            <div class="card-label">Keine Auswahl</div>
+            <h4>Wähle einen Upgrade-Knoten</h4>
+          </div>
+        </div>
+        <span class="skill-tree-details__state">Bereit</span>
+      `;
+
+      const copy = document.createElement('p');
+      copy.className = 'skill-tree-details__copy';
+      copy.textContent = 'Die Aktionsleiste bleibt sichtbar. Wähle einen Knoten im Skill-Tree, um Ausrüsten oder Upgrade-Kaufen direkt unten auszuführen.';
+
+      const stats = document.createElement('div');
+      stats.className = 'skill-tree-details__stats';
+
+      [
+        ['Auswahl', 'Kein Knoten aktiv'],
+        ['Ausrüsten', 'Nur Spezialfähigkeiten'],
+        ['Upgrade', 'Nach Knotenauswahl verfügbar'],
+      ].forEach(([label, value]) => {
+        const stat = document.createElement('div');
+        stat.className = 'skill-tree-details__stat';
+        stat.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
+        stats.appendChild(stat);
+      });
+
+      ui.skillTreeDetails.append(header, copy, stats, renderSkillTreeActions(null));
+      return;
+    }
 
     const header = document.createElement('div');
     header.className = 'skill-tree-details__header';
@@ -306,39 +398,12 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       stats.appendChild(stat);
     });
 
-    const actionsWrap = document.createElement('div');
-    actionsWrap.className = `skill-tree-details__actions${node.type === 'special' ? ' skill-tree-details__actions--dual' : ''}`;
-
-    if (node.type === 'special') {
-      const equipButton = document.createElement('button');
-      equipButton.type = 'button';
-      equipButton.className = node.isEquipped ? 'ghost-btn' : 'btn';
-      equipButton.textContent = node.actionLabel;
-      equipButton.disabled = node.isEquipped;
-      equipButton.addEventListener('click', () => actions.selectSpecialAbility(node.id));
-
-      const upgradeButton = document.createElement('button');
-      upgradeButton.type = 'button';
-      upgradeButton.className = 'ghost-btn';
-      upgradeButton.textContent = node.upgradeLabel;
-      upgradeButton.disabled = node.nextCost == null || profile.credits < node.nextCost;
-      upgradeButton.addEventListener('click', () => actions.purchaseSpecialAbilityUpgrade(node.id));
-      actionsWrap.append(equipButton, upgradeButton);
-    } else {
-      const upgradeButton = document.createElement('button');
-      upgradeButton.type = 'button';
-      upgradeButton.className = node.canAfford ? 'btn' : 'ghost-btn';
-      upgradeButton.textContent = node.actionLabel;
-      upgradeButton.disabled = node.nextCost == null || profile.credits < node.nextCost;
-      upgradeButton.addEventListener('click', () => actions.purchaseUpgrade(node.id));
-      actionsWrap.appendChild(upgradeButton);
-    }
-
-    ui.skillTreeDetails.append(header, copy, stats, actionsWrap);
+    ui.skillTreeDetails.append(header, copy, stats, renderSkillTreeActions(node));
   }
 
   function renderSkillTree(data) {
-    const selectedKey = ensureSelectedSkillTreeNode(data);
+    const selectedNode = getSelectedSkillTreeNode(data);
+    const selectedKey = selectedNode?.key || null;
     ui.skillTreeMap.innerHTML = '';
 
     const layout = document.createElement('div');
@@ -382,7 +447,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     layout.appendChild(rootWrap);
     ui.skillTreeMap.appendChild(layout);
 
-    renderSkillTreeDetails(data.nodeMap.get(selectedKey) || data.rootNode);
+    renderSkillTreeDetails(selectedNode);
   }
 
   function renderUpgradesScreen() {
