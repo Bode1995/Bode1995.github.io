@@ -11,7 +11,6 @@ const SKILL_TREE_BRANCHES = [
   {
     id: 'abilities',
     label: 'Fähigkeiten',
-    description: 'Alle Spezialfähigkeiten als auswählbare und upgradebare Nodes.',
     accent: '#73d5ff',
     icon: '✹',
     nodeKeys: SPECIAL_ABILITY_DEFS.map((ability) => `special:${ability.id}`),
@@ -19,7 +18,6 @@ const SKILL_TREE_BRANCHES = [
   {
     id: 'arsenal',
     label: 'Arsenal',
-    description: 'Normale Pilot- und Waffen-Upgrades für deine Kernstärke.',
     accent: '#ffb55b',
     icon: '⬒',
     nodeKeys: ['upgrade:baseDamage', 'upgrade:attackSpeed', 'upgrade:maxHealth', 'upgrade:movementSpeed'],
@@ -27,7 +25,6 @@ const SKILL_TREE_BRANCHES = [
   {
     id: 'powerUps',
     label: 'Power Ups',
-    description: 'Alle persistente Verbesserungen für eingesammelte Power Ups.',
     accent: '#8dffd5',
     icon: '⚡',
     nodeKeys: ['upgrade:burnDamage', 'upgrade:poisonDamage', 'upgrade:slowDuration', 'upgrade:lightningRange', 'upgrade:rocketRadius', 'upgrade:shieldCapacity'],
@@ -201,7 +198,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       icon: meta.icon,
       eyebrow: def.id === 'upgradeLimit' ? 'Root Node' : 'Upgrade Node',
       title: def.label,
-      description: def.description,
       status,
       level,
       maxLevel,
@@ -236,7 +232,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       icon: ability.icon,
       eyebrow: 'Spezialfähigkeit',
       title: ability.name,
-      description: ability.description,
       status,
       level,
       maxLevel: ability.upgrade.maxLevel,
@@ -321,10 +316,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         <span class="skill-tree-details__state">Bereit</span>
       `;
 
-      const copy = document.createElement('p');
-      copy.className = 'skill-tree-details__copy';
-      copy.textContent = 'Tippe Spezialfähigkeiten direkt an, um sie sofort auszurüsten. Upgrades kaufst du direkt auf dem jeweiligen Node über den dortigen Upgrade-Button.';
-
       const stats = document.createElement('div');
       stats.className = 'skill-tree-details__stats';
 
@@ -339,7 +330,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         stats.appendChild(stat);
       });
 
-      ui.skillTreeDetails.append(header, copy, stats);
+      ui.skillTreeDetails.append(header, stats);
       return;
     }
 
@@ -355,10 +346,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       </div>
       <span class="skill-tree-details__state">${node.status}</span>
     `;
-
-    const copy = document.createElement('p');
-    copy.className = 'skill-tree-details__copy';
-    copy.textContent = node.description;
 
     const stats = document.createElement('div');
     stats.className = 'skill-tree-details__stats';
@@ -385,7 +372,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       stats.appendChild(stat);
     });
 
-    ui.skillTreeDetails.append(header, copy, stats);
+    ui.skillTreeDetails.append(header, stats);
   }
 
   function renderSkillTree(data) {
@@ -437,7 +424,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         <div>
           <div class="card-label">${branch.icon} Hauptstrang</div>
           <h4>${branch.label}</h4>
-          <p>${branch.description}</p>
         </div>
       `;
 
@@ -468,7 +454,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         <div class="card-topline"><span class="card-chip">LOG</span></div>
         <div class="card-label">${def.label}</div>
         <strong>${def.format(profile.stats[def.id] || 0)}</strong>
-        <span>Persistent progression stat</span>
       `;
       ui.statsGrid.appendChild(card);
     });

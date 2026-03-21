@@ -42,14 +42,6 @@ export function setupCharacterSelection({
     label.className = 'character-name';
     label.textContent = def.name;
 
-    const playstyle = document.createElement('div');
-    playstyle.className = 'character-playstyle';
-    playstyle.textContent = def.playstyleLabel || 'Adaptive combat frame';
-
-    const subline = document.createElement('div');
-    subline.className = 'character-subline';
-    subline.textContent = def.classSummary || def.tagline || 'Adaptive combat frame';
-
     const traitList = document.createElement('div');
     traitList.className = 'character-traits';
     (def.traitTags || []).forEach((tag) => {
@@ -72,7 +64,7 @@ export function setupCharacterSelection({
     previewCanvas.width = 220;
     previewCanvas.height = 160;
 
-    button.append(meta, previewCanvas, label, playstyle, subline, traitList, stats);
+    button.append(meta, previewCanvas, label, traitList, stats);
     ui.characterGrid.append(button);
 
     const previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
