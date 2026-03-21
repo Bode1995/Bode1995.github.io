@@ -35,6 +35,7 @@ export function createEnemySystem({
     splitter: { shell: 0x7e8cff, dark: 0x1a1d39, main: 0x394165, glow: 0x73ffb0 },
     bossHeavy: { shell: 0xff7b92, dark: 0x200f1b, main: 0x545f7a, glow: 0xffd470 },
     bossAgile: { shell: 0x35f3d1, dark: 0x112437, main: 0x3f3f74, glow: 0xc6b7ff },
+    earthTitan: { shell: 0x9e8b67, dark: 0x241d16, main: 0x5d5140, glow: 0xa8ffcf },
   };
 
   const enemyMaterialCache = new Map();
@@ -344,6 +345,40 @@ export function createEnemySystem({
       add(sharedGeometries.box, mats.main, [0, 0, 0], [0, Math.PI / 2, 0], [1.85, 0.1, 0.2], rotor);
       add(sharedGeometries.box, mats.glow, [0, 0, 0], [0, Math.PI / 4, 0], [1.1, 0.08, 0.12], rotor);
       anim.extras.push(rotor);
+    } else if (type === 'earthTitan') {
+      add(sharedGeometries.box, mats.main, [0, 3.6, 0], [0.08, 0, 0], [6.8, 3.2, 5.8]);
+      add(sharedGeometries.box, mats.dark, [0, 6.2, -0.7], [0.2, 0, 0], [4.6, 1.2, 3.8]);
+      add(sharedGeometries.box, mats.shell, [0, 4.7, 2.8], [0.22, 0, 0], [2.4, 2.2, 1.7]);
+      add(sharedGeometries.visor, mats.glow, [0, 4.4, 2.86], [0, 0, 0], [7.4, 2.8, 2.2]);
+      const core = new THREE.Group();
+      core.position.set(0, 4.25, 2.32);
+      body.add(core);
+      add(sharedGeometries.box, mats.glow, [0, 0, 0], [0.1, Math.PI / 4, 0], [1.8, 1.8, 1.8], core);
+      add(sharedGeometries.box, mats.shell, [0, 0, 0], [-0.12, -Math.PI / 4, 0], [1.24, 1.24, 1.24], core);
+      anim.extras.push(core);
+      for (const side of [-1, 1]) {
+        const shoulder = new THREE.Group();
+        shoulder.position.set(side * 3.45, 5.2, 0.5);
+        body.add(shoulder);
+        add(sharedGeometries.box, mats.shell, [0, 0, 0], [0, 0, side * 0.14], [1.55, 1.75, 1.55], shoulder);
+        add(sharedGeometries.spike, mats.bone, [0, 1.18, 0.18], [0.08, 0, side * 0.18], [1.6, 2.1, 1.6], shoulder);
+        anim.extras.push(shoulder);
+
+        const pillarLeg = new THREE.Group();
+        pillarLeg.position.set(side * 2.35, 1.8, 0.2);
+        body.add(pillarLeg);
+        add(sharedGeometries.leg, mats.dark, [0, -0.9, 0], [0.02, 0, 0], [2.8, 4.8, 2.8], pillarLeg);
+        add(sharedGeometries.box, mats.main, [0, -3.25, 0.2], [0, 0, 0], [1.65, 2.2, 1.65], pillarLeg);
+        anim.legs.push(pillarLeg);
+      }
+      for (const side of [-1, 1]) {
+        const rootArm = new THREE.Group();
+        rootArm.position.set(side * 4.3, 3.85, 0.42);
+        body.add(rootArm);
+        add(sharedGeometries.arm, mats.main, [0, -0.42, 0], [0.24, 0, side * 0.34], [2.4, 4.6, 2.4], rootArm);
+        add(sharedGeometries.cone, mats.bone, [0, -3.15, 0.72], [Math.PI, 0, side * 0.08], [1.1, 1.6, 1.1], rootArm);
+        anim.legs.push(rootArm);
+      }
     }
 
     addWorldDetails(body, anim, mats, worldDef, type, add);
@@ -422,6 +457,8 @@ export function createEnemySystem({
       currentTargetPosition: null,
       specialSlowTimer: 0,
       specialSlowMultiplier: null,
+      damageTakenMultiplier: 1,
+      behaviorController: null,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
@@ -475,6 +512,10 @@ export function createEnemySystem({
         continue;
       }
       if (data.dead) continue;
+      if (data.behaviorController?.update) {
+        data.behaviorController.update({ enemy, data, dt, elapsed, runPowers });
+        continue;
+      }
 
       const targetPosition = data.currentTargetPosition || temp.player.position;
       temp.vec3A.set(targetPosition.x - enemy.position.x, 0, targetPosition.z - enemy.position.z);

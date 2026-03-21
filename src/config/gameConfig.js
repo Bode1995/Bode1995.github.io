@@ -401,6 +401,7 @@ export const gameplayConfig = {
       splitter: 1,
       bossHeavy: 1,
       bossAgile: 1,
+      earthTitan: 1,
     },
   },
 };
@@ -580,6 +581,7 @@ export const ENEMY_TYPES = {
   splitter: { role: 'field', hp: 5, speed: 2.35, damage: 20, radius: 0.95, score: 15, splitCount: 3 },
   bossHeavy: { role: 'boss', hp: 48, speed: 1.25, damage: 52, radius: 1.95, score: 110 },
   bossAgile: { role: 'boss', hp: 36, speed: 2.95, damage: 38, radius: 1.65, score: 125, chargeSpeed: 9.7, chargeCooldown: 1.65, chargeDuration: 0.35 },
+  earthTitan: { role: 'boss', hp: 440, speed: 0.12, damage: 78, radius: 4.6, score: 420 },
 };
 
 export const SAFETY_LIMITS = {

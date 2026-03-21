@@ -468,6 +468,18 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   border-color: rgba(255, 184, 92, 0.26);
 }
 
+.level-card--boss {
+  border-color: rgba(255, 204, 108, 0.3);
+  background:
+    radial-gradient(circle at top right, rgba(194, 255, 221, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(34, 29, 22, 0.96), rgba(15, 18, 30, 0.98));
+}
+
+.level-card--boss.is-selected {
+  border-color: rgba(194, 255, 221, 0.58);
+  box-shadow: 0 0 0 1px rgba(194, 255, 221, 0.18), inset 0 0 22px rgba(194, 255, 221, 0.08), 0 16px 34px rgba(0, 0, 0, 0.28);
+}
+
 .upgrade-group {
   display: grid;
   gap: 12px;
@@ -822,6 +834,71 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   justify-self: end;
   gap: 6px;
   max-width: min(40vw, 360px);
+}
+
+.boss-hud {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(56vw, 640px);
+  padding: 10px 14px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(194, 255, 221, 0.22);
+  background: linear-gradient(180deg, rgba(17, 20, 29, 0.84), rgba(10, 12, 20, 0.92));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.24);
+}
+
+.boss-hud__eyebrow,
+.boss-hud__telegraph {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.boss-hud__eyebrow {
+  color: rgba(194, 255, 221, 0.78);
+  margin-bottom: 6px;
+}
+
+.boss-hud__title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.boss-hud__title-row strong {
+  font-size: clamp(20px, 3vw, 28px);
+}
+
+.boss-hud__title-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.boss-hud__bar {
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.boss-hud__bar > div {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #9cffcf 0%, #ffd78b 50%, #ff8a5d 100%);
+  box-shadow: 0 0 22px rgba(255, 196, 122, 0.3);
+  transition: width 0.12s linear;
+}
+
+.boss-hud__telegraph {
+  margin-top: 8px;
+  color: rgba(255, 240, 204, 0.88);
+  min-height: 1.2em;
 }
 
 .hud-badge,
