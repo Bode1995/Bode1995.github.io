@@ -161,12 +161,12 @@ export const WORLD_DEFS = {
     hudBadge: 'Eisresistenz',
     environment: {
       style: 'ice',
-      groundBase: 0xd7e5ef,
-      detailA: 0xb5d0e4,
+      groundBase: 0x516274,
+      detailA: 0x93aec4,
       detailB: 0x7cd8ff,
-      accent: 0xeaf9ff,
+      accent: 0xd4ebf7,
       atmosphere: {
-        background: 0xd6ecff,
+        background: 0x9fb6cb,
         fogNear: 40,
         fogFar: 150,
         hemisphereSky: 0xf2fbff,
@@ -178,12 +178,12 @@ export const WORLD_DEFS = {
         fillLightIntensity: 0.82,
         bounceLightColor: 0xd7f2ff,
         bounceLightIntensity: 0.34,
-        exposure: 1.22,
+        exposure: 1.08,
       },
       arena: {
-        base: 0xa9c7d8,
-        underside: 0x7598ae,
-        ring: 0xe9fbff,
+        base: 0x5b6f82,
+        underside: 0x3e5367,
+        ring: 0xb8d5e6,
       },
     },
     enemyVisuals: {

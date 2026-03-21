@@ -1,4 +1,5 @@
 import { getWorldDefinition } from '../config/worlds.js';
+import { getWorldLayout } from '../config/worldLayouts.js';
 
 function disposeMaterial(material) {
   if (!material) return;
@@ -30,6 +31,7 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worl
 
   const world = getWorldDefinition(worldIndex);
   const env = world.environment;
+  const layout = getWorldLayout(env.style);
   const makeMaterial = (config) => new THREE.MeshStandardMaterial(config);
   const shared = createWorldMaterials(THREE, env, makeMaterial);
 
@@ -199,7 +201,7 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worl
     footprint: { type: 'rect', x: 0, z: 0, width: gameplayConfig.arena.size, depth: gameplayConfig.arena.size, rotation: 0 },
   });
 
-  addWorldSurfaceDecor({ THREE, world, env, shared, varyMaterial, addDecal, addBox, addSphere, addCluster, hash, buildableHalf });
+  addWorldSurfaceDecor({ THREE, world, env, layout, shared, varyMaterial, addDecal, addBox, addSphere, addCluster, hash, buildableHalf });
   buildWorldStructures({
     THREE,
     world,
@@ -211,6 +213,7 @@ export function createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worl
     addCluster,
     addSphere,
     buildableHalf,
+    layout,
     mapRoot,
     registerWorldObject,
     setShadow,
@@ -260,13 +263,15 @@ function darkenColor(THREE, colorHex, delta = 0.16) {
   return color.getHex();
 }
 
-function addWorldSurfaceDecor({ THREE, world, env, shared, varyMaterial, addDecal, addBox, addSphere, addCluster, hash, buildableHalf }) {
+function resolveLayoutZ(value, buildableHalf) {
+  if (value === 'northEdge') return -buildableHalf + 1.4;
+  if (value === 'northInset') return -buildableHalf + 9.5;
+  return value;
+}
+
+function addWorldSurfaceDecor({ THREE, env, layout, shared, varyMaterial, addDecal, addSphere, addCluster, hash, buildableHalf }) {
   if (env.style === 'frontier') {
-    [
-      { x: -12, z: -14, sx: 8, sz: 18, rot: 0.12 },
-      { x: 17, z: 8, sx: 12, sz: 8, rot: -0.2 },
-      { x: -28, z: 31, sx: 10, sz: 7, rot: 0.08 },
-    ].forEach((patch, index) => {
+    layout.surface.decals.forEach((patch, index) => {
       addDecal({ x: patch.x, z: patch.z, sx: patch.sx, sz: patch.sz, rotation: patch.rot, material: shared.mistPlane, source: `frontier-walkway-${index + 1}` });
     });
     return;
@@ -275,12 +280,10 @@ function addWorldSurfaceDecor({ THREE, world, env, shared, varyMaterial, addDeca
   if (env.style === 'lava') {
     const lavaPlane = shared.glowPlane.clone();
     lavaPlane.opacity = 0.42;
-    [
-      { x: -18, z: -12, sx: 8, sz: 26, rot: 0.18 },
-      { x: 16, z: 20, sx: 10, sz: 20, rot: -0.32 },
-      { x: 30, z: -24, sx: 7, sz: 12, rot: 0.1 },
-    ].forEach((patch, index) => addDecal({ x: patch.x, z: patch.z, sx: patch.sx, sz: patch.sz, rotation: patch.rot, material: lavaPlane, source: `lava-rift-${index + 1}` }));
-    for (let i = 0; i < 12; i++) {
+    layout.surface.decals.forEach((patch, index) => {
+      addDecal({ x: patch.x, z: patch.z, sx: patch.sx, sz: patch.sz, rotation: patch.rot, material: lavaPlane, source: `lava-rift-${index + 1}` });
+    });
+    for (let i = 0; i < (layout.surface.spireCount || 0); i++) {
       const x = -buildableHalf + 8 + (i * 7.1) % (buildableHalf * 2 - 12);
       const z = -buildableHalf + 6 + ((i * 11.3) % (buildableHalf * 2 - 10));
       addCluster({ x, z, radius: 1.2 + hash(i, x, 41) * 0.8, count: 4, material: shared.accent, height: 2 + hash(z, i, 42), spike: true, source: `lava-spire-${i + 1}` });
@@ -290,13 +293,11 @@ function addWorldSurfaceDecor({ THREE, world, env, shared, varyMaterial, addDeca
 
   if (env.style === 'ice') {
     const frostPlane = shared.mistPlane.clone();
-    frostPlane.opacity = 0.22;
-    [
-      { x: -20, z: 12, sx: 16, sz: 12, rot: 0.18 },
-      { x: 12, z: -18, sx: 14, sz: 9, rot: -0.24 },
-      { x: 25, z: 28, sx: 9, sz: 18, rot: 0.08 },
-    ].forEach((patch, index) => addDecal({ x: patch.x, z: patch.z, sx: patch.sx, sz: patch.sz, rotation: patch.rot, material: frostPlane, source: `ice-sheen-${index + 1}` }));
-    for (let i = 0; i < 12; i++) {
+    frostPlane.opacity = 0.18;
+    layout.surface.decals.forEach((patch, index) => {
+      addDecal({ x: patch.x, z: patch.z, sx: patch.sx, sz: patch.sz, rotation: patch.rot, material: frostPlane, source: `ice-sheen-${index + 1}` });
+    });
+    for (let i = 0; i < (layout.surface.crystalCount || 0); i++) {
       const x = -buildableHalf + 9 + (i * 6.6) % (buildableHalf * 2 - 14);
       const z = buildableHalf - 8 - ((i * 9.8) % (buildableHalf * 2 - 12));
       addCluster({ x, z, radius: 1.1 + hash(i, z, 43) * 0.7, count: 5, material: shared.trim, height: 2.4 + hash(x, i, 44), spike: true, source: `ice-crystal-${i + 1}` });
@@ -306,12 +307,10 @@ function addWorldSurfaceDecor({ THREE, world, env, shared, varyMaterial, addDeca
 
   const toxicPlane = shared.glowPlane.clone();
   toxicPlane.opacity = 0.3;
-  [
-    { x: -21, z: -22, sx: 12, sz: 16, rot: 0.12 },
-    { x: 14, z: 12, sx: 16, sz: 10, rot: -0.18 },
-    { x: 31, z: -2, sx: 8, sz: 18, rot: 0.06 },
-  ].forEach((patch, index) => addDecal({ x: patch.x, z: patch.z, sx: patch.sx, sz: patch.sz, rotation: patch.rot, material: toxicPlane, source: `toxic-sludge-${index + 1}` }));
-  for (let i = 0; i < 10; i++) {
+  layout.surface.decals.forEach((patch, index) => {
+    addDecal({ x: patch.x, z: patch.z, sx: patch.sx, sz: patch.sz, rotation: patch.rot, material: toxicPlane, source: `toxic-sludge-${index + 1}` });
+  });
+  for (let i = 0; i < (layout.surface.bulbCount || 0); i++) {
     const x = -buildableHalf + 9 + (i * 8.4) % (buildableHalf * 2 - 12);
     const z = -buildableHalf + 7 + ((i * 13.2) % (buildableHalf * 2 - 12));
     addSphere({ x, z, y: 0.32 + hash(i, z, 45) * 0.12, r: 0.44 + hash(x, i, 46) * 0.24, material: varyMaterial(shared.accent, x, z, 47), source: `toxic-bulb-${i + 1}`, scale: [1.2, 0.55, 1.2] });
@@ -336,50 +335,21 @@ function buildWorldStructures(context) {
   buildPoisonWorld(context);
 }
 
-function buildFrontierWorld({ THREE, shared, varyMaterial, addBox, addCylinder, buildableHalf, mapRoot, registerWorldObject, setShadow, hash }) {
-  [
-    { x: -1, y: 1.45, z: -buildableHalf + 1.3, sx: 72, sy: 2.9, sz: 3, rotation: 0.03, source: 'perimeter-wall-north' },
-    { x: 39, y: 1.45, z: -8, sx: 3.2, sy: 2.9, sz: 42, rotation: 0.04, source: 'perimeter-wall-east' },
-    { x: -46, y: 1.1, z: 23, sx: 3.6, sy: 2.2, sz: 28, rotation: -0.03, source: 'perimeter-wall-west' },
-    { x: 6, y: 1.05, z: 48, sx: 34, sy: 2.1, sz: 3.2, rotation: -0.05, source: 'perimeter-wall-south' },
-  ].forEach(({ x, y, z, sx, sy, sz, rotation, source }) => {
-    addBox({ x, y, z, sx, sy, sz, material: varyMaterial(shared.structureDark, x, z, 45), rotation, source, blocking: true, collider: { type: 'rect', x, z, width: sx, depth: sz, rotation } });
+function buildFrontierWorld({ THREE, layout, shared, varyMaterial, addBox, addCylinder, buildableHalf, mapRoot, registerWorldObject, setShadow, hash }) {
+  layout.walls.forEach(({ x, y, z, sx, sy, sz, rotation, source }) => {
+    const resolvedZ = resolveLayoutZ(z, buildableHalf);
+    addBox({ x, y, z: resolvedZ, sx, sy, sz, material: varyMaterial(shared.structureDark, x, resolvedZ, 45), rotation, source, blocking: true, collider: { type: 'rect', x, z: resolvedZ, width: sx, depth: sz, rotation } });
   });
 
-  const lampPositions = [[-24, -28], [-7, -23], [13, -19], [29, -10], [-15, 12], [6, 18], [24, 27], [-29, 34]];
-  lampPositions.forEach(([x, z], index) => addFrontierLamp({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, x, z, h: 3.6 + (index % 3) * 0.25, source: `lamp-${index + 1}` }));
+  layout.lamps.forEach(([x, z], index) => addFrontierLamp({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, x, z, h: 3.6 + (index % 3) * 0.25, source: `lamp-${index + 1}` }));
+  layout.buildings.forEach((entry) => addFrontierBuilding({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, ...entry }));
+  layout.planters.forEach((entry) => addFrontierPlanter({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, hash, ...entry }));
 
-  const buildings = [
-    { x: -35, z: -35, sx: 15, sz: 10, h: 8.2, rotation: 0.12, source: 'building-admin-west' },
-    { x: -16, z: -37, sx: 11, sz: 9, h: 7.5, rotation: -0.06, source: 'building-utility-southwest' },
-    { x: 37, z: -11, sx: 16, sz: 22, h: 9.4, rotation: Math.PI * 0.5 - 0.06, awning: false, source: 'building-hall-east' },
-    { x: 38, z: 18, sx: 11, sz: 14, h: 7.2, rotation: Math.PI * 0.5 + 0.05, source: 'building-kiosk-east' },
-    { x: -29, z: 33, sx: 18, sz: 11, h: 7.8, rotation: 0.08, source: 'building-service-northwest' },
-    { x: 11, z: 35, sx: 10, sz: 8, h: 4.8, rotation: -0.18, source: 'building-kiosk-north' },
-  ];
-  buildings.forEach((entry) => addFrontierBuilding({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, ...entry }));
-
-  const plantedZones = [
-    { x: -26, z: 21, sx: 11, sz: 14, withTrees: true, treeCount: 3, rotation: 0.15, source: 'planter-grove-west' },
-    { x: -9, z: 38, sx: 15, sz: 8, withTrees: true, treeCount: 3, rotation: -0.08, source: 'planter-grove-north' },
-    { x: 28, z: 29, sx: 10, sz: 7, withTrees: false, rotation: -0.12, source: 'planter-east-1' },
-    { x: 17, z: 14, sx: 8, sz: 5, withTrees: false, rotation: -0.16, source: 'planter-east-2' },
-    { x: -22, z: -10, sx: 8, sz: 5, withTrees: false, rotation: 0.08, source: 'planter-centerwest' },
-    { x: 42, z: -33, sx: 8, sz: 18, withTrees: false, rotation: 0.04, style: 'berm', source: 'berm-southeast' },
-    { x: -43, z: 43, sx: 12, sz: 10, withTrees: true, treeCount: 2, rotation: -0.05, style: 'berm', source: 'berm-northwest' },
-    { x: 35, z: 42, sx: 16, sz: 8, withTrees: false, rotation: -0.03, style: 'berm', source: 'berm-northeast' },
-  ];
-  plantedZones.forEach((entry) => addFrontierPlanter({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, hash, ...entry }));
-
-  [
-    { x: -3, z: -6, sx: 5.5, sz: 1.2, rotation: -0.22, source: 'barrier-mid-west' },
-    { x: 12, z: 2, sx: 4.2, sz: 1.2, rotation: 0.12, source: 'barrier-mid-center' },
-    { x: 22, z: -27, sx: 1.2, sz: 5.8, rotation: 0.08, source: 'barrier-mid-east' },
-  ].forEach(({ x, z, sx, sz, rotation, source }) => {
+  layout.barriers.forEach(({ x, z, sx, sz, rotation, source }) => {
     addBox({ x, y: 0.36, z, sx, sy: 0.72, sz, material: varyMaterial(shared.trim, x, z, 49), rotation, source, blocking: true, collider: { type: 'rect', x, z, width: sx, depth: sz, rotation } });
   });
 
-  [[-10, 11], [-4, 14], [2, 17], [8, 20], [20, -16], [24, -14], [28, -12]].forEach(([x, z], index) => {
+  layout.bollards.forEach(([x, z], index) => {
     addCylinder({ x, y: 0.4, z, rt: 0.24, h: 0.8, material: shared.structureDark, source: `bollard-${index + 1}`, blocking: true, collider: { type: 'circle', x, z, radius: 0.28 } });
   });
 }
@@ -490,115 +460,132 @@ function addFrontierPlanter({ THREE, shared, varyMaterial, mapRoot, registerWorl
   registerWorldObject({ mesh: planter, source, blocking, footprint: { type: 'rect', x, z, width: sx, depth: sz, rotation }, collider: blocking ? { type: 'rect', x, z, width: sx, depth: sz, rotation } : null });
 }
 
-function buildLavaWorld({ THREE, shared, varyMaterial, addBox, addCylinder, addVent, buildableHalf }) {
-  [
-    { x: -2, y: 1.65, z: -buildableHalf + 1.4, sx: 74, sy: 3.3, sz: 3.4, rotation: 0.05, source: 'lava-bastion-north' },
-    { x: 39, y: 1.6, z: -8, sx: 3.6, sy: 3.2, sz: 44, rotation: 0.04, source: 'lava-bastion-east' },
-    { x: -46, y: 1.32, z: 24, sx: 4, sy: 2.6, sz: 30, rotation: -0.03, source: 'lava-bastion-west' },
-    { x: 5, y: 1.2, z: 48, sx: 36, sy: 2.4, sz: 3.5, rotation: -0.05, source: 'lava-bastion-south' },
-  ].forEach((entry) => addBox({ ...entry, material: varyMaterial(shared.structureDark, entry.x, entry.z, 61, { sat: 0.12, light: 0.06 }), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
+function buildLavaWorld({ layout, shared, varyMaterial, addBox, addCylinder, addVent, buildableHalf }) {
+  layout.walls.forEach((entry) => {
+    const z = resolveLayoutZ(entry.z, buildableHalf);
+    addBox({ ...entry, z, material: varyMaterial(shared.structureDark, entry.x, z, 61, { sat: 0.12, light: 0.06 }), blocking: true, collider: { type: 'rect', x: entry.x, z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } });
+  });
 
-  [
-    { x: -35, z: -34, sx: 14, sz: 10, h: 6.8, source: 'lava-forge-west' },
-    { x: -16, z: -37, sx: 11, sz: 9, h: 6.2, source: 'lava-crucible-southwest' },
-    { x: 37, z: -11, sx: 15, sz: 20, h: 8.2, source: 'lava-citadel-east' },
-    { x: 38, z: 18, sx: 11, sz: 14, h: 6.5, source: 'lava-foundry-east' },
-    { x: -29, z: 33, sx: 18, sz: 11, h: 6.4, source: 'lava-ridge-northwest' },
-    { x: 11, z: 35, sx: 10, sz: 8, h: 5.2, source: 'lava-smelter-north' },
-  ].forEach(({ x, z, sx, sz, h, source }) => {
+  layout.strongholds.forEach(({ x, z, sx, sz, h, source }) => {
     addBox({ x, y: h * 0.5, z, sx, sy: h, sz, material: varyMaterial(shared.structure, x, z, 62, { sat: 0.14, light: 0.06 }), source, blocking: true, collider: { type: 'rect', x, z, width: sx, depth: sz, rotation: 0 } });
     addBox({ x, y: h + 0.5, z, sx: sx * 0.82, sy: 0.7, sz: sz * 0.82, material: varyMaterial(shared.accent, x, z, 63, { sat: 0.1, light: 0.14 }), source: `${source}-crown`, blocking: false });
   });
 
-  [[-24, -28], [-7, -23], [13, -19], [29, -10], [-15, 12], [6, 18], [24, 27], [-29, 34]].forEach(([x, z], index) => {
+  layout.vents.forEach(([x, z], index) => {
     addVent({ x, z, h: 2.2 + (index % 3) * 0.35, source: `lava-vent-${index + 1}` });
   });
 
-  [
-    { x: -3, z: -6, sx: 6.1, sz: 1.5, rotation: -0.22, source: 'lava-rib-west' },
-    { x: 12, z: 2, sx: 4.8, sz: 1.5, rotation: 0.12, source: 'lava-rib-center' },
-    { x: 22, z: -27, sx: 1.5, sz: 6.2, rotation: 0.08, source: 'lava-rib-east' },
-  ].forEach((entry) => addBox({ ...entry, y: 0.58, sy: 1.16, material: varyMaterial(shared.accent, entry.x, entry.z, 64), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
-
-  [[-10, 11], [-4, 14], [2, 17], [8, 20], [20, -16], [24, -14], [28, -12]].forEach(([x, z], index) => {
+  layout.ribs.forEach((entry) => addBox({ ...entry, y: 0.58, sy: 1.16, material: varyMaterial(shared.accent, entry.x, entry.z, 64), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
+  layout.obelisks.forEach(([x, z], index) => {
     addCylinder({ x, y: 0.52, z, rt: 0.28, h: 1.04, material: shared.accent, source: `lava-obelisk-${index + 1}`, blocking: true, collider: { type: 'circle', x, z, radius: 0.3 } });
   });
 }
 
-function buildIceWorld({ THREE, shared, varyMaterial, addBox, addCylinder, addVent, addCluster, buildableHalf }) {
-  [
-    { x: -1, y: 1.4, z: -buildableHalf + 1.4, sx: 72, sy: 2.8, sz: 3.2, rotation: 0.02, source: 'ice-rim-north' },
-    { x: 39, y: 1.4, z: -8, sx: 3.2, sy: 2.8, sz: 42, rotation: 0.04, source: 'ice-rim-east' },
-    { x: -46, y: 1.15, z: 23, sx: 3.8, sy: 2.3, sz: 28, rotation: -0.02, source: 'ice-rim-west' },
-    { x: 6, y: 1.08, z: 48, sx: 34, sy: 2.1, sz: 3.2, rotation: -0.03, source: 'ice-rim-south' },
-  ].forEach((entry) => addBox({ ...entry, material: varyMaterial(shared.trim, entry.x, entry.z, 71, { sat: 0.04, light: 0.12 }), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
+function addSnowMound({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, x, z, rx = 2.2, rz = 1.5, h = 0.7, rotation = 0, source = 'snow-mound' }) {
+  const mound = new THREE.Group();
+  mound.position.set(x, 0, z);
+  mound.rotation.y = rotation;
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(Math.max(rx, rz) * 0.72, Math.max(rx, rz), h * 0.42, 10), varyMaterial(shared.soil, x, z, 120, { light: 0.04 }));
+  base.position.y = h * 0.18;
+  base.scale.set(rx / Math.max(rx, rz), 1, rz / Math.max(rx, rz));
+  base.receiveShadow = true;
+  const top = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), varyMaterial(shared.trim, x, z, 121, { sat: 0.02, light: 0.05 }));
+  top.scale.set(rx, h, rz);
+  top.position.y = h * 0.56;
+  top.castShadow = true;
+  top.receiveShadow = true;
+  mound.add(base, top);
+  mapRoot.add(mound);
+  registerWorldObject({ mesh: mound, source, blocking: false, footprint: { type: 'rect', x, z, width: rx * 2, depth: rz * 2, rotation } });
+}
 
-  [
-    { x: -35, z: -35, sx: 14, sz: 10, h: 6.2, source: 'ice-vault-west' },
-    { x: -16, z: -37, sx: 11, sz: 9, h: 5.8, source: 'ice-bay-southwest' },
-    { x: 37, z: -11, sx: 16, sz: 20, h: 7.1, source: 'ice-sanctum-east' },
-    { x: 38, z: 18, sx: 10, sz: 14, h: 6.2, source: 'ice-facility-east' },
-    { x: -29, z: 33, sx: 18, sz: 11, h: 6.6, source: 'ice-terrace-northwest' },
-    { x: 11, z: 35, sx: 10, sz: 8, h: 4.9, source: 'ice-node-north' },
-  ].forEach(({ x, z, sx, sz, h, source }) => {
-    addBox({ x, y: h * 0.5, z, sx, sy: h, sz, material: varyMaterial(shared.structure, x, z, 72, { sat: 0.04, light: 0.14 }), source, blocking: true, collider: { type: 'rect', x, z, width: sx, depth: sz, rotation: 0 } });
+function addIgloo({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, x, z, r = 2, entranceRotation = 0, source = 'igloo' }) {
+  const igloo = new THREE.Group();
+  igloo.position.set(x, 0, z);
+  igloo.rotation.y = entranceRotation;
+  const dome = setShadow(new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), varyMaterial(shared.structure, x, z, 122, { sat: 0.02, light: 0.08 })));
+  dome.position.y = r * 0.78;
+  dome.scale.y = 0.9;
+  const cutout = new THREE.Mesh(new THREE.BoxGeometry(r * 0.9, r * 1.2, r * 0.9), shared.ground);
+  cutout.position.set(0, r * 0.58, r * 0.88);
+  cutout.visible = false;
+  const tunnel = setShadow(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.42, r * 0.55, r * 1.2, 10, 1, false, 0, Math.PI), varyMaterial(shared.structureDark, x + 1, z, 123, { light: 0.04 })));
+  tunnel.rotation.z = Math.PI * 0.5;
+  tunnel.position.set(0, r * 0.34, r * 0.98);
+  const cap = setShadow(new THREE.Mesh(new THREE.BoxGeometry(r * 1.32, 0.16, r * 0.7), varyMaterial(shared.trim, x, z, 124, { light: 0.1 })));
+  cap.position.set(0, r * 1.34, -r * 0.08);
+  igloo.add(dome, tunnel, cap, cutout);
+  mapRoot.add(igloo);
+  registerWorldObject({ mesh: igloo, source, blocking: true, footprint: { type: 'circle', x, z, radius: r * 0.92 }, collider: { type: 'circle', x, z, radius: r * 0.9 } });
+}
+
+function addFrostRidge({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, x, z, length = 10, depth = 3, height = 2.2, rotation = 0, source = 'frost-ridge' }) {
+  const ridge = new THREE.Group();
+  ridge.position.set(x, 0, z);
+  ridge.rotation.y = rotation;
+  const body = setShadow(new THREE.Mesh(new THREE.BoxGeometry(length, height, depth), varyMaterial(shared.structureDark, x, z, 125, { sat: 0.02, light: 0.05 })));
+  body.position.y = height * 0.5;
+  const crest = setShadow(new THREE.Mesh(new THREE.ConeGeometry(depth * 0.42, height * 0.9, 5), varyMaterial(shared.trim, x, z, 126, { light: 0.12 })));
+  crest.position.set(0, height + 0.18, 0);
+  crest.rotation.z = Math.PI * 0.5;
+  crest.scale.set(1.2, length / Math.max(depth, 0.1), 1);
+  ridge.add(body, crest);
+  mapRoot.add(ridge);
+  registerWorldObject({ mesh: ridge, source, blocking: true, footprint: { type: 'rect', x, z, width: length, depth, rotation }, collider: { type: 'rect', x, z, width: length, depth, rotation } });
+}
+
+function addIcyBoulder({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, x, z, radius = 1, source = 'ice-boulder' }) {
+  const boulder = setShadow(new THREE.Mesh(new THREE.DodecahedronGeometry(radius, 0), varyMaterial(shared.trim, x, z, 127, { sat: 0.03, light: 0.1 })));
+  boulder.position.set(x, radius * 0.7, z);
+  boulder.scale.set(1.12, 0.9, 0.96);
+  mapRoot.add(boulder);
+  registerWorldObject({ mesh: boulder, source, blocking: true, footprint: { type: 'circle', x, z, radius: radius * 0.92 }, collider: { type: 'circle', x, z, radius: radius * 0.9 } });
+}
+
+function buildIceWorld({ THREE, layout, shared, varyMaterial, addBox, addCylinder, addVent, addCluster, buildableHalf, mapRoot, registerWorldObject, setShadow }) {
+  layout.walls.forEach((entry) => {
+    const z = resolveLayoutZ(entry.z, buildableHalf);
+    addBox({ ...entry, z, material: varyMaterial(shared.trim, entry.x, z, 71, { sat: 0.04, light: 0.08 }), blocking: true, collider: { type: 'rect', x: entry.x, z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } });
+  });
+
+  layout.halls.forEach(({ x, z, sx, sz, h, source }) => {
+    addBox({ x, y: h * 0.5, z, sx, sy: h, sz, material: varyMaterial(shared.structure, x, z, 72, { sat: 0.03, light: 0.06 }), source, blocking: true, collider: { type: 'rect', x, z, width: sx, depth: sz, rotation: 0 } });
     addCluster({ x, z, radius: Math.max(sx, sz) * 0.18, count: 6, material: shared.trim, height: 2.2, spike: true, source: `${source}-crystals` });
   });
 
-  [[-24, -28], [-7, -23], [13, -19], [29, -10], [-15, 12], [6, 18], [24, 27], [-29, 34]].forEach(([x, z], index) => {
+  layout.beacons.forEach(([x, z], index) => {
     addVent({ x, z, h: 2.6 + (index % 2) * 0.28, source: `ice-beacon-${index + 1}`, glow: shared.trim });
   });
 
-  [
-    { x: -26, z: 21, sx: 11, sz: 14, rotation: 0.15, source: 'ice-field-west' },
-    { x: -9, z: 38, sx: 15, sz: 8, rotation: -0.08, source: 'ice-field-north' },
-    { x: 28, z: 29, sx: 10, sz: 7, rotation: -0.12, source: 'ice-shelf-east-1' },
-    { x: 17, z: 14, sx: 8, sz: 5, rotation: -0.16, source: 'ice-shelf-east-2' },
-  ].forEach((entry) => addBox({ ...entry, y: 0.22, sy: 0.44, material: varyMaterial(shared.glass, entry.x, entry.z, 73, { sat: 0.02, light: 0.08 }), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
-
-  [[-10, 11], [-4, 14], [2, 17], [8, 20], [20, -16], [24, -14], [28, -12]].forEach(([x, z], index) => {
+  layout.shelves.forEach((entry) => addBox({ ...entry, y: 0.22, sy: 0.44, material: varyMaterial(shared.glass, entry.x, entry.z, 73, { sat: 0.02, light: 0.02 }), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
+  layout.pylons.forEach(([x, z], index) => {
     addCylinder({ x, y: 0.5, z, rt: 0.26, h: 0.94, material: shared.trim, source: `ice-pylon-${index + 1}`, blocking: true, collider: { type: 'circle', x, z, radius: 0.3 } });
   });
+
+  layout.snowMounds.forEach((entry) => addSnowMound({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, ...entry }));
+  layout.igloos.forEach((entry) => addIgloo({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, ...entry }));
+  layout.ridges.forEach((entry) => addFrostRidge({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, ...entry }));
+  layout.icyBoulders.forEach((entry) => addIcyBoulder({ THREE, shared, varyMaterial, mapRoot, registerWorldObject, setShadow, x: entry.x, z: entry.z, radius: entry.radius, source: entry.source }));
 }
 
-function buildPoisonWorld({ THREE, shared, varyMaterial, addBox, addCylinder, addVent, addSphere, buildableHalf }) {
-  [
-    { x: -1, y: 1.34, z: -buildableHalf + 1.3, sx: 72, sy: 2.7, sz: 3.3, rotation: 0.03, source: 'poison-reef-north' },
-    { x: 39, y: 1.34, z: -8, sx: 3.4, sy: 2.7, sz: 42, rotation: 0.04, source: 'poison-reef-east' },
-    { x: -46, y: 1.12, z: 23, sx: 3.8, sy: 2.2, sz: 28, rotation: -0.03, source: 'poison-reef-west' },
-    { x: 6, y: 1.05, z: 48, sx: 34, sy: 2.1, sz: 3.4, rotation: -0.05, source: 'poison-reef-south' },
-  ].forEach((entry) => addBox({ ...entry, material: varyMaterial(shared.structureDark, entry.x, entry.z, 81, { sat: 0.1, light: 0.02 }), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
+function buildPoisonWorld({ layout, shared, varyMaterial, addBox, addCylinder, addVent, addSphere, buildableHalf }) {
+  layout.walls.forEach((entry) => {
+    const z = resolveLayoutZ(entry.z, buildableHalf);
+    addBox({ ...entry, z, material: varyMaterial(shared.structureDark, entry.x, z, 81, { sat: 0.1, light: 0.02 }), blocking: true, collider: { type: 'rect', x: entry.x, z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } });
+  });
 
-  [
-    { x: -35, z: -35, sx: 15, sz: 10, h: 5.6, source: 'poison-bioreactor-west' },
-    { x: -16, z: -37, sx: 11, sz: 9, h: 5.1, source: 'poison-lab-southwest' },
-    { x: 37, z: -11, sx: 16, sz: 22, h: 7.2, source: 'poison-refinery-east' },
-    { x: 38, z: 18, sx: 11, sz: 14, h: 6.4, source: 'poison-hive-east' },
-    { x: -29, z: 33, sx: 18, sz: 11, h: 5.8, source: 'poison-growth-northwest' },
-    { x: 11, z: 35, sx: 10, sz: 8, h: 4.6, source: 'poison-node-north' },
-  ].forEach(({ x, z, sx, sz, h, source }) => {
+  layout.hulks.forEach(({ x, z, sx, sz, h, source }) => {
     addBox({ x, y: h * 0.5, z, sx, sy: h, sz, material: varyMaterial(shared.structure, x, z, 82, { sat: 0.12, light: 0.04 }), source, blocking: true, collider: { type: 'rect', x, z, width: sx, depth: sz, rotation: 0 } });
     addSphere({ x, z, y: h + 0.7, r: 0.7, material: varyMaterial(shared.accent, x, z, 83), source: `${source}-bladder`, scale: [1.4, 0.85, 1.4] });
   });
 
-  [[-24, -28], [-7, -23], [13, -19], [29, -10], [-15, 12], [6, 18], [24, 27], [-29, 34]].forEach(([x, z], index) => {
+  layout.stacks.forEach(([x, z], index) => {
     addVent({ x, z, h: 2.1 + (index % 3) * 0.22, source: `poison-stack-${index + 1}`, glow: shared.accent });
   });
 
-  [
-    { x: -26, z: 21, sx: 11, sz: 14, rotation: 0.15, source: 'poison-pool-west' },
-    { x: -9, z: 38, sx: 15, sz: 8, rotation: -0.08, source: 'poison-pool-north' },
-    { x: 28, z: 29, sx: 10, sz: 7, rotation: -0.12, source: 'poison-pool-east-1' },
-    { x: 17, z: 14, sx: 8, sz: 5, rotation: -0.16, source: 'poison-pool-east-2' },
-  ].forEach((entry) => addBox({ ...entry, y: 0.16, sy: 0.32, material: varyMaterial(shared.accent, entry.x, entry.z, 84), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
-
-  [
-    { x: -3, z: -6, sx: 5.6, sz: 1.3, rotation: -0.22, source: 'poison-pipe-west' },
-    { x: 12, z: 2, sx: 4.4, sz: 1.4, rotation: 0.12, source: 'poison-pipe-center' },
-    { x: 22, z: -27, sx: 1.4, sz: 5.9, rotation: 0.08, source: 'poison-pipe-east' },
-  ].forEach((entry) => addBox({ ...entry, y: 0.42, sy: 0.84, material: varyMaterial(shared.structureDark, entry.x, entry.z, 85), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
-
-  [[-10, 11], [-4, 14], [2, 17], [8, 20], [20, -16], [24, -14], [28, -12]].forEach(([x, z], index) => {
+  layout.pools.forEach((entry) => addBox({ ...entry, y: 0.16, sy: 0.32, material: varyMaterial(shared.accent, entry.x, entry.z, 84), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
+  layout.pipes.forEach((entry) => addBox({ ...entry, y: 0.42, sy: 0.84, material: varyMaterial(shared.structureDark, entry.x, entry.z, 85), blocking: true, collider: { type: 'rect', x: entry.x, z: entry.z, width: entry.sx, depth: entry.sz, rotation: entry.rotation } }));
+  layout.spores.forEach(([x, z], index) => {
     addCylinder({ x, y: 0.45, z, rt: 0.26, h: 0.9, material: shared.foliageDark, source: `poison-spore-${index + 1}`, blocking: true, collider: { type: 'circle', x, z, radius: 0.3 } });
   });
 }
