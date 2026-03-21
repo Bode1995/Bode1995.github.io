@@ -307,7 +307,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     });
 
     const actionsWrap = document.createElement('div');
-    actionsWrap.className = 'skill-tree-details__actions';
+    actionsWrap.className = `skill-tree-details__actions${node.type === 'special' ? ' skill-tree-details__actions--dual' : ''}`;
 
     if (node.type === 'special') {
       const equipButton = document.createElement('button');
