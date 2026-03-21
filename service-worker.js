@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sky-blaster-3d-v8';
+const CACHE_NAME = 'sky-blaster-3d-v9';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const ASSETS = [
   './src/config/gameConfig.js',
   './src/config/campaigns.js',
   './src/config/bosses.js',
+  './src/config/missionStories.js',
   './src/config/specialAbilities.js',
   './src/config/worlds.js',
   './src/core/gameApp.js',
