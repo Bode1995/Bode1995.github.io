@@ -73,7 +73,7 @@ export const CHARACTER_DEFS = [
   },
   {
     id: 'char_02',
-    name: 'Strider',
+    name: 'Scout',
     roleLabel: 'Scout Skirmisher',
     weaponLabel: 'Lynx Carbine',
     playstyleLabel: 'Burst-Scout · hohe Mobilität',
@@ -204,7 +204,7 @@ export const CHARACTER_DEFS = [
   },
   {
     id: 'char_04',
-    name: 'Warden',
+    name: 'Sentinel',
     roleLabel: 'Sentinel Controller',
     weaponLabel: 'Arc Bladegun',
     playstyleLabel: 'Kontrolle · Fan-Volley · Raum sichern',

@@ -72,27 +72,30 @@ export function setupCharacterSelection({
     previewRenderer.setSize(previewCanvas.width, previewCanvas.height, false);
 
     const previewScene = new THREE.Scene();
-    const previewCamera = new THREE.PerspectiveCamera(48, previewCanvas.width / previewCanvas.height, 0.1, 30);
-    previewCamera.position.set(0, 3.25, 5.6);
-    previewCamera.lookAt(0, 1.45, 0);
+    const previewCamera = new THREE.PerspectiveCamera(44, previewCanvas.width / previewCanvas.height, 0.1, 30);
+    previewCamera.position.set(0, 3.35, 6.2);
+    previewCamera.lookAt(0, 1.52, 0);
 
     previewScene.add(new THREE.HemisphereLight(0xa8bfff, 0x150f22, 0.72));
     const key = new THREE.DirectionalLight(def.accent || 0xffffff, 1.05);
     key.position.set(3.2, 5.8, 3.6);
     previewScene.add(key);
-    const fill = new THREE.DirectionalLight(0x8fffea, 0.4);
+    const fill = new THREE.DirectionalLight(0x8fffea, 0.44);
     fill.position.set(-3.5, 2.5, 1.4);
     previewScene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.28);
+    rim.position.set(0.6, 2.1, -3.8);
+    previewScene.add(rim);
 
     const floor = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.25, 2.45, 0.24, 32),
+      new THREE.CylinderGeometry(2.45, 2.65, 0.24, 32),
       new THREE.MeshStandardMaterial({ color: 0x130f22, emissive: def.emissive, emissiveIntensity: 0.22, roughness: 0.78, metalness: 0.15 })
     );
     floor.position.y = -0.08;
     previewScene.add(floor);
 
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(1.55, 0.05, 12, 40),
+      new THREE.TorusGeometry(1.72, 0.05, 12, 40),
       new THREE.MeshBasicMaterial({ color: def.accent, transparent: true, opacity: 0.9 })
     );
     ring.rotation.x = Math.PI / 2;
