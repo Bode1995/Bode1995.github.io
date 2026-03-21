@@ -13,6 +13,7 @@ function createWorldDefinition(config) {
   return {
     hudBadge: 'Standard',
     menuLabel: 'Orbital Cluster',
+    campaignGroupId: 'earth',
     enemyVisuals: {
       variant: 'standard',
       palette: {

@@ -6,6 +6,8 @@ import {
   UPGRADE_DEFS,
   WORLDS_COUNT,
 } from '../config/gameConfig.js';
+import { BOSS_DEFS, EARTH_BOSS_ID, getBossDefinition } from '../config/bosses.js';
+import { getCampaignGroupCompletion } from '../config/campaigns.js';
 import {
   createDefaultSpecialAbilityLevels,
   createDefaultSpecialAbilityProfile,
@@ -16,7 +18,7 @@ export function createDefaultProfile() {
   const unlockedLevels = {};
   for (let world = 1; world <= WORLDS_COUNT; world++) unlockedLevels[world] = world === 1 ? 1 : 0;
   return {
-    version: 3,
+    version: 4,
     credits: 0,
     upgrades: Object.fromEntries(UPGRADE_DEFS.map((def) => [def.id, 0])),
     stats: {
@@ -31,11 +33,23 @@ export function createDefaultProfile() {
     progression: {
       selectedWorld: 1,
       selectedLevel: 1,
+      selectedMissionType: 'level',
+      selectedBossMissionId: null,
       unlockedLevels,
       completedLevels: {},
+      unlockedBossMissions: {},
+      completedBossMissions: {},
+      campaignsCompleted: {},
     },
     specialAbilities: createDefaultSpecialAbilityProfile(),
   };
+}
+
+function refreshBossCampaignUnlocks(profile) {
+  for (const boss of Object.values(BOSS_DEFS)) {
+    const completion = getCampaignGroupCompletion(profile, boss.campaignGroupId);
+    if (completion.isComplete) profile.progression.unlockedBossMissions[boss.id] = true;
+  }
 }
 
 export function loadProfile() {
@@ -45,8 +59,8 @@ export function loadProfile() {
     if (!raw || typeof raw !== 'object') return base;
     const specialBase = createDefaultSpecialAbilityProfile();
     const rawSpecial = raw.specialAbilities || {};
-    return {
-      version: Math.max(3, Number(raw.version) || 0),
+    const resolvedProfile = {
+      version: Math.max(4, Number(raw.version) || 0),
       credits: Number.isFinite(raw.credits) ? raw.credits : base.credits,
       upgrades: { ...base.upgrades, ...(raw.upgrades || {}) },
       stats: { ...base.stats, ...(raw.stats || {}) },
@@ -55,6 +69,9 @@ export function loadProfile() {
         ...(raw.progression || {}),
         unlockedLevels: { ...base.progression.unlockedLevels, ...((raw.progression || {}).unlockedLevels || {}) },
         completedLevels: { ...base.progression.completedLevels, ...((raw.progression || {}).completedLevels || {}) },
+        unlockedBossMissions: { ...base.progression.unlockedBossMissions, ...((raw.progression || {}).unlockedBossMissions || {}) },
+        completedBossMissions: { ...base.progression.completedBossMissions, ...((raw.progression || {}).completedBossMissions || {}) },
+        campaignsCompleted: { ...base.progression.campaignsCompleted, ...((raw.progression || {}).campaignsCompleted || {}) },
       },
       specialAbilities: {
         ...specialBase,
@@ -63,6 +80,12 @@ export function loadProfile() {
         levels: { ...createDefaultSpecialAbilityLevels(), ...specialBase.levels, ...(rawSpecial.levels || {}) },
       },
     };
+    refreshBossCampaignUnlocks(resolvedProfile);
+    if (resolvedProfile.progression.completedBossMissions?.[EARTH_BOSS_ID]) {
+      resolvedProfile.progression.campaignsCompleted[getBossDefinition(EARTH_BOSS_ID).campaignGroupId] = true;
+      resolvedProfile.progression.unlockedBossMissions[EARTH_BOSS_ID] = true;
+    }
+    return resolvedProfile;
   } catch {
     return createDefaultProfile();
   }
@@ -94,12 +117,36 @@ export function createProfileApi(profile) {
     isLevelUnlocked(world, level) {
       return level <= (profile.progression.unlockedLevels[world] || 0);
     },
+    isBossMissionUnlocked(bossId = EARTH_BOSS_ID) {
+      return !!profile.progression.unlockedBossMissions[bossId];
+    },
     selectMission(world, level) {
       profile.progression.selectedWorld = world;
       profile.progression.selectedLevel = level;
+      profile.progression.selectedMissionType = 'level';
+      profile.progression.selectedBossMissionId = null;
+    },
+    selectBossMission(bossId = EARTH_BOSS_ID) {
+      const boss = getBossDefinition(bossId);
+      profile.progression.selectedWorld = boss.menuWorldIndex;
+      profile.progression.selectedMissionType = 'boss';
+      profile.progression.selectedBossMissionId = boss.id;
     },
     getSelectedMission() {
+      if (profile.progression.selectedMissionType === 'boss' && profile.progression.selectedBossMissionId) {
+        const boss = getBossDefinition(profile.progression.selectedBossMissionId);
+        return {
+          type: 'boss',
+          id: boss.id,
+          world: boss.menuWorldIndex,
+          presentationWorld: boss.presentationWorldIndex,
+          campaignGroupId: boss.campaignGroupId,
+          level: null,
+          name: boss.name,
+        };
+      }
       return {
+        type: 'level',
         world: profile.progression.selectedWorld,
         level: profile.progression.selectedLevel,
       };
@@ -114,6 +161,18 @@ export function createProfileApi(profile) {
       } else if (world < WORLDS_COUNT) {
         profile.progression.unlockedLevels[world + 1] = Math.max(profile.progression.unlockedLevels[world + 1] || 0, 1);
       }
+      refreshBossCampaignUnlocks(profile);
+      saveProfile(profile);
+    },
+    unlockBossMission(bossId = EARTH_BOSS_ID) {
+      profile.progression.unlockedBossMissions[bossId] = true;
+      saveProfile(profile);
+    },
+    completeBossMission(bossId = EARTH_BOSS_ID) {
+      const boss = getBossDefinition(bossId);
+      profile.progression.unlockedBossMissions[bossId] = true;
+      profile.progression.completedBossMissions[bossId] = true;
+      profile.progression.campaignsCompleted[boss.campaignGroupId] = true;
       saveProfile(profile);
     },
   };
