@@ -91,6 +91,7 @@ export function createGameState(profile, helpers) {
         suppressClickUntil: 0,
       },
       synergyFlash: null,
+      pendingMissionStart: null,
     },
     specialAbility: {
       selectedId: profile.specialAbilities?.selectedId || null,

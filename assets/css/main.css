@@ -1000,6 +1000,32 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 
 
 
+.mission-story-panel {
+  width: min(560px, 92vw);
+  display: grid;
+  gap: 16px;
+  text-align: center;
+  padding: clamp(22px, 5vw, 34px);
+}
+
+.mission-story-panel h2 {
+  margin: 0;
+  font-size: clamp(28px, 5vw, 42px);
+  line-height: 1.05;
+}
+
+.mission-story-panel p {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(15px, 2.7vw, 18px);
+  line-height: 1.6;
+  text-wrap: balance;
+}
+
+.mission-story-panel__actions {
+  justify-content: center;
+}
+
 .pause-panel {
   width: min(420px, 92vw);
   display: grid;

@@ -32,6 +32,7 @@ import { registerServiceWorker } from '../pwa/register-sw.js';
 import { getWorldDefinition } from '../config/worlds.js';
 import { getBossDefinition } from '../config/bosses.js';
 import { getCampaignGroupDefinition } from '../config/campaigns.js';
+import { getMissionStory } from '../config/missionStories.js';
 import {
   getSpecialAbilityDef,
   getSpecialAbilityLevel as getStoredSpecialAbilityLevel,
@@ -44,6 +45,7 @@ export function startGameApp() {
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
+    'missionStoryOverlay', 'missionStoryTitle', 'missionStoryText', 'missionStoryStartBtn',
     'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'specialAbilityHud', 'specialAbilityIcon', 'specialAbilityLabel', 'specialAbilityStatus', 'bossHud', 'bossName', 'bossPhase', 'bossTelegraph', 'bossHpBar', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
     'skillTreeMap', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
@@ -696,6 +698,136 @@ export function startGameApp() {
     ui.pauseOverlay.classList.toggle('hidden', !state.paused);
   }
 
+  function clearPendingMissionStart() {
+    state.ui.pendingMissionStart = null;
+    ui.missionStoryOverlay.classList.add('hidden');
+  }
+
+  function resetGameplayOverlays() {
+    ui.controls.classList.add('hidden');
+    ui.hud.classList.add('hidden');
+    ui.pauseOverlay.classList.add('hidden');
+    ui.gameOver.classList.add('hidden');
+  }
+
+  function showMissionStoryOverlay(pendingMissionStart) {
+    ui.missionStoryTitle.textContent = pendingMissionStart.story.title;
+    ui.missionStoryText.textContent = pendingMissionStart.story.text;
+    ui.missionStoryOverlay.classList.remove('hidden');
+  }
+
+  function createPendingMissionStart(mission) {
+    const story = getMissionStory(mission);
+    if (!story?.title || !story?.text) throw new Error(`Missing mission story content for ${JSON.stringify(mission)}`);
+    return { mission, story };
+  }
+
+  function prepareMissionStart(worldOrMission = profileApi.getSelectedMission(), level = profile.progression.selectedLevel) {
+    try {
+      clearRuntimeError();
+      const mission = normalizeMissionSelection(worldOrMission, level);
+      validateMission(mission);
+      const characterDef = getCharacterDef(state.selection.characterId);
+      if (!characterDef) throw new Error('No character definition available for run start.');
+      if (!playerRig) setPlayerCharacter(characterDef.id);
+      if (!playerRig) throw new Error('Player rig could not be created.');
+
+      if (mission.type === 'boss') profileApi.selectBossMission(mission.id);
+      else profileApi.selectMission(mission.world, mission.level);
+      profileApi.save();
+
+      state.running = false;
+      state.paused = false;
+      state.pauseReason = null;
+      resetTransientInputState();
+      clearRunObjects();
+      combat.resetRunPowerUps();
+      resetGameplayOverlays();
+      ui.menu.classList.add('hidden');
+      clearPendingMissionStart();
+      state.ui.pendingMissionStart = createPendingMissionStart(mission);
+      showMissionStoryOverlay(state.ui.pendingMissionStart);
+    } catch (err) {
+      handleRunCrash('Mission preparation failed', err, `mission=${JSON.stringify(normalizeMissionSelection(worldOrMission, level))}, character=${state.selection.characterId}`);
+    }
+  }
+
+  function beginPendingMissionStart() {
+    const pendingMissionStart = state.ui.pendingMissionStart;
+    if (!pendingMissionStart) return;
+
+    try {
+      clearRuntimeError();
+      const { mission } = pendingMissionStart;
+      profile.stats.totalRuns += 1;
+      profileApi.save();
+
+      state.ui.pendingMissionStart = null;
+      state.running = true;
+      state.paused = false;
+      state.pauseReason = null;
+      state.currentMission = {
+        type: mission.type,
+        world: mission.world,
+        menuWorldIndex: mission.menuWorldIndex || mission.world,
+        campaignGroupId: mission.campaignGroupId || null,
+        level: mission.level,
+        bossId: mission.id || null,
+        label: mission.label || '',
+      };
+      state.worldIndex = mission.world;
+      state.levelIndex = mission.level || 1;
+      applyWorldPresentation(mission.world);
+      createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worldIndex: mission.world, mission: state.currentMission });
+      state.hp = getPlayerMaxHp();
+      state.score = 0;
+      state.waveInLevel = 1;
+      state.wave = mission.type === 'boss' ? 1 : getDifficultyIndex(mission.world, mission.level, 1);
+      state.spawnLeft = 0;
+      state.fireCooldown = 0;
+      state.waveTimer = WAVE_INTERVAL_SECONDS;
+      state.totalKills = 0;
+      state.waveKills = 0;
+      state.pickupSpawnTimer = 3.5;
+      state.runCredits = 0;
+      state.damageDealt = 0;
+      state.elapsedRunTime = 0;
+      state.savedRunTime = 0;
+      state.lastProfileSaveAt = 0;
+      state.pendingResult = null;
+      state.weaponState.burstShotsRemaining = 0;
+      state.weaponState.burstTimer = 0;
+      state.movement.velocityX = 0;
+      state.movement.velocityZ = 0;
+      state.boss.active = false;
+      state.boss.telegraphLabel = '';
+      state.boss.defeated = false;
+      playerRigHolder.position.set(0, 0.2, 0);
+      resetTransientInputState();
+      clearRunObjects();
+      combat.resetRunPowerUps();
+      synergySystem.applyThresholdUnlocks();
+      synergySystem.rebuildActiveSynergies(getCharacterCombatProfile());
+      specialAbilitySystem.initRun();
+      if (mission.type === 'boss') {
+        bossSystem.startMission({ type: 'boss', id: mission.id });
+        if (!bossSystem.isBossMissionActive()) throw new Error(`Boss mission failed to initialize: ${mission.id}`);
+      } else {
+        spawnWave();
+        if (state.entities.enemies.length === 0) throw new Error('Wave spawn returned no enemies.');
+      }
+      updateHUD();
+      ui.menu.classList.add('hidden');
+      ui.gameOver.classList.add('hidden');
+      ui.pauseOverlay.classList.add('hidden');
+      ui.missionStoryOverlay.classList.add('hidden');
+      ui.controls.classList.remove('hidden');
+      ui.hud.classList.remove('hidden');
+    } catch (err) {
+      handleRunCrash('Run start failed', err, `mission=${JSON.stringify(pendingMissionStart.mission)}, character=${state.selection.characterId}`);
+    }
+  }
+
   function pauseRun(reason = 'manual') {
     if (!state.running || state.paused) return false;
     state.paused = true;
@@ -722,13 +854,11 @@ export function startGameApp() {
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
+    clearPendingMissionStart();
     resetTransientInputState();
     clearRunObjects();
     combat.resetRunPowerUps();
-    ui.pauseOverlay.classList.add('hidden');
-    ui.controls.classList.add('hidden');
-    ui.hud.classList.add('hidden');
-    ui.gameOver.classList.add('hidden');
+    resetGameplayOverlays();
     menuController.openMenu(screenId);
   }
 
@@ -800,6 +930,7 @@ export function startGameApp() {
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
+    clearPendingMissionStart();
     const bossAlreadyCompleted = !!profile.progression.completedBossMissions?.[state.currentMission.bossId];
     if (success) {
       if (state.currentMission.type === 'boss') profileApi.completeBossMission(state.currentMission.bossId);
@@ -872,11 +1003,9 @@ export function startGameApp() {
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
+    clearPendingMissionStart();
     resetTransientInputState();
-    ui.controls.classList.add('hidden');
-    ui.hud.classList.add('hidden');
-    ui.pauseOverlay.classList.add('hidden');
-    ui.gameOver.classList.add('hidden');
+    resetGameplayOverlays();
     ui.menu.classList.remove('hidden');
     menuController.setMenuScreen('home');
     menuController.renderMenu();
@@ -884,82 +1013,7 @@ export function startGameApp() {
   }
 
   function startGame(worldOrMission = profileApi.getSelectedMission(), level = profile.progression.selectedLevel) {
-    try {
-      clearRuntimeError();
-      const mission = normalizeMissionSelection(worldOrMission, level);
-      validateMission(mission);
-      const characterDef = getCharacterDef(state.selection.characterId);
-      if (!characterDef) throw new Error('No character definition available for run start.');
-      if (!playerRig) setPlayerCharacter(characterDef.id);
-      if (!playerRig) throw new Error('Player rig could not be created.');
-
-      if (mission.type === 'boss') profileApi.selectBossMission(mission.id);
-      else profileApi.selectMission(mission.world, mission.level);
-      profile.stats.totalRuns += 1;
-      profileApi.save();
-
-      state.running = true;
-      state.paused = false;
-      state.pauseReason = null;
-      state.currentMission = {
-        type: mission.type,
-        world: mission.world,
-        menuWorldIndex: mission.menuWorldIndex || mission.world,
-        campaignGroupId: mission.campaignGroupId || null,
-        level: mission.level,
-        bossId: mission.id || null,
-        label: mission.label || '',
-      };
-      state.worldIndex = mission.world;
-      state.levelIndex = mission.level || 1;
-      applyWorldPresentation(mission.world);
-      createWorldMap({ THREE, gameplayConfig, mapRoot, collision, worldIndex: mission.world, mission: state.currentMission });
-      state.hp = getPlayerMaxHp();
-      state.score = 0;
-      state.waveInLevel = 1;
-      state.wave = mission.type === 'boss' ? 1 : getDifficultyIndex(mission.world, mission.level, 1);
-      state.spawnLeft = 0;
-      state.fireCooldown = 0;
-      state.waveTimer = WAVE_INTERVAL_SECONDS;
-      state.totalKills = 0;
-      state.waveKills = 0;
-      state.pickupSpawnTimer = 3.5;
-      state.runCredits = 0;
-      state.damageDealt = 0;
-      state.elapsedRunTime = 0;
-      state.savedRunTime = 0;
-      state.lastProfileSaveAt = 0;
-      state.pendingResult = null;
-      state.weaponState.burstShotsRemaining = 0;
-      state.weaponState.burstTimer = 0;
-      state.movement.velocityX = 0;
-      state.movement.velocityZ = 0;
-      state.boss.active = false;
-      state.boss.telegraphLabel = '';
-      state.boss.defeated = false;
-      playerRigHolder.position.set(0, 0.2, 0);
-      resetTransientInputState();
-      clearRunObjects();
-      combat.resetRunPowerUps();
-      synergySystem.applyThresholdUnlocks();
-      synergySystem.rebuildActiveSynergies(getCharacterCombatProfile());
-      specialAbilitySystem.initRun();
-      if (mission.type === 'boss') {
-        bossSystem.startMission({ type: 'boss', id: mission.id });
-        if (!bossSystem.isBossMissionActive()) throw new Error(`Boss mission failed to initialize: ${mission.id}`);
-      } else {
-        spawnWave();
-        if (state.entities.enemies.length === 0) throw new Error('Wave spawn returned no enemies.');
-      }
-      updateHUD();
-      ui.menu.classList.add('hidden');
-      ui.gameOver.classList.add('hidden');
-      ui.pauseOverlay.classList.add('hidden');
-      ui.controls.classList.remove('hidden');
-      ui.hud.classList.remove('hidden');
-    } catch (err) {
-      handleRunCrash('Run start failed', err, `mission=${JSON.stringify(normalizeMissionSelection(worldOrMission, level))}, character=${state.selection.characterId}`);
-    }
+    prepareMissionStart(worldOrMission, level);
   }
 
   function resize() {
@@ -1222,6 +1276,7 @@ export function startGameApp() {
   ui.menuRouteButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen)));
   ui.menuBackButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen || 'home')));
   ui.startBtn.addEventListener('click', () => startGame());
+  ui.missionStoryStartBtn.addEventListener('click', () => beginPendingMissionStart());
   ui.quickWorldsBtn.addEventListener('click', () => menuController.openMenu('worlds'));
   ui.startSelectedLevelBtn.addEventListener('click', () => {
     const mission = profileApi.getSelectedMission();
