@@ -14,6 +14,7 @@ export function createEnemySystem({
   temp,
   profile,
   onDamagePlayer,
+  getEnemyTargetInfo,
 }) {
   const sharedGeometries = {
     box: new THREE.BoxGeometry(1, 1, 1),
@@ -145,6 +146,14 @@ export function createEnemySystem({
     });
   }
 
+  function damageCurrentTarget(targetInfo, amount) {
+    if (targetInfo?.kind === 'clone' && typeof targetInfo.damage === 'function') {
+      targetInfo.damage(amount);
+      return;
+    }
+    onDamagePlayer(amount);
+  }
+
   function updateEnemyProjectiles(dt) {
     for (let i = state.entities.enemyProjectiles.length - 1; i >= 0; i--) {
       const projectile = state.entities.enemyProjectiles[i];
@@ -168,13 +177,17 @@ export function createEnemySystem({
         );
       }
 
-      const dx = projectile.mesh.position.x - temp.player.position.x;
-      const dz = projectile.mesh.position.z - temp.player.position.z;
-      const dy = projectile.mesh.position.y - (state.world.playerGroundY + 0.95);
-      const hitRadius = state.world.playerCollisionRadius + projectile.radius;
+      const targetInfo = getEnemyTargetInfo ? getEnemyTargetInfo() : { kind: 'player', position: temp.player.position, radius: state.world.playerCollisionRadius };
+      const targetPosition = targetInfo?.position || temp.player.position;
+      const targetRadius = targetInfo?.radius || state.world.playerCollisionRadius;
+      const targetCenterY = targetInfo?.kind === 'clone' ? state.world.playerGroundY + 0.88 : state.world.playerGroundY + 0.95;
+      const dx = projectile.mesh.position.x - targetPosition.x;
+      const dz = projectile.mesh.position.z - targetPosition.z;
+      const dy = projectile.mesh.position.y - targetCenterY;
+      const hitRadius = targetRadius + projectile.radius;
       if ((dx * dx) + (dz * dz) + (dy * dy) <= hitRadius * hitRadius) {
         vfx.spawnImpactEffects(projectile.mesh.position, { lightning: true });
-        onDamagePlayer(projectile.damage);
+        damageCurrentTarget(targetInfo, projectile.damage);
         removeEnemyProjectileAtIndex(i);
         continue;
       }
@@ -384,6 +397,8 @@ export function createEnemySystem({
       externalImpulseX: 0,
       externalImpulseZ: 0,
       currentTargetPosition: null,
+      specialSlowTimer: 0,
+      specialSlowMultiplier: null,
     };
     scene.add(enemy);
     state.entities.enemies.push(enemy);
@@ -451,6 +466,11 @@ export function createEnemySystem({
         data.iceSlowTimer = Math.max(0, data.iceSlowTimer - dt);
         const slowPct = applyWorldStatusSlow(state.worldIndex, 'iceSlowTimer', Math.min(0.72, runPowers.stacks.ice * 0.12));
         moveSpeedEnemy *= (1 - slowPct);
+      }
+      if (data.specialSlowTimer > 0) {
+        data.specialSlowTimer = Math.max(0, data.specialSlowTimer - dt);
+        moveSpeedEnemy *= data.specialSlowMultiplier || 0.42;
+        if (data.specialSlowTimer <= 0) data.specialSlowMultiplier = null;
       }
 
       data.statusPulse += dt * 5.2;
@@ -560,8 +580,11 @@ export function createEnemySystem({
         extra.rotation.y = Math.sin(step + extraIdx) * 0.28;
       });
 
-      const distanceToPlayer = Math.hypot(enemy.position.x - temp.player.position.x, enemy.position.z - temp.player.position.z);
-      if (distanceToPlayer < (data.bodyCollisionRadius || data.radius) + state.world.playerCollisionRadius + 0.16) onDamagePlayer(data.damage * dt);
+      const targetInfo = getEnemyTargetInfo ? getEnemyTargetInfo() : { kind: 'player', position: temp.player.position, radius: state.world.playerCollisionRadius };
+      const targetPositionForDamage = targetInfo?.position || temp.player.position;
+      const targetRadiusForDamage = targetInfo?.radius || state.world.playerCollisionRadius;
+      const distanceToTarget = Math.hypot(enemy.position.x - targetPositionForDamage.x, enemy.position.z - targetPositionForDamage.z);
+      if (distanceToTarget < (data.bodyCollisionRadius || data.radius) + targetRadiusForDamage + 0.16) damageCurrentTarget(targetInfo, data.damage * dt);
     }
   }
 

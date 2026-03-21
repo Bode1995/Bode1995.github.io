@@ -29,15 +29,21 @@ import { createSynergySystem } from '../systems/synergySystem.js';
 import { createVfxSystem } from '../systems/vfxSystem.js';
 import { registerServiceWorker } from '../pwa/register-sw.js';
 import { getWorldDefinition } from '../config/worlds.js';
+import {
+  getSpecialAbilityDef,
+  getSpecialAbilityLevel as getStoredSpecialAbilityLevel,
+  getSpecialAbilityUpgradeCost,
+} from '../config/specialAbilities.js';
+import { createSpecialAbilitySystem } from '../systems/specialAbilitySystem.js';
 
 export function startGameApp() {
   const ui = getUI();
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
-    'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
+    'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'specialAbilityHud', 'specialAbilityIcon', 'specialAbilityLabel', 'specialAbilityStatus', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
-    'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
+    'specialAbilityGrid', 'upgradeGroups', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
     'resultTitle', 'resultSummary', 'moveZone', 'moveStick', 'moveKnob', 'characterGrid',
   ];
   const missingUi = REQUIRED_UI_KEYS.filter((key) => !ui[key]);
@@ -266,22 +272,6 @@ export function startGameApp() {
     temp,
   });
 
-  const enemySystem = createEnemySystem({
-    THREE,
-    scene,
-    state,
-    gameplayConfig,
-    ENEMY_TYPES,
-    SAFETY_LIMITS,
-    performance,
-    collision,
-    vfx,
-    temp,
-    profile,
-    onDamagePlayer: combat.damagePlayer,
-  });
-
-
   const projectileSystem = createProjectileSystem({
     THREE,
     scene,
@@ -299,6 +289,35 @@ export function startGameApp() {
     sceneResources,
   });
 
+  const specialAbilitySystem = createSpecialAbilitySystem({
+    THREE,
+    scene,
+    state,
+    collision,
+    vfx,
+    temp,
+    playerRigHolder,
+    profile,
+    getCharacterCombatProfile,
+    spawnBonusVolley: projectileSystem.spawnBonusVolley,
+    damageEnemy: combat.damageEnemy,
+  });
+
+  const enemySystem = createEnemySystem({
+    THREE,
+    scene,
+    state,
+    gameplayConfig,
+    ENEMY_TYPES,
+    SAFETY_LIMITS,
+    performance,
+    collision,
+    vfx,
+    temp,
+    profile,
+    onDamagePlayer: combat.damagePlayer,
+    getEnemyTargetInfo: specialAbilitySystem.getEnemyTargetInfo,
+  });
 
   combat.api.spawnEnemy = enemySystem.spawnEnemy;
   combat.api.destroyEnemy = enemySystem.destroyEnemy;
@@ -392,6 +411,37 @@ export function startGameApp() {
 
   function getShieldPickupCapacity() {
     return 26 + getUpgradeLevel('shieldCapacity') * 6;
+  }
+
+  function getSelectedSpecialAbilityId() {
+    return getSpecialAbilityDef(profile.specialAbilities?.selectedId).id;
+  }
+
+  function getSpecialAbilityLevel(abilityId) {
+    return getStoredSpecialAbilityLevel(profile.specialAbilities?.levels, abilityId);
+  }
+
+  function getSpecialAbilityUpgradePurchaseCost(abilityId) {
+    return getSpecialAbilityUpgradeCost(abilityId, getSpecialAbilityLevel(abilityId));
+  }
+
+  function selectSpecialAbility(abilityId) {
+    profile.specialAbilities.selectedId = getSpecialAbilityDef(abilityId).id;
+    state.specialAbility.selectedId = profile.specialAbilities.selectedId;
+    profileApi.save();
+    menuController.renderMenu();
+    updateHUD();
+  }
+
+  function purchaseSpecialAbilityUpgrade(abilityId) {
+    const def = getSpecialAbilityDef(abilityId);
+    const cost = getSpecialAbilityUpgradePurchaseCost(def.id);
+    if (cost == null || profile.credits < cost) return;
+    profile.credits -= cost;
+    profile.specialAbilities.levels[def.id] = getSpecialAbilityLevel(def.id) + 1;
+    profileApi.save();
+    menuController.renderMenu();
+    updateHUD();
   }
 
   function getDifficultyIndex(world = state.worldIndex, level = state.levelIndex, waveInLevel = state.waveInLevel) {
@@ -559,6 +609,12 @@ export function startGameApp() {
     ui.creditsValue.textContent = String(profile.credits + state.runCredits);
     ui.pauseBtn.setAttribute('aria-label', state.paused ? 'Spiel ist pausiert' : 'Spiel pausieren');
     ui.pauseBtn.setAttribute('aria-pressed', state.paused ? 'true' : 'false');
+    ui.specialAbilityIcon.textContent = state.specialAbility.icon || '✹';
+    ui.specialAbilityLabel.textContent = state.specialAbility.name || getSpecialAbilityDef(getSelectedSpecialAbilityId()).name;
+    ui.specialAbilityStatus.textContent = state.specialAbility.detail || 'Bereit';
+    ui.specialAbilityHud.style.borderColor = `${state.specialAbility.hudColor || '#ffffff'}66`;
+    ui.specialAbilityHud.style.boxShadow = `0 0 0 1px ${(state.specialAbility.hudColor || '#ffffff')}22, inset 0 0 16px ${(state.specialAbility.hudColor || '#ffffff')}12`;
+    ui.specialAbilityIcon.style.color = state.specialAbility.hudColor || '#ffffff';
 
     ui.activePowers.innerHTML = '';
     for (const [def, count, isSynergy] of [...activePowerEntries, ...activeSynergyEntries]) {
@@ -624,6 +680,7 @@ export function startGameApp() {
   }
 
   function clearRunObjects() {
+    specialAbilitySystem.clear();
     enemySystem.clear();
     projectileSystem.clear();
     vfx.clear();
@@ -786,6 +843,7 @@ export function startGameApp() {
       combat.resetRunPowerUps();
       synergySystem.applyThresholdUnlocks();
       synergySystem.rebuildActiveSynergies(getCharacterCombatProfile());
+      specialAbilitySystem.initRun();
       spawnWave();
       if (state.entities.enemies.length === 0) throw new Error('Wave spawn returned no enemies.');
       updateHUD();
@@ -814,6 +872,8 @@ export function startGameApp() {
       getUpgradeLevel,
       getUpgradeCost,
       getUpgradeMaxLevel,
+      getSpecialAbilityLevel,
+      getSelectedSpecialAbilityId,
       isLevelUnlocked: profileApi.isLevelUnlocked,
       getLevelKey: profileApi.getLevelKey,
     },
@@ -823,6 +883,9 @@ export function startGameApp() {
         menuController.renderMenu();
       },
       purchaseUpgrade,
+      selectSpecialAbility,
+      purchaseSpecialAbilityUpgrade,
+      getSelectedSpecialAbilityId,
       getSelectedMission: () => profileApi.getSelectedMission(),
       getUnlockedLevelCount: () => profileApi.getUnlockedLevelCount(),
       getSelectedCharacterName: () => getCharacterDef().name,
@@ -950,12 +1013,15 @@ export function startGameApp() {
         state.lastProfileSaveAt += dt;
         state.fireCooldown -= dt;
         state.weaponState.burstTimer = Math.max(0, state.weaponState.burstTimer - dt);
-        projectileSystem.shoot();
+        specialAbilitySystem.update(dt, elapsed);
+        const firedPrimaryVolley = projectileSystem.shoot();
+        if (firedPrimaryVolley) specialAbilitySystem.onPlayerPrimaryVolley();
         updatePickups(dt);
+        const targetInfo = specialAbilitySystem.getEnemyTargetInfo();
         for (const enemy of state.entities.enemies) {
           const data = enemy?.userData;
           if (!data || data.dead) continue;
-          data.currentTargetPosition = playerRigHolder.position;
+          data.currentTargetPosition = targetInfo?.position || playerRigHolder.position;
         }
         enemySystem.update(dt, elapsed, state.runPowers);
         projectileSystem.update(dt, { damageEnemy: combat.damageEnemy, applyProjectilePower: combat.applyProjectilePower });
