@@ -62,6 +62,13 @@ export function createGameState(profile, helpers) {
     ui: {
       activeMenuScreen: 'home',
       activeSkillTreeNode: null,
+      skillTreeView: {
+        scale: 1,
+        x: 0,
+        y: 0,
+        initialized: false,
+        suppressClickUntil: 0,
+      },
       synergyFlash: null,
     },
     specialAbility: {
