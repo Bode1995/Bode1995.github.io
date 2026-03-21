@@ -53,13 +53,13 @@ function formatUpgradeStatus(cost, credits) {
   return credits >= cost ? 'Kaufbar' : 'Nicht genug Credits';
 }
 
-function createNodeButton(node, selectedKey, onSelect) {
+function createNodeButton(node, selectedKey, { onSelect, onUpgrade }) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `skill-node card-surface${selectedKey === node.key ? ' is-selected' : ''}${node.canAfford ? ' is-affordable' : ''}${node.isMaxed ? ' is-maxed' : ''}${node.isEquipped ? ' is-equipped' : ''}${node.isLocked ? ' is-locked' : ''}`;
   button.dataset.nodeKey = node.key;
   button.style.setProperty('--node-accent', node.accent);
-  button.addEventListener('click', () => onSelect(node.key));
+  button.addEventListener('click', () => onSelect(node));
 
   const meta = document.createElement('div');
   meta.className = 'skill-node__meta';
@@ -90,7 +90,20 @@ function createNodeButton(node, selectedKey, onSelect) {
     footer.appendChild(chip);
   });
 
-  button.append(meta, title, level, valueRow, footer);
+  const actions = document.createElement('div');
+  actions.className = 'skill-node__actions';
+  const upgradeButton = createSkillTreeActionButton({
+    label: node.type === 'special' ? node.upgradeLabel : node.actionLabel,
+    variant: node.canAfford ? 'btn' : 'ghost-btn',
+    disabled: node.nextCost == null || !node.canAfford,
+    onClick: (event) => {
+      event.stopPropagation();
+      onUpgrade(node);
+    },
+  });
+  actions.appendChild(upgradeButton);
+
+  button.append(meta, title, level, valueRow, footer, actions);
   return button;
 }
 
@@ -254,9 +267,19 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     return data.nodeMap.get(state.ui.activeSkillTreeNode) || null;
   }
 
-  function selectSkillTreeNode(nodeKey) {
-    state.ui.activeSkillTreeNode = state.ui.activeSkillTreeNode === nodeKey ? null : nodeKey;
+  function selectSkillTreeNode(node) {
+    state.ui.activeSkillTreeNode = node.key;
+    if (node.type === 'special' && !node.isEquipped) {
+      actions.selectSpecialAbility(node.id);
+      return;
+    }
     renderUpgradesScreen();
+  }
+
+  function triggerNodeUpgrade(node) {
+    state.ui.activeSkillTreeNode = node.key;
+    if (node.type === 'special') actions.purchaseSpecialAbilityUpgrade(node.id);
+    else actions.purchaseUpgrade(node.id);
   }
 
   function createSkillTreeActionButton({ variant = 'ghost-btn', label, disabled = false, onClick }) {
@@ -267,53 +290,6 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     button.disabled = disabled;
     if (!disabled && typeof onClick === 'function') button.addEventListener('click', onClick);
     return button;
-  }
-
-  function renderSkillTreeActions(node) {
-    const actionsWrap = document.createElement('div');
-    actionsWrap.className = 'skill-tree-details__actions skill-tree-details__actions--dual';
-
-    if (!node) {
-      actionsWrap.append(
-        createSkillTreeActionButton({ label: 'Ausrüsten', disabled: true }),
-        createSkillTreeActionButton({ label: 'Upgrade kaufen', disabled: true }),
-      );
-      return actionsWrap;
-    }
-
-    const equipButtonConfig = node.type === 'special'
-      ? {
-          label: node.actionLabel,
-          variant: node.isEquipped ? 'ghost-btn' : 'btn',
-          disabled: node.isEquipped,
-          onClick: () => actions.selectSpecialAbility(node.id),
-        }
-      : {
-          label: 'Ausrüsten',
-          variant: 'ghost-btn',
-          disabled: true,
-        };
-
-    const buyButtonConfig = node.type === 'special'
-      ? {
-          label: node.upgradeLabel,
-          variant: node.canAfford ? 'btn' : 'ghost-btn',
-          disabled: node.nextCost == null || profile.credits < node.nextCost,
-          onClick: () => actions.purchaseSpecialAbilityUpgrade(node.id),
-        }
-      : {
-          label: node.actionLabel,
-          variant: node.canAfford ? 'btn' : 'ghost-btn',
-          disabled: node.nextCost == null || profile.credits < node.nextCost,
-          onClick: () => actions.purchaseUpgrade(node.id),
-        };
-
-    actionsWrap.append(
-      createSkillTreeActionButton(equipButtonConfig),
-      createSkillTreeActionButton(buyButtonConfig),
-    );
-
-    return actionsWrap;
   }
 
   function renderSkillTreeDetails(node) {
@@ -336,15 +312,15 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
 
       const copy = document.createElement('p');
       copy.className = 'skill-tree-details__copy';
-      copy.textContent = 'Die Aktionsleiste bleibt sichtbar. Wähle einen Knoten im Skill-Tree, um Ausrüsten oder Upgrade-Kaufen direkt unten auszuführen.';
+      copy.textContent = 'Tippe Spezialfähigkeiten direkt an, um sie sofort auszurüsten. Upgrades kaufst du direkt auf dem jeweiligen Node über den dortigen Upgrade-Button.';
 
       const stats = document.createElement('div');
       stats.className = 'skill-tree-details__stats';
 
       [
         ['Auswahl', 'Kein Knoten aktiv'],
-        ['Ausrüsten', 'Nur Spezialfähigkeiten'],
-        ['Upgrade', 'Nach Knotenauswahl verfügbar'],
+        ['Ausrüsten', 'Direkt per Tap auf Spezialfähigkeit'],
+        ['Upgrade', 'Direkt auf dem jeweiligen Node'],
       ].forEach(([label, value]) => {
         const stat = document.createElement('div');
         stat.className = 'skill-tree-details__stat';
@@ -352,7 +328,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
         stats.appendChild(stat);
       });
 
-      ui.skillTreeDetails.append(header, copy, stats, renderSkillTreeActions(null));
+      ui.skillTreeDetails.append(header, copy, stats);
       return;
     }
 
@@ -398,7 +374,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
       stats.appendChild(stat);
     });
 
-    ui.skillTreeDetails.append(header, copy, stats, renderSkillTreeActions(node));
+    ui.skillTreeDetails.append(header, copy, stats);
   }
 
   function renderSkillTree(data) {
@@ -411,7 +387,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
 
     const rootWrap = document.createElement('div');
     rootWrap.className = 'skill-tree-root';
-    rootWrap.appendChild(createNodeButton(data.rootNode, selectedKey, selectSkillTreeNode));
+    rootWrap.appendChild(createNodeButton(data.rootNode, selectedKey, { onSelect: selectSkillTreeNode, onUpgrade: triggerNodeUpgrade }));
 
     const branchAreas = {
       abilities: 'skill-tree-branch skill-tree-branch--abilities',
@@ -438,7 +414,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
 
       const nodesWrap = document.createElement('div');
       nodesWrap.className = 'skill-tree-branch__nodes';
-      branch.nodes.forEach((node) => nodesWrap.appendChild(createNodeButton(node, selectedKey, selectSkillTreeNode)));
+      branch.nodes.forEach((node) => nodesWrap.appendChild(createNodeButton(node, selectedKey, { onSelect: selectSkillTreeNode, onUpgrade: triggerNodeUpgrade })));
 
       section.append(header, nodesWrap);
       layout.appendChild(section);

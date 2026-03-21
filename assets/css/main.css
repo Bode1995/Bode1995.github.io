@@ -1601,9 +1601,9 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 .skill-node__meta,
 .skill-node__row,
 .skill-node__tags,
+.skill-node__actions,
 .skill-tree-details__header,
-.skill-tree-details__titlewrap,
-.skill-tree-details__actions {
+.skill-tree-details__titlewrap {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -1672,6 +1672,16 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   flex-wrap: wrap;
 }
 
+.skill-node__actions {
+  margin-top: auto;
+}
+
+.skill-node__actions .btn,
+.skill-node__actions .ghost-btn {
+  width: 100%;
+  min-width: 0;
+}
+
 .skill-node__tag {
   padding: 5px 8px;
   border-radius: 999px;
@@ -1684,7 +1694,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   display: grid;
   gap: 18px;
   padding: 22px;
-  padding-bottom: 104px;
   border-radius: 24px;
   border: 1px solid color-mix(in srgb, var(--detail-accent) 26%, var(--line));
   background:
@@ -1718,32 +1727,6 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 
 .skill-tree-details__stat strong {
   font-size: 16px;
-}
-
-.skill-tree-details__actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  position: sticky;
-  bottom: max(12px, env(safe-area-inset-bottom));
-  z-index: 5;
-  margin: 6px -22px -22px;
-  padding: 16px 22px calc(22px + env(safe-area-inset-bottom));
-  border-top: 1px solid color-mix(in srgb, var(--detail-accent) 18%, rgba(255, 255, 255, 0.08));
-  background:
-    linear-gradient(180deg, rgba(23, 27, 48, 0.28), rgba(12, 15, 28, 0.96) 28%),
-    linear-gradient(180deg, rgba(23, 27, 48, 0.96), rgba(12, 15, 28, 0.98));
-  backdrop-filter: blur(14px);
-  box-shadow: 0 -18px 30px rgba(0, 0, 0, 0.22);
-}
-
-.skill-tree-details__actions--dual {
-  align-items: stretch;
-}
-
-.skill-tree-details__actions .btn,
-.skill-tree-details__actions .ghost-btn {
-  min-width: 0;
-  width: 100%;
 }
 
 @media (max-width: 1080px) {
@@ -1809,19 +1792,4 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
     align-items: flex-start;
   }
 
-  .skill-tree-details__actions {
-    margin: 6px -18px -18px;
-    padding: 16px 18px calc(18px + env(safe-area-inset-bottom));
-  }
-
-  .skill-tree-details__actions--dual {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
-  }
-
-  .skill-tree-details__actions .btn,
-  .skill-tree-details__actions .ghost-btn {
-    width: 100%;
-    min-width: 0;
-  }
 }
