@@ -128,13 +128,14 @@ export function createCombatSystem({
     } = options;
     if (secondaryChainDepth > sceneResources.SAFETY_LIMITS.maxSynergyChainDepth) return;
 
-    const resolvedAmount = Math.max(0, amount);
+    const resolvedAmount = Math.max(0, amount) * Math.max(0, data.damageTakenMultiplier ?? 1);
     if (resolvedAmount <= 0) return;
 
-    data.hp -= resolvedAmount;
-    state.damageDealt += resolvedAmount;
-    profile.stats.damageDealt += resolvedAmount;
-    vfx.showEnemyDamageNumber(enemy, resolvedAmount);
+    const finalAmount = Math.max(1, Math.round(resolvedAmount));
+    data.hp -= finalAmount;
+    state.damageDealt += finalAmount;
+    profile.stats.damageDealt += finalAmount;
+    vfx.showEnemyDamageNumber(enemy, finalAmount);
     if (impactEffects) markEnemyImpactVisuals(enemy, impactEffects);
 
     if (runPowers.stacks.lightning > 0 && !isSynergyEffect) {
