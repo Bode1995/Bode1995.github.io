@@ -643,12 +643,26 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   left: max(10px, env(safe-area-inset-left));
   right: max(10px, env(safe-area-inset-right));
   display: grid;
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content);
-  grid-template-areas:
-    'mission enemies actions'
-    '. health .';
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+  grid-template-areas: 'status actions';
   align-items: start;
   gap: 10px;
+}
+
+.hud-status-stack {
+  grid-area: status;
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hud-vitals-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: min(64vw, 520px);
 }
 
 .hud-chip,
@@ -728,21 +742,16 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 }
 
 .hud-health {
-  grid-area: health;
-  justify-self: center;
   width: min(42vw, 320px);
   padding: 8px 12px;
 }
 
 .hud-chip--mission {
-  grid-area: mission;
   justify-self: start;
 }
 
 .hud-chip--enemies {
-  grid-area: enemies;
-  justify-self: center;
-  align-self: start;
+  align-self: stretch;
   min-width: 108px;
 }
 
@@ -930,8 +939,11 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 
 @media (max-width: 960px) {
   .hud-header {
-    grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content);
     gap: 8px;
+  }
+
+  .hud-vitals-row {
+    max-width: min(58vw, 440px);
   }
 
   .hud-actions {
@@ -959,16 +971,20 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
 
   .hud-header {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'mission actions'
-      'enemies enemies'
-      'health health';
+    grid-template-areas: 'status actions';
     align-items: start;
   }
 
-  .hud-chip--mission { justify-self: start; }
-  .hud-chip--enemies { justify-self: center; }
-  .hud-health { width: min(78vw, 300px); }
+  .hud-status-stack {
+    gap: 8px;
+  }
+
+  .hud-vitals-row {
+    max-width: min(72vw, 360px);
+    gap: 8px;
+  }
+
+  .hud-health { width: min(72vw, 300px); }
   .hud-actions {
     max-width: min(48vw, 220px);
   }
@@ -996,6 +1012,15 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
     right: max(6px, env(safe-area-inset-right));
     gap: 6px;
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .hud-status-stack {
+    gap: 6px;
+  }
+
+  .hud-vitals-row {
+    max-width: min(82vw, 280px);
+    gap: 6px;
   }
 
   .hud-chip {
