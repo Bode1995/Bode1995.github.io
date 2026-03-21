@@ -11,6 +11,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
   const MAX_IMPACT_VISUAL_LIFETIME = 0.5;
   const DAMAGE_NUMBER_LIFETIME = 2;
   const DAMAGE_NUMBER_PULSE_LIFETIME = 0.22;
+  const damageNumberPool = [];
 
   const EFFECT_COLORS = {
     fire: 0xff8a4f,
@@ -330,12 +331,89 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     state.entities.chainBeams.push({ mesh: blastRing, life: ringLife, maxLife: ringLife, ring: true, baseScale: blastRing.scale.clone() });
   }
 
-  function removeDamageNumberAtIndex(index) {
-    const entry = state.entities.damageNumbers[index];
+  function resetDamageNumberEntry(entry, metrics = null) {
+    entry.totalDamage = 0;
+    entry.life = DAMAGE_NUMBER_LIFETIME;
+    entry.maxLife = DAMAGE_NUMBER_LIFETIME;
+    entry.pulse = 0;
+    entry.pulseStrength = 0;
+    entry.floatPhase = Math.random() * Math.PI * 2;
+    entry.baseHeight = metrics?.baseHeight ?? 0;
+    entry.anchorX = metrics?.anchorX ?? 0;
+    entry.anchorY = metrics?.anchorY ?? 0;
+    entry.anchorZ = metrics?.anchorZ ?? 0;
+    entry.mergeRadius = metrics?.mergeRadius ?? 0;
+    entry.hitboxRadius = metrics?.hitboxRadius ?? 0;
+    entry.driftX = (Math.random() - 0.5) * 0.22;
+    entry.driftZ = (Math.random() - 0.5) * 0.22;
+    entry.members.clear();
+
+    const { canvas, context, texture, sprite } = entry;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    texture.needsUpdate = true;
+    sprite.visible = false;
+    sprite.position.set(0, 0, 0);
+    sprite.scale.set(1, 1, 1);
+    sprite.material.opacity = 1;
+  }
+
+  function createDamageNumberTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return { canvas, context, texture };
+  }
+
+  function createDamageNumberPoolEntry() {
+    const spriteData = createDamageNumberTexture();
+    const material = new THREE.SpriteMaterial({
+      map: spriteData.texture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      opacity: 1,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 18;
+
+    const entry = {
+      sprite,
+      members: new Set(),
+      ...spriteData,
+    };
+    resetDamageNumberEntry(entry);
+    return entry;
+  }
+
+  function acquireDamageNumberEntry(metrics) {
+    const entry = damageNumberPool.pop() || createDamageNumberPoolEntry();
+    resetDamageNumberEntry(entry, metrics);
+    entry.sprite.visible = true;
+    scene.add(entry.sprite);
+    return entry;
+  }
+
+  function releaseDamageNumberEntry(entry) {
     if (!entry) return;
     scene.remove(entry.sprite);
-    entry.sprite.material.map?.dispose();
-    entry.sprite.material.dispose();
+    if (entry.members?.size) {
+      for (const enemy of entry.members) {
+        const enemyData = getEnemyData(enemy);
+        if (enemyData?.damageNumberEntry === entry) enemyData.damageNumberEntry = null;
+      }
+    }
+    resetDamageNumberEntry(entry);
+    damageNumberPool.push(entry);
+  }
+
+  function disposeDamageNumberEntry(entry) {
+    if (!entry) return;
+    scene.remove(entry.sprite);
     if (entry.members?.size) {
       for (const enemy of entry.members) {
         const enemyData = getEnemyData(enemy);
@@ -343,7 +421,15 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       }
       entry.members.clear();
     }
+    entry.sprite.material.map?.dispose();
+    entry.sprite.material.dispose();
+  }
+
+  function removeDamageNumberAtIndex(index) {
+    const entry = state.entities.damageNumbers[index];
+    if (!entry) return;
     state.entities.damageNumbers.splice(index, 1);
+    releaseDamageNumberEntry(entry);
   }
 
   function clearEnemyDamageNumber(enemy) {
@@ -358,18 +444,6 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
 
     removeEnemyFromDamageNumberEntry(entry, enemy, data);
     if (!entry.members?.size) removeDamageNumberAtIndex(index);
-  }
-
-  function createDamageNumberTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 256;
-    const context = canvas.getContext('2d');
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.generateMipmaps = false;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    return { canvas, context, texture };
   }
 
   function formatDamageNumber(value) {
@@ -438,36 +512,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       const maxDamageNumbers = performance.getAdaptiveLimit(SAFETY_LIMITS.maxDamageNumbers || 24, 0.75, 0.5);
       if (state.entities.damageNumbers.length >= maxDamageNumbers) removeDamageNumberAtIndex(0);
 
-      const spriteData = createDamageNumberTexture();
-      const material = new THREE.SpriteMaterial({
-        map: spriteData.texture,
-        transparent: true,
-        depthWrite: false,
-        depthTest: true,
-        opacity: 1,
-      });
-      const sprite = new THREE.Sprite(material);
-      sprite.renderOrder = 18;
-      scene.add(sprite);
-      entry = {
-        sprite,
-        totalDamage: 0,
-        life: DAMAGE_NUMBER_LIFETIME,
-        maxLife: DAMAGE_NUMBER_LIFETIME,
-        pulse: 0,
-        pulseStrength: 0,
-        floatPhase: Math.random() * Math.PI * 2,
-        baseHeight: metrics.baseHeight,
-        anchorX: metrics.anchorX,
-        anchorY: metrics.anchorY,
-        anchorZ: metrics.anchorZ,
-        mergeRadius: metrics.mergeRadius,
-        hitboxRadius: metrics.hitboxRadius,
-        driftX: (Math.random() - 0.5) * 0.22,
-        driftZ: (Math.random() - 0.5) * 0.22,
-        members: new Set(),
-        ...spriteData,
-      };
+      entry = acquireDamageNumberEntry(metrics);
       state.entities.damageNumbers.push(entry);
     }
 
@@ -573,6 +618,11 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     state.entities.damageNumbers.length = 0;
   }
 
+  function dispose() {
+    clear();
+    while (damageNumberPool.length > 0) disposeDamageNumberEntry(damageNumberPool.pop());
+  }
+
   return {
     VFX,
     EFFECT_COLORS,
@@ -590,5 +640,6 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     disposeChainBeam,
     update,
     clear,
+    dispose,
   };
 }
