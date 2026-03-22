@@ -261,6 +261,8 @@ export function startGameApp() {
 
   const worldIntroVoiceover = createWorldIntroVoiceover();
   const audio = createAudio();
+  const MOVEMENT_AUDIO_START_SPEED = 0.55;
+  const MOVEMENT_AUDIO_STOP_SPEED = 0.35;
 
   function ensureBackgroundMusicStarted() {
     void audio.unlock();
@@ -282,6 +284,11 @@ export function startGameApp() {
   function cleanupAllAudio({ suspendAudioContext = false } = {}) {
     worldIntroVoiceover.stopWorldIntroVoiceover();
     audio.stopAllAudio({ suspendContext: suspendAudioContext });
+  }
+
+  function stopMovementAudio({ immediate = false } = {}) {
+    state.audio.movementLoopActive = false;
+    audio.stopMovementLoop({ immediate });
   }
 
   let finishRun = () => {};
@@ -870,6 +877,7 @@ export function startGameApp() {
 
   function pauseRun(reason = 'manual') {
     if (!state.running || state.paused) return false;
+    stopMovementAudio();
     state.paused = true;
     state.pauseReason = reason;
     resetTransientInputState();
@@ -891,6 +899,7 @@ export function startGameApp() {
   }
 
   function abandonRunToMenu(screenId = 'home') {
+    stopMovementAudio();
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
@@ -967,6 +976,7 @@ export function startGameApp() {
 
   finishRun = function finishRunImpl(success) {
     if (!state.running) return;
+    stopMovementAudio();
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
@@ -1012,6 +1022,7 @@ export function startGameApp() {
   };
 
   function resetTransientInputState() {
+    stopMovementAudio();
     state.input.shooting = false;
     state.input.moveTouch = null;
     state.movement.velocityX = 0;
@@ -1040,6 +1051,7 @@ export function startGameApp() {
   }
 
   function handleRunCrash(context, err, extra = null) {
+    cleanupAllAudio({ suspendAudioContext: true });
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
@@ -1171,6 +1183,11 @@ export function startGameApp() {
     temp.player.position.copy(playerRigHolder.position);
 
     const velocityMagnitude = Math.hypot(state.movement.velocityX, state.movement.velocityZ);
+    const startThreshold = gameplayConfig.controls.maxMoveSpeed * MOVEMENT_AUDIO_START_SPEED * state.moveSpeedMultiplier;
+    const stopThreshold = gameplayConfig.controls.maxMoveSpeed * MOVEMENT_AUDIO_STOP_SPEED * state.moveSpeedMultiplier;
+    const movementLoopActive = velocityMagnitude >= (state.audio?.movementLoopActive ? stopThreshold : startThreshold);
+    state.audio = state.audio || {};
+    state.audio.movementLoopActive = audio.syncMovementLoop(movementLoopActive);
     const normalizedBlend = targetSpeed > 0 ? THREE.MathUtils.clamp(velocityMagnitude / Math.max(0.001, gameplayConfig.controls.maxMoveSpeed * state.moveSpeedMultiplier), 0, 1) : 0;
     const moveBlend = Math.max(targetBlend * 0.45, normalizedBlend);
     characterModule.animateCharacterRig(playerRig, moveBlend, clock.elapsedTime);
@@ -1202,8 +1219,11 @@ export function startGameApp() {
       if (halo) halo.scale.setScalar(1 + Math.sin(pickup.pulse * 1.2) * 0.1);
       if (shell) shell.rotation.y -= dt * 0.8;
       if (token) token.material.opacity = 0.82 + Math.sin(pickup.pulse * 1.8) * 0.12;
+      if (pickup.collected) continue;
       if (canCollectPickup(pickup)) {
+        pickup.collected = true;
         combat.applyRunPower(pickup.type, POWER_UP_DEFS);
+        audio.playPowerupPickup();
         disposePickupMesh(pickup.mesh);
         state.entities.powerPickups.splice(i, 1);
       }
@@ -1259,8 +1279,10 @@ export function startGameApp() {
       } catch (err) {
         handleRunCrash('Game loop failed', err, `wave=${state.wave}, enemies=${state.entities.enemies.length}, bullets=${state.entities.bullets.length}`);
       }
-    } else if (playerRig && !state.paused) {
-      characterModule.animateCharacterRig(playerRig, 0, elapsed);
+    } else {
+      state.audio = state.audio || {};
+      state.audio.movementLoopActive = audio.syncMovementLoop(false);
+      if (playerRig && !state.paused) characterModule.animateCharacterRig(playerRig, 0, elapsed);
     }
 
     characterSelection.renderPreviews(elapsed);

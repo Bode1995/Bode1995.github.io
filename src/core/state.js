@@ -30,6 +30,9 @@ export function createGameState(profile, helpers) {
       velocityX: 0,
       velocityZ: 0,
     },
+    audio: {
+      movementLoopActive: false,
+    },
     runCredits: 0,
     damageDealt: 0,
     elapsedRunTime: 0,
