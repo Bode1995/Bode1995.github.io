@@ -1290,8 +1290,8 @@ export function startGameApp() {
           profileApi.save();
         }
 
-        const hasVisibleLightning = vfx.hasActiveLightningVisuals();
-        syncLightningAudio(hasVisibleLightning);
+        const hasActiveLightningChains = vfx.hasActiveLightningChains();
+        syncLightningAudio(hasActiveLightningChains);
         updateHUD();
       } catch (err) {
         handleRunCrash('Game loop failed', err, `wave=${state.wave}, enemies=${state.entities.enemies.length}, bullets=${state.entities.bullets.length}`);
