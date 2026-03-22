@@ -41,11 +41,12 @@ import {
 import { createSpecialAbilitySystem } from '../systems/specialAbilitySystem.js';
 import { createMissionStoryVoiceover } from '../systems/voiceoverSystem.js';
 
-export function startGameApp() {
+export async function startGameApp() {
   const ui = getUI();
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
+    'voiceoverInitOverlay', 'voiceoverInitStatus', 'voiceoverInitProgress',
     'missionStoryOverlay', 'missionStoryTitle', 'missionStoryText', 'missionStoryStartBtn',
     'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'specialAbilityHud', 'specialAbilityIcon', 'specialAbilityLabel', 'specialAbilityStatus', 'bossHud', 'bossName', 'bossPhase', 'bossTelegraph', 'bossHpBar', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
@@ -82,6 +83,15 @@ export function startGameApp() {
     reportRuntimeError('UI initialisation', new Error(`Missing DOM nodes: ${missingUi.join(', ')}`));
     throw new Error(`Missing required UI nodes: ${missingUi.join(', ')}`);
   }
+
+  ui.voiceoverInitOverlay.classList.remove('hidden');
+  ui.voiceoverInitProgress.textContent = '0 / 21 vorbereitet';
+  ui.voiceoverInitStatus.textContent = 'Service Worker und Voiceover-Cache werden vorbereitet …';
+
+  const serviceWorkerRegistrationPromise = registerServiceWorker().catch((err) => {
+    reportRuntimeError('Service worker registration', err);
+    return null;
+  });
 
   const profile = loadProfile();
   const profileApi = createProfileApi(profile);
@@ -258,7 +268,7 @@ export function startGameApp() {
   });
   synergySystem.applyThresholdUnlocks();
 
-  const missionStoryVoiceover = createMissionStoryVoiceover();
+  const missionStoryVoiceover = createMissionStoryVoiceover({ serviceWorkerRegistrationPromise });
 
   let finishRun = () => {};
   const combat = createCombatSystem({
@@ -718,7 +728,7 @@ export function startGameApp() {
     ui.missionStoryTitle.textContent = pendingMissionStart.story.title;
     ui.missionStoryText.textContent = pendingMissionStart.story.text;
     ui.missionStoryOverlay.classList.remove('hidden');
-    missionStoryVoiceover.playMissionStoryVoiceover(pendingMissionStart.story.text);
+    missionStoryVoiceover.playMissionStoryVoiceover(pendingMissionStart.story);
   }
 
   function createPendingMissionStart(mission) {
@@ -1278,9 +1288,28 @@ export function startGameApp() {
     };
   }
 
-  const registerSwOnReady = () => registerServiceWorker().catch((err) => reportRuntimeError('Service worker registration', err));
-  if (document.readyState === 'complete') registerSwOnReady();
-  else window.addEventListener('load', registerSwOnReady, { once: true });
+  async function initializeMissionVoiceovers() {
+    try {
+      const summary = await missionStoryVoiceover.initializeMissionStoryVoiceovers(({ completed, total, story, result }) => {
+        ui.voiceoverInitProgress.textContent = `${completed} / ${total} vorbereitet`;
+        ui.voiceoverInitStatus.textContent = result.status === 'ready'
+          ? `${story.title} wurde lokal gespeichert.`
+          : `${story.title} nutzt Browser-Sprachausgabe als Fallback.`;
+      });
+
+      if (summary.fallbackCount > 0) {
+        ui.voiceoverInitStatus.textContent = `${summary.readyCount} Voiceovers sind lokal verfügbar, ${summary.fallbackCount} Einträge nutzen bei Bedarf den Browser-Fallback.`;
+      } else {
+        ui.voiceoverInitStatus.textContent = 'Alle Missions-Voiceovers sind lokal gespeichert.';
+      }
+    } catch (err) {
+      reportRuntimeError('Mission voiceover initialization', err);
+      ui.voiceoverInitStatus.textContent = 'Die externe Sprachausgabe konnte nicht vollständig vorbereitet werden. Browser-Sprachausgabe bleibt als Fallback aktiv.';
+    } finally {
+      window.setTimeout(() => ui.voiceoverInitOverlay.classList.add('hidden'), 180);
+    }
+  }
+
   ui.menuRouteButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen)));
   ui.menuBackButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen || 'home')));
   ui.startBtn.addEventListener('click', () => startGame());
@@ -1318,6 +1347,7 @@ export function startGameApp() {
   window.addEventListener('pagehide', () => autoPauseGame('pagehide'));
   window.addEventListener('blur', () => autoPauseGame('blur'));
 
+  await initializeMissionVoiceovers();
   menuController.renderMenu();
   updateHUD();
   requestAnimationFrame(animate);
