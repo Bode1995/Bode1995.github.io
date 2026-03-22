@@ -651,6 +651,50 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
   font-weight: 700;
 }
 
+.damage-overlay {
+  --damage-overlay-strength: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.damage-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, rgba(255, 80, 80, 0) 52%, rgba(255, 80, 80, calc(var(--damage-overlay-strength) * 0.08)) 72%, rgba(255, 80, 80, calc(var(--damage-overlay-strength) * 0.34)) 100%),
+    linear-gradient(180deg, rgba(255, 68, 68, calc(var(--damage-overlay-strength) * 0.9)) 0%, rgba(255, 68, 68, 0) 19%),
+    linear-gradient(0deg, rgba(255, 68, 68, calc(var(--damage-overlay-strength) * 0.82)) 0%, rgba(255, 68, 68, 0) 20%),
+    linear-gradient(90deg, rgba(255, 68, 68, calc(var(--damage-overlay-strength) * 0.8)) 0%, rgba(255, 68, 68, 0) 16%),
+    linear-gradient(270deg, rgba(255, 68, 68, calc(var(--damage-overlay-strength) * 0.8)) 0%, rgba(255, 68, 68, 0) 16%);
+  filter: saturate(1.12) blur(0.4px);
+}
+
+.damage-overlay--active {
+  animation: damage-overlay-pulse 540ms cubic-bezier(0.2, 0.72, 0.18, 1) forwards;
+}
+
+@keyframes damage-overlay-pulse {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  36% {
+    opacity: 0.72;
+  }
+  52% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .hud-header {
   position: absolute;
   top: max(10px, env(safe-area-inset-top));
