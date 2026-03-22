@@ -59,6 +59,7 @@ export function createAudio() {
   let advancingTrack = false;
   let movementLoopRequested = false;
   let movementLoopInstance = null;
+  let playerDeathInstance = null;
   let playerDeathTriggeredForCurrentRun = false;
   const audioBufferCache = new Map();
   const activeSfxSources = new Set();
@@ -132,6 +133,25 @@ export function createAudio() {
         if (immediate) instance.gainNode.gain.setValueAtTime(0.0001, now);
         else instance.gainNode.gain.exponentialRampToValueAtTime(0.0001, stopAt);
       }
+      instance.source.stop(immediate ? now : stopAt + 0.01);
+    } catch (_error) {
+      cleanupSourceRegistration(instance.source);
+    }
+  }
+
+  function stopTrackedInstance(instance, { immediate = false } = {}) {
+    if (!instance) return;
+    const now = ctx?.currentTime ?? 0;
+    const stopAt = immediate ? now : now + 0.02;
+    try {
+      if (instance.gainNode) {
+        const currentGain = Math.max(instance.gainNode.gain.value, 0.0001);
+        instance.gainNode.gain.cancelScheduledValues(now);
+        instance.gainNode.gain.setValueAtTime(currentGain, now);
+        if (immediate) instance.gainNode.gain.setValueAtTime(0.0001, now);
+        else instance.gainNode.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+      }
+      instance.source.loop = false;
       instance.source.stop(immediate ? now : stopAt + 0.01);
     } catch (_error) {
       cleanupSourceRegistration(instance.source);
@@ -335,10 +355,46 @@ export function createAudio() {
     playPlayerDeath() {
       if (playerDeathTriggeredForCurrentRun) return false;
       playerDeathTriggeredForCurrentRun = true;
-      return playBufferedSfx(AUDIO_TRACKS.playerDeath, {
-        gain: PLAYER_DEATH_GAIN,
-        maxDurationSeconds: PLAYER_DEATH_MAX_DURATION_SECONDS,
+      stopMovementLoop({ immediate: true });
+      if (!unlocked) return false;
+      const audioContext = ensureAudioContext();
+      if (!audioContext) return false;
+
+      void resumeAudioContext().then(async (resumed) => {
+        if (!resumed) return;
+        const buffer = await loadAudioBuffer(AUDIO_TRACKS.playerDeath);
+        if (!buffer) return;
+
+        stopTrackedInstance(playerDeathInstance, { immediate: true });
+        playerDeathInstance = null;
+
+        const source = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+        const playbackDuration = Math.max(0.01, Math.min(buffer.duration, PLAYER_DEATH_MAX_DURATION_SECONDS));
+        source.buffer = buffer;
+        source.loop = false;
+        gainNode.gain.value = PLAYER_DEATH_GAIN;
+        source.connect(gainNode).connect(audioContext.destination);
+
+        const instance = { source, gainNode };
+        playerDeathInstance = instance;
+        activeSfxSources.add(source);
+        source.onended = () => {
+          cleanupSourceRegistration(source);
+          if (playerDeathInstance?.source === source) playerDeathInstance = null;
+        };
+
+        try {
+          const startAt = audioContext.currentTime;
+          source.start(startAt, 0, playbackDuration);
+          source.stop(startAt + playbackDuration);
+        } catch (_error) {
+          cleanupSourceRegistration(source);
+          if (playerDeathInstance?.source === source) playerDeathInstance = null;
+        }
       });
+
+      return true;
     },
     playEnemyDeath() {
       return playBufferedSfx(AUDIO_TRACKS.enemyDeath, {
@@ -350,6 +406,8 @@ export function createAudio() {
       musicEnabled = false;
       musicPausedForAppState = true;
       stopMovementLoop({ immediate: true });
+      stopTrackedInstance(playerDeathInstance, { immediate: true });
+      playerDeathInstance = null;
       resetMediaElement(musicEl);
       resetDomMediaElements();
       activeSfxSources.forEach((source) => {
