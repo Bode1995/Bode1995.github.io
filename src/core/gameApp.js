@@ -84,8 +84,8 @@ export function startGameApp() {
     throw new Error(`Missing required UI nodes: ${missingUi.join(', ')}`);
   }
 
+  const DAMAGE_OVERLAY_DURATION_MS = 1000;
   const damageOverlayState = {
-    level: 0,
     clearTimerId: null,
   };
 
@@ -95,30 +95,20 @@ export function startGameApp() {
     damageOverlayState.clearTimerId = null;
   }
 
-  function resetDamageOverlay({ immediate = true } = {}) {
+  function resetDamageOverlay() {
     clearDamageOverlayTimer();
-    damageOverlayState.level = 0;
-    ui.damageOverlay.style.setProperty('--damage-overlay-strength', '0');
-    ui.damageOverlay.classList.remove('damage-overlay--active');
-    if (immediate) ui.damageOverlay.getBoundingClientRect();
+    ui.damageOverlay.classList.remove('damage-overlay--visible');
   }
 
   function triggerDamageOverlay(hpDamage) {
     const resolvedDamage = Math.max(0, Number(hpDamage) || 0);
     if (resolvedDamage <= 0) return;
     clearDamageOverlayTimer();
-    const nextLevel = Math.min(1, Math.max(damageOverlayState.level * 0.72, 0.32) + Math.min(0.38, resolvedDamage / Math.max(40, getPlayerMaxHp() * 0.4)));
-    damageOverlayState.level = nextLevel;
-    ui.damageOverlay.style.setProperty('--damage-overlay-strength', nextLevel.toFixed(3));
-    ui.damageOverlay.classList.remove('damage-overlay--active');
-    ui.damageOverlay.getBoundingClientRect();
-    ui.damageOverlay.classList.add('damage-overlay--active');
+    ui.damageOverlay.classList.add('damage-overlay--visible');
     damageOverlayState.clearTimerId = window.setTimeout(() => {
-      damageOverlayState.level = Math.max(0, damageOverlayState.level * 0.45 - 0.08);
-      ui.damageOverlay.style.setProperty('--damage-overlay-strength', '0');
-      ui.damageOverlay.classList.remove('damage-overlay--active');
+      ui.damageOverlay.classList.remove('damage-overlay--visible');
       damageOverlayState.clearTimerId = null;
-    }, 540);
+    }, DAMAGE_OVERLAY_DURATION_MS);
   }
 
   const profile = loadProfile();
