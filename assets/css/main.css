@@ -122,6 +122,33 @@ button, input, select, textarea { font: inherit; }
   gap: 20px;
 }
 
+.voiceover-init-panel {
+  width: min(560px, 94vw);
+  display: grid;
+  gap: 14px;
+  text-align: left;
+}
+
+#voiceoverInitOverlay {
+  z-index: 45;
+}
+
+.voiceover-init-progress {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(83, 243, 209, 0.22);
+  background: linear-gradient(180deg, rgba(17, 27, 46, 0.96), rgba(10, 16, 28, 0.96));
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.voiceover-init-status {
+  margin: 0;
+  min-height: 48px;
+}
+
 .menu-shell {
   display: grid;
   gap: 18px;
