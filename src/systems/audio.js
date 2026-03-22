@@ -66,6 +66,7 @@ export function createAudio() {
   let ctx = null;
   let unlocked = false;
   let musicEl = null;
+  let backgroundMusicStartRequestId = 0;
   let shuffledPlaylist = shuffleTracks(MUSIC_TRACKS);
   let playlistIndex = 0;
   let musicEnabled = false;
@@ -403,6 +404,7 @@ export function createAudio() {
     const track = getCurrentTrack();
     if (!track) return false;
     const audioElement = loadTrack(track);
+    if (!audioElement.paused && !audioElement.ended) return true;
     audioElement.volume = BACKGROUND_MUSIC_VOLUME;
     try {
       await audioElement.play();
@@ -410,6 +412,23 @@ export function createAudio() {
     } catch (_error) {
       return false;
     }
+  }
+
+  function requestBackgroundMusicStart({ immediate = false } = {}) {
+    if (!unlocked) return Promise.resolve(false);
+    musicEnabled = true;
+    musicPausedForAppState = false;
+
+    const requestId = backgroundMusicStartRequestId + 1;
+    backgroundMusicStartRequestId = requestId;
+
+    const playAttempt = immediate
+      ? tryPlayCurrentTrack()
+      : resumeAudioContext().then((resumed) => (resumed ? tryPlayCurrentTrack() : false));
+
+    return Promise.resolve(playAttempt).then((started) => (
+      requestId === backgroundMusicStartRequestId ? started : false
+    ));
   }
 
   async function playNextTrack() {
@@ -562,10 +581,11 @@ export function createAudio() {
     async unlock() {
       const ready = ensure();
       if (!ready) return false;
-      await resumeAudioContext();
-      musicEnabled = true;
-      musicPausedForAppState = false;
-      return tryPlayCurrentTrack();
+      const [musicStarted] = await Promise.all([
+        requestBackgroundMusicStart({ immediate: true }),
+        resumeAudioContext(),
+      ]);
+      return musicStarted;
     },
     notifyRunStarted() {
       playerDeathTriggeredForCurrentRun = false;
@@ -577,11 +597,7 @@ export function createAudio() {
     },
     resumeBackgroundMusic() {
       if (!unlocked) return false;
-      musicEnabled = true;
-      musicPausedForAppState = false;
-      void resumeAudioContext().then(() => {
-        void tryPlayCurrentTrack();
-      });
+      void requestBackgroundMusicStart();
       return true;
     },
     startMovementLoop() {
