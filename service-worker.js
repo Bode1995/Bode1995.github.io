@@ -1,4 +1,5 @@
-const CACHE_NAME = 'sky-blaster-3d-v10';
+const CACHE_NAME = 'sky-blaster-3d-v11';
+const VOICEOVER_CACHE_NAME = 'sky-blaster-voiceovers-2026-03-voice-v1';
 const ASSETS = [
   './',
   './index.html',
@@ -12,6 +13,7 @@ const ASSETS = [
   './src/config/campaigns.js',
   './src/config/bosses.js',
   './src/config/missionStories.js',
+  './src/config/voiceovers.js',
   './src/config/specialAbilities.js',
   './src/config/worlds.js',
   './src/core/gameApp.js',
@@ -48,7 +50,11 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+    caches.keys().then((keys) => Promise.all(
+      keys
+        .filter((key) => key !== CACHE_NAME && key !== VOICEOVER_CACHE_NAME)
+        .map((key) => caches.delete(key))
+    ))
   );
   self.clients.claim();
 });
@@ -69,6 +75,14 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
+  if (requestUrl.pathname.includes('/__voiceover__/')) {
+    event.respondWith(
+      caches.open(VOICEOVER_CACHE_NAME)
+        .then((cache) => cache.match(event.request))
+        .then((cached) => cached || new Response('', { status: 404, statusText: 'Voiceover not cached' }))
+    );
+    return;
+  }
 
   if (isAppShellRequest(requestUrl, event.request)) {
     event.respondWith(

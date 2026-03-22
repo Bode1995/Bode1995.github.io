@@ -32,7 +32,7 @@ import { registerServiceWorker } from '../pwa/register-sw.js';
 import { getWorldDefinition } from '../config/worlds.js';
 import { getBossDefinition } from '../config/bosses.js';
 import { getCampaignGroupDefinition } from '../config/campaigns.js';
-import { getMissionStory } from '../config/missionStories.js';
+import { getMissionStory, getMissionStoryKey } from '../config/missionStories.js';
 import {
   getSpecialAbilityDef,
   getSpecialAbilityLevel as getStoredSpecialAbilityLevel,
@@ -41,12 +41,13 @@ import {
 import { createSpecialAbilitySystem } from '../systems/specialAbilitySystem.js';
 import { createMissionStoryVoiceover } from '../systems/voiceoverSystem.js';
 
-export function startGameApp() {
+export async function startGameApp() {
   const ui = getUI();
   const REQUIRED_UI_KEYS = [
     'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
     'missionStoryOverlay', 'missionStoryTitle', 'missionStoryText', 'missionStoryStartBtn',
+    'voiceoverInitOverlay', 'voiceoverInitStatus', 'voiceoverInitDetail',
     'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'specialAbilityHud', 'specialAbilityIcon', 'specialAbilityLabel', 'specialAbilityStatus', 'bossHud', 'bossName', 'bossPhase', 'bossTelegraph', 'bossHpBar', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
     'selectedMissionStatus', 'selectedCharacterLabel', 'unlockedSummary', 'worldGrid', 'levelGrid',
     'skillTreeMap', 'upgradeCredits', 'statsGrid', 'finalWave', 'finalScore', 'finalCredits', 'resultEyebrow',
@@ -714,11 +715,21 @@ export function startGameApp() {
     ui.gameOver.classList.add('hidden');
   }
 
+  function showVoiceoverInitOverlay(statusText, detailText) {
+    ui.voiceoverInitStatus.textContent = statusText || 'Sprachausgabe wird vorbereitet';
+    ui.voiceoverInitDetail.textContent = detailText || 'Mission-Voiceovers werden lokal geprüft und bei Bedarf vorgeladen.';
+    ui.voiceoverInitOverlay.classList.remove('hidden');
+  }
+
+  function hideVoiceoverInitOverlay() {
+    ui.voiceoverInitOverlay.classList.add('hidden');
+  }
+
   function showMissionStoryOverlay(pendingMissionStart) {
     ui.missionStoryTitle.textContent = pendingMissionStart.story.title;
     ui.missionStoryText.textContent = pendingMissionStart.story.text;
     ui.missionStoryOverlay.classList.remove('hidden');
-    missionStoryVoiceover.playMissionStoryVoiceover(pendingMissionStart.story.text);
+    missionStoryVoiceover.playMissionStoryVoiceover(pendingMissionStart.story.key);
   }
 
   function createPendingMissionStart(mission) {
@@ -1318,6 +1329,35 @@ export function startGameApp() {
   window.addEventListener('pagehide', () => autoPauseGame('pagehide'));
   window.addEventListener('blur', () => autoPauseGame('blur'));
 
+  async function initializeVoiceoverPipeline() {
+    try {
+      const selectedMissionKey = getMissionStoryKey(profileApi.getSelectedMission());
+      showVoiceoverInitOverlay('Sprachausgabe wird vorbereitet', 'Mission-Voiceovers werden lokal geprüft und bei Bedarf vorgeladen.');
+      const summary = await missionStoryVoiceover.prepareVoiceovers({ missionKey: selectedMissionKey });
+      if (summary?.fullyReady) {
+        hideVoiceoverInitOverlay();
+        return;
+      }
+
+      if (summary?.usedFallback) {
+        ui.voiceoverInitStatus.textContent = 'Sprachausgabe ist startklar';
+        ui.voiceoverInitDetail.textContent = 'Externe Voiceovers laden im Hintergrund weiter. Bis dahin wird bei Bedarf die Browser-Stimme als Reserve genutzt.';
+        window.setTimeout(hideVoiceoverInitOverlay, 900);
+        return;
+      }
+
+      ui.voiceoverInitStatus.textContent = 'Sprachausgabe konnte nicht vollständig vorbereitet werden';
+      ui.voiceoverInitDetail.textContent = 'Das Spiel bleibt nutzbar. Fehlende Voiceovers werden still im Hintergrund nachgeladen.';
+      window.setTimeout(hideVoiceoverInitOverlay, 1100);
+    } catch (error) {
+      reportRuntimeError('Voiceover initialization', error);
+      ui.voiceoverInitStatus.textContent = 'Sprachausgabe wird ohne Vorlauf gestartet';
+      ui.voiceoverInitDetail.textContent = 'Voiceovers werden bei Bedarf später nachgeladen. Das Spiel bleibt voll spielbar.';
+      window.setTimeout(hideVoiceoverInitOverlay, 1200);
+    }
+  }
+
+  await initializeVoiceoverPipeline();
   menuController.renderMenu();
   updateHUD();
   requestAnimationFrame(animate);

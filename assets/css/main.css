@@ -2081,3 +2081,41 @@ p { margin: 10px 0; color: var(--muted); line-height: 1.55; }
     display: grid;
   }
 }
+
+
+.voiceover-init-panel {
+  width: min(520px, 92vw);
+  display: grid;
+  gap: 16px;
+  text-align: center;
+  padding: clamp(24px, 5vw, 36px);
+}
+
+.voiceover-init-panel::before {
+  content: '';
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.14);
+  border-top-color: rgba(132, 229, 255, 0.95);
+  box-shadow: 0 0 24px rgba(132, 229, 255, 0.18);
+  animation: voiceoverInitSpin 1s linear infinite;
+}
+
+.voiceover-init-panel h2 {
+  margin: 0;
+  font-size: clamp(24px, 4.8vw, 38px);
+}
+
+.voiceover-init-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(14px, 2.6vw, 17px);
+  line-height: 1.6;
+}
+
+@keyframes voiceoverInitSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
