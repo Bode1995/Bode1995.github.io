@@ -279,6 +279,11 @@ export function startGameApp() {
     audio.pauseBackgroundMusic();
   }
 
+  function cleanupAllAudio({ suspendAudioContext = false } = {}) {
+    worldIntroVoiceover.stopWorldIntroVoiceover();
+    audio.stopAllAudio({ suspendContext: suspendAudioContext });
+  }
+
   let finishRun = () => {};
   const combat = createCombatSystem({
     state,
@@ -1058,9 +1063,10 @@ export function startGameApp() {
   }
   window.addEventListener('resize', resize);
   window.addEventListener('pagehide', () => {
-    clearPendingMissionStart({ stopIntroAudio: true });
-    pauseBackgroundMusic();
+    clearPendingMissionStart({ stopIntroAudio: false });
+    cleanupAllAudio({ suspendAudioContext: true });
   });
+  window.addEventListener('beforeunload', () => cleanupAllAudio({ suspendAudioContext: true }));
 
   const menuController = createMenuController({
     ui,
@@ -1354,14 +1360,14 @@ export function startGameApp() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      pauseBackgroundMusic();
+      cleanupAllAudio({ suspendAudioContext: true });
       autoPauseGame('hidden');
       return;
     }
     resumeBackgroundMusic();
   });
   window.addEventListener('pagehide', () => {
-    pauseBackgroundMusic();
+    cleanupAllAudio({ suspendAudioContext: true });
     autoPauseGame('pagehide');
   });
   window.addEventListener('pageshow', () => resumeBackgroundMusic());
