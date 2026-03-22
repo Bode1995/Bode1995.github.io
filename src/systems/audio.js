@@ -47,13 +47,27 @@ export function createAudio() {
   let musicPausedForAppState = false;
   let advancingTrack = false;
 
+  function ensureAudioContext() {
+    if (!AUDIO_CONTEXT_CTOR) return null;
+    if (!ctx) ctx = new AUDIO_CONTEXT_CTOR();
+    return ctx;
+  }
+
   function ensure() {
-    if (AUDIO_CONTEXT_CTOR) {
-      if (!ctx) ctx = new AUDIO_CONTEXT_CTOR();
-      if (ctx.state === 'suspended') ctx.resume();
-    }
+    ensureAudioContext();
     unlocked = typeof window !== 'undefined';
     return unlocked;
+  }
+
+  async function resumeAudioContext() {
+    const audioContext = ensureAudioContext();
+    if (!audioContext || audioContext.state !== 'suspended') return true;
+    try {
+      await audioContext.resume();
+      return audioContext.state === 'running';
+    } catch (_error) {
+      return false;
+    }
   }
 
   function getCurrentTrack() {
@@ -97,6 +111,19 @@ export function createAudio() {
     return audioElement;
   }
 
+  function resetMediaElement(mediaElement) {
+    if (!mediaElement) return;
+    mediaElement.pause();
+    mediaElement.currentTime = 0;
+  }
+
+  function resetDomMediaElements() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('audio, video').forEach((mediaElement) => {
+      resetMediaElement(mediaElement);
+    });
+  }
+
   async function tryPlayCurrentTrack() {
     if (!unlocked || !musicEnabled || musicPausedForAppState) return false;
     const track = getCurrentTrack();
@@ -128,6 +155,7 @@ export function createAudio() {
     async unlock() {
       const ready = ensure();
       if (!ready) return false;
+      await resumeAudioContext();
       musicEnabled = true;
       musicPausedForAppState = false;
       return tryPlayCurrentTrack();
@@ -141,8 +169,19 @@ export function createAudio() {
       if (!unlocked) return false;
       musicEnabled = true;
       musicPausedForAppState = false;
-      void tryPlayCurrentTrack();
+      void resumeAudioContext().then(() => {
+        void tryPlayCurrentTrack();
+      });
       return true;
+    },
+    stopAllAudio({ suspendContext = false } = {}) {
+      musicEnabled = false;
+      musicPausedForAppState = true;
+      resetMediaElement(musicEl);
+      resetDomMediaElements();
+      if (suspendContext && ctx && ctx.state === 'running') {
+        void ctx.suspend().catch(() => {});
+      }
     },
     shoot() {
       if (!unlocked || !ctx) return;
