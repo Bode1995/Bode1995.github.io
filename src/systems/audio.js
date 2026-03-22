@@ -3,16 +3,21 @@ const AUDIO_CONTEXT_CTOR = typeof window !== 'undefined'
   : null;
 
 const AUDIO_ASSET_BASE_URL = new URL('../../assets/audio/', import.meta.url);
-const MUSIC_TRACK_FILES = [
-  'Background1.mp3',
-  'Background2.mp3',
-  'Background3.mp3',
-];
-const MUSIC_TRACKS = MUSIC_TRACK_FILES.map((file) => ({
-  file,
-  src: new URL(file, AUDIO_ASSET_BASE_URL).href,
-}));
+const AUDIO_FILES = {
+  background1: 'Background1.mp3',
+  background2: 'Background2.mp3',
+  background3: 'Background3.mp3',
+  movementLoop: 'Laufen.mp3',
+  powerupPickup: 'Power up sammeln.mp3',
+};
+const AUDIO_TRACKS = Object.fromEntries(
+  Object.entries(AUDIO_FILES).map(([key, file]) => [key, { file, src: new URL(file, AUDIO_ASSET_BASE_URL).href }]),
+);
+const MUSIC_TRACKS = [AUDIO_TRACKS.background1, AUDIO_TRACKS.background2, AUDIO_TRACKS.background3];
 const BACKGROUND_MUSIC_VOLUME = 0.18;
+const MOVEMENT_LOOP_GAIN = 0.22;
+const POWERUP_PICKUP_GAIN = 0.45;
+const MOVEMENT_STOP_FADE_SECONDS = 0.08;
 
 function tone(ctx, type, freq, duration, gain = 0.04) {
   const osc = ctx.createOscillator();
@@ -46,6 +51,10 @@ export function createAudio() {
   let musicEnabled = false;
   let musicPausedForAppState = false;
   let advancingTrack = false;
+  let movementLoopRequested = false;
+  let movementLoopInstance = null;
+  const audioBufferCache = new Map();
+  const activeSfxSources = new Set();
 
   function ensureAudioContext() {
     if (!AUDIO_CONTEXT_CTOR) return null;
@@ -67,6 +76,58 @@ export function createAudio() {
       return audioContext.state === 'running';
     } catch (_error) {
       return false;
+    }
+  }
+
+  async function loadAudioBuffer(track) {
+    const audioContext = ensureAudioContext();
+    if (!audioContext || !track?.src) return null;
+    if (audioBufferCache.has(track.src)) return audioBufferCache.get(track.src);
+
+    const loadPromise = fetch(track.src)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Failed to load audio asset: ${track.file}`);
+        const arrayBuffer = await response.arrayBuffer();
+        return new Promise((resolve, reject) => {
+          audioContext.decodeAudioData(arrayBuffer.slice(0), resolve, reject);
+        });
+      })
+      .catch((error) => {
+        audioBufferCache.delete(track.src);
+        console.warn('[audio] Could not decode audio asset', track.file, error);
+        return null;
+      });
+
+    audioBufferCache.set(track.src, loadPromise);
+    return loadPromise;
+  }
+
+  function cleanupSourceRegistration(source) {
+    if (!source) return;
+    source.onended = null;
+    activeSfxSources.delete(source);
+  }
+
+  function stopMovementLoop({ immediate = false } = {}) {
+    movementLoopRequested = false;
+    const instance = movementLoopInstance;
+    if (!instance) return;
+    movementLoopInstance = null;
+    const now = ctx?.currentTime ?? 0;
+    const stopAt = immediate ? now : now + MOVEMENT_STOP_FADE_SECONDS;
+
+    try {
+      instance.source.loop = false;
+      if (instance.gainNode) {
+        const currentGain = Math.max(instance.gainNode.gain.value, 0.0001);
+        instance.gainNode.gain.cancelScheduledValues(now);
+        instance.gainNode.gain.setValueAtTime(currentGain, now);
+        if (immediate) instance.gainNode.gain.setValueAtTime(0.0001, now);
+        else instance.gainNode.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+      }
+      instance.source.stop(immediate ? now : stopAt + 0.01);
+    } catch (_error) {
+      cleanupSourceRegistration(instance.source);
     }
   }
 
@@ -151,6 +212,71 @@ export function createAudio() {
     }
   }
 
+  async function startMovementLoop() {
+    movementLoopRequested = true;
+    if (!unlocked) return false;
+    const audioContext = ensureAudioContext();
+    if (!audioContext) return false;
+    if (movementLoopInstance) return true;
+    const resumed = await resumeAudioContext();
+    if (!resumed || !movementLoopRequested || movementLoopInstance) return false;
+    const buffer = await loadAudioBuffer(AUDIO_TRACKS.movementLoop);
+    if (!buffer || !movementLoopRequested || movementLoopInstance) return false;
+
+    const gainNode = audioContext.createGain();
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(gainNode).connect(audioContext.destination);
+    const now = audioContext.currentTime;
+    gainNode.gain.setValueAtTime(0.0001, now);
+    gainNode.gain.exponentialRampToValueAtTime(MOVEMENT_LOOP_GAIN, now + 0.03);
+
+    const instance = { source, gainNode };
+    movementLoopInstance = instance;
+    activeSfxSources.add(source);
+    source.onended = () => {
+      cleanupSourceRegistration(source);
+      if (movementLoopInstance?.source === source) movementLoopInstance = null;
+    };
+
+    try {
+      source.start(now);
+      return true;
+    } catch (_error) {
+      cleanupSourceRegistration(source);
+      if (movementLoopInstance?.source === source) movementLoopInstance = null;
+      return false;
+    }
+  }
+
+  function playBufferedSfx(track, gainValue) {
+    if (!unlocked) return false;
+    const audioContext = ensureAudioContext();
+    if (!audioContext) return false;
+
+    void resumeAudioContext().then(async (resumed) => {
+      if (!resumed) return;
+      const buffer = await loadAudioBuffer(track);
+      if (!buffer) return;
+      const source = audioContext.createBufferSource();
+      const gainNode = audioContext.createGain();
+      source.buffer = buffer;
+      source.loop = false;
+      gainNode.gain.value = gainValue;
+      source.connect(gainNode).connect(audioContext.destination);
+      activeSfxSources.add(source);
+      source.onended = () => cleanupSourceRegistration(source);
+      try {
+        source.start();
+      } catch (_error) {
+        cleanupSourceRegistration(source);
+      }
+    });
+
+    return true;
+  }
+
   return {
     async unlock() {
       const ready = ensure();
@@ -174,11 +300,37 @@ export function createAudio() {
       });
       return true;
     },
+    startMovementLoop() {
+      return startMovementLoop();
+    },
+    stopMovementLoop({ immediate = false } = {}) {
+      stopMovementLoop({ immediate });
+    },
+    syncMovementLoop(isMoving) {
+      if (isMoving) {
+        void startMovementLoop();
+        return true;
+      }
+      stopMovementLoop();
+      return false;
+    },
+    playPowerupPickup() {
+      return playBufferedSfx(AUDIO_TRACKS.powerupPickup, POWERUP_PICKUP_GAIN);
+    },
     stopAllAudio({ suspendContext = false } = {}) {
       musicEnabled = false;
       musicPausedForAppState = true;
+      stopMovementLoop({ immediate: true });
       resetMediaElement(musicEl);
       resetDomMediaElements();
+      activeSfxSources.forEach((source) => {
+        try {
+          source.stop();
+        } catch (_error) {
+          cleanupSourceRegistration(source);
+        }
+      });
+      activeSfxSources.clear();
       if (suspendContext && ctx && ctx.state === 'running') {
         void ctx.suspend().catch(() => {});
       }

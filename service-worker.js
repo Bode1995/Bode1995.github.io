@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sky-blaster-3d-v13';
+const CACHE_NAME = 'sky-blaster-3d-v14';
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +7,8 @@ const ASSETS = [
   './assets/audio/Background1.mp3',
   './assets/audio/Background2.mp3',
   './assets/audio/Background3.mp3',
+  './assets/audio/Laufen.mp3',
+  './assets/audio/Power up sammeln.mp3',
   './assets/audio/Welt 1.mp3',
   './assets/audio/Welt2.mp3',
   './assets/audio/Welt3.mp3',
