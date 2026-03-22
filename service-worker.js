@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sky-blaster-3d-v9';
+const CACHE_NAME = 'sky-blaster-3d-v10';
 const ASSETS = [
   './',
   './index.html',
@@ -36,6 +36,7 @@ const ASSETS = [
   './src/systems/projectileSystem.js',
   './src/systems/specialAbilitySystem.js',
   './src/systems/synergySystem.js',
+  './src/systems/voiceoverSystem.js',
   './src/systems/vfxSystem.js',
   './src/systems/worldSystem.js',
 ];
