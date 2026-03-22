@@ -1,6 +1,7 @@
 export function getUI() {
   return {
     canvas: document.getElementById('game'),
+    damageOverlay: document.getElementById('damageOverlay'),
     hud: document.getElementById('hud'),
     controls: document.getElementById('controls'),
     menu: document.getElementById('menu'),

@@ -45,7 +45,7 @@ import { createAudio } from '../systems/audio.js';
 export function startGameApp() {
   const ui = getUI();
   const REQUIRED_UI_KEYS = [
-    'canvas', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
+    'canvas', 'damageOverlay', 'hud', 'controls', 'menu', 'gameOver', 'pauseOverlay', 'startBtn', 'quickWorldsBtn', 'startSelectedLevelBtn',
     'restartBtn', 'menuBtn', 'nextLevelBtn', 'pauseBtn', 'pauseResumeBtn', 'pauseRestartBtn', 'pauseMenuBtn', 'pauseDescription',
     'missionStoryOverlay', 'missionStoryTitle', 'missionStoryText', 'missionStoryStartBtn',
     'wave', 'enemyCount', 'score', 'hpBar', 'hpValue', 'shieldValue', 'activePowers', 'specialAbilityHud', 'specialAbilityIcon', 'specialAbilityLabel', 'specialAbilityStatus', 'bossHud', 'bossName', 'bossPhase', 'bossTelegraph', 'bossHpBar', 'missionLabel', 'creditsValue', 'menuCredits', 'menuHighestWave', 'selectedMissionLabel',
@@ -82,6 +82,43 @@ export function startGameApp() {
   if (missingUi.length) {
     reportRuntimeError('UI initialisation', new Error(`Missing DOM nodes: ${missingUi.join(', ')}`));
     throw new Error(`Missing required UI nodes: ${missingUi.join(', ')}`);
+  }
+
+  const damageOverlayState = {
+    level: 0,
+    clearTimerId: null,
+  };
+
+  function clearDamageOverlayTimer() {
+    if (damageOverlayState.clearTimerId == null || typeof window === 'undefined') return;
+    window.clearTimeout(damageOverlayState.clearTimerId);
+    damageOverlayState.clearTimerId = null;
+  }
+
+  function resetDamageOverlay({ immediate = true } = {}) {
+    clearDamageOverlayTimer();
+    damageOverlayState.level = 0;
+    ui.damageOverlay.style.setProperty('--damage-overlay-strength', '0');
+    ui.damageOverlay.classList.remove('damage-overlay--active');
+    if (immediate) ui.damageOverlay.getBoundingClientRect();
+  }
+
+  function triggerDamageOverlay(hpDamage) {
+    const resolvedDamage = Math.max(0, Number(hpDamage) || 0);
+    if (resolvedDamage <= 0) return;
+    clearDamageOverlayTimer();
+    const nextLevel = Math.min(1, Math.max(damageOverlayState.level * 0.72, 0.32) + Math.min(0.38, resolvedDamage / Math.max(40, getPlayerMaxHp() * 0.4)));
+    damageOverlayState.level = nextLevel;
+    ui.damageOverlay.style.setProperty('--damage-overlay-strength', nextLevel.toFixed(3));
+    ui.damageOverlay.classList.remove('damage-overlay--active');
+    ui.damageOverlay.getBoundingClientRect();
+    ui.damageOverlay.classList.add('damage-overlay--active');
+    damageOverlayState.clearTimerId = window.setTimeout(() => {
+      damageOverlayState.level = Math.max(0, damageOverlayState.level * 0.45 - 0.08);
+      ui.damageOverlay.style.setProperty('--damage-overlay-strength', '0');
+      ui.damageOverlay.classList.remove('damage-overlay--active');
+      damageOverlayState.clearTimerId = null;
+    }, 540);
   }
 
   const profile = loadProfile();
@@ -315,6 +352,7 @@ export function startGameApp() {
     sceneResources,
     temp,
     audio,
+    onPlayerHpDamage: triggerDamageOverlay,
   });
 
   const projectileSystem = createProjectileSystem({
@@ -751,6 +789,7 @@ export function startGameApp() {
   }
 
   function resetGameplayOverlays() {
+    resetDamageOverlay();
     ui.controls.classList.add('hidden');
     ui.hud.classList.add('hidden');
     ui.pauseOverlay.classList.add('hidden');
@@ -823,6 +862,7 @@ export function startGameApp() {
 
       clearPendingMissionStart({ stopIntroAudio: false });
       audio.notifyRunStarted();
+      resetDamageOverlay();
       state.running = true;
       state.paused = false;
       state.pauseReason = null;
@@ -891,6 +931,7 @@ export function startGameApp() {
   function pauseRun(reason = 'manual') {
     if (!state.running || state.paused) return false;
     stopMovementAudio();
+    resetDamageOverlay();
     state.paused = true;
     state.pauseReason = reason;
     resetTransientInputState();
@@ -913,6 +954,7 @@ export function startGameApp() {
 
   function abandonRunToMenu(screenId = 'home') {
     stopMovementAudio();
+    resetDamageOverlay();
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
@@ -991,6 +1033,7 @@ export function startGameApp() {
     if (!state.running) return;
     if (!success) audio.playPlayerDeath();
     stopMovementAudio();
+    resetDamageOverlay();
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
@@ -1066,6 +1109,7 @@ export function startGameApp() {
 
   function handleRunCrash(context, err, extra = null) {
     cleanupAllAudio({ suspendAudioContext: true });
+    resetDamageOverlay();
     state.running = false;
     state.paused = false;
     state.pauseReason = null;

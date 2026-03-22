@@ -19,6 +19,7 @@ export function createCombatSystem({
   sceneResources,
   temp,
   audio = null,
+  onPlayerHpDamage = null,
 }) {
   const api = {
     damageEnemy: null,
@@ -92,6 +93,7 @@ export function createCombatSystem({
     if (hpDamage <= 0) return;
 
     state.hp -= hpDamage;
+    onPlayerHpDamage?.(hpDamage);
     if (state.hp <= 0) {
       finishRun(false);
       return;
