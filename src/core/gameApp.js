@@ -355,6 +355,10 @@ export function startGameApp() {
     temp,
     profile,
     onDamagePlayer: combat.damagePlayer,
+    onEnemyDestroyed: (_enemy, data) => {
+      if (data?.role === 'boss') return;
+      audio.playEnemyDeath();
+    },
     getEnemyTargetInfo: specialAbilitySystem.getEnemyTargetInfo,
   });
 
@@ -810,6 +814,7 @@ export function startGameApp() {
       profileApi.save();
 
       clearPendingMissionStart({ stopIntroAudio: false });
+      audio.notifyRunStarted();
       state.running = true;
       state.paused = false;
       state.pauseReason = null;
@@ -976,6 +981,7 @@ export function startGameApp() {
 
   finishRun = function finishRunImpl(success) {
     if (!state.running) return;
+    if (!success) audio.playPlayerDeath();
     stopMovementAudio();
     state.running = false;
     state.paused = false;

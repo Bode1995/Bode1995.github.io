@@ -9,6 +9,8 @@ const AUDIO_FILES = {
   background3: 'Background3.mp3',
   movementLoop: 'Laufen.mp3',
   powerupPickup: 'Power up sammeln.mp3',
+  playerDeath: 'Spieler tot.mp3',
+  enemyDeath: 'Gegner tot.mp3',
 };
 const AUDIO_TRACKS = Object.fromEntries(
   Object.entries(AUDIO_FILES).map(([key, file]) => [key, { file, src: new URL(file, AUDIO_ASSET_BASE_URL).href }]),
@@ -17,6 +19,9 @@ const MUSIC_TRACKS = [AUDIO_TRACKS.background1, AUDIO_TRACKS.background2, AUDIO_
 const BACKGROUND_MUSIC_VOLUME = 0.18;
 const MOVEMENT_LOOP_GAIN = 0.32;
 const POWERUP_PICKUP_GAIN = 0.315;
+const PLAYER_DEATH_GAIN = 0.42;
+const ENEMY_DEATH_GAIN = 0.26;
+const ENEMY_DEATH_MAX_DURATION_SECONDS = 1.0;
 const MOVEMENT_STOP_FADE_SECONDS = 0.08;
 
 function tone(ctx, type, freq, duration, gain = 0.04) {
@@ -53,6 +58,7 @@ export function createAudio() {
   let advancingTrack = false;
   let movementLoopRequested = false;
   let movementLoopInstance = null;
+  let playerDeathTriggeredForCurrentRun = false;
   const audioBufferCache = new Map();
   const activeSfxSources = new Set();
 
@@ -250,7 +256,7 @@ export function createAudio() {
     }
   }
 
-  function playBufferedSfx(track, gainValue) {
+  function playBufferedSfx(track, { gain = 1, maxDurationSeconds = null } = {}) {
     if (!unlocked) return false;
     const audioContext = ensureAudioContext();
     if (!audioContext) return false;
@@ -259,16 +265,21 @@ export function createAudio() {
       if (!resumed) return;
       const buffer = await loadAudioBuffer(track);
       if (!buffer) return;
+      const playbackDuration = maxDurationSeconds == null
+        ? buffer.duration
+        : Math.max(0.01, Math.min(buffer.duration, maxDurationSeconds));
       const source = audioContext.createBufferSource();
       const gainNode = audioContext.createGain();
       source.buffer = buffer;
       source.loop = false;
-      gainNode.gain.value = gainValue;
+      gainNode.gain.value = gain;
       source.connect(gainNode).connect(audioContext.destination);
       activeSfxSources.add(source);
       source.onended = () => cleanupSourceRegistration(source);
       try {
-        source.start();
+        const startAt = audioContext.currentTime;
+        source.start(startAt, 0, playbackDuration);
+        if (playbackDuration < buffer.duration) source.stop(startAt + playbackDuration);
       } catch (_error) {
         cleanupSourceRegistration(source);
       }
@@ -285,6 +296,9 @@ export function createAudio() {
       musicEnabled = true;
       musicPausedForAppState = false;
       return tryPlayCurrentTrack();
+    },
+    notifyRunStarted() {
+      playerDeathTriggeredForCurrentRun = false;
     },
     pauseBackgroundMusic() {
       musicPausedForAppState = true;
@@ -315,7 +329,18 @@ export function createAudio() {
       return false;
     },
     playPowerupPickup() {
-      return playBufferedSfx(AUDIO_TRACKS.powerupPickup, POWERUP_PICKUP_GAIN);
+      return playBufferedSfx(AUDIO_TRACKS.powerupPickup, { gain: POWERUP_PICKUP_GAIN });
+    },
+    playPlayerDeath() {
+      if (playerDeathTriggeredForCurrentRun) return false;
+      playerDeathTriggeredForCurrentRun = true;
+      return playBufferedSfx(AUDIO_TRACKS.playerDeath, { gain: PLAYER_DEATH_GAIN });
+    },
+    playEnemyDeath() {
+      return playBufferedSfx(AUDIO_TRACKS.enemyDeath, {
+        gain: ENEMY_DEATH_GAIN,
+        maxDurationSeconds: ENEMY_DEATH_MAX_DURATION_SECONDS,
+      });
     },
     stopAllAudio({ suspendContext = false } = {}) {
       musicEnabled = false;
