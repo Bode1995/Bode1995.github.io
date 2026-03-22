@@ -16,7 +16,7 @@ const AUDIO_TRACKS = Object.fromEntries(
 const MUSIC_TRACKS = [AUDIO_TRACKS.background1, AUDIO_TRACKS.background2, AUDIO_TRACKS.background3];
 const BACKGROUND_MUSIC_VOLUME = 0.18;
 const MOVEMENT_LOOP_GAIN = 0.32;
-const POWERUP_PICKUP_GAIN = 0.45;
+const POWERUP_PICKUP_GAIN = 0.315;
 const MOVEMENT_STOP_FADE_SECONDS = 0.08;
 
 function tone(ctx, type, freq, duration, gain = 0.04) {
