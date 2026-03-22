@@ -20,6 +20,7 @@ const BACKGROUND_MUSIC_VOLUME = 0.18;
 const MOVEMENT_LOOP_GAIN = 0.32;
 const POWERUP_PICKUP_GAIN = 0.315;
 const PLAYER_DEATH_GAIN = 0.42;
+const PLAYER_DEATH_MAX_DURATION_SECONDS = 1.0;
 const ENEMY_DEATH_GAIN = 0.26;
 const ENEMY_DEATH_MAX_DURATION_SECONDS = 1.0;
 const MOVEMENT_STOP_FADE_SECONDS = 0.08;
@@ -334,7 +335,10 @@ export function createAudio() {
     playPlayerDeath() {
       if (playerDeathTriggeredForCurrentRun) return false;
       playerDeathTriggeredForCurrentRun = true;
-      return playBufferedSfx(AUDIO_TRACKS.playerDeath, { gain: PLAYER_DEATH_GAIN });
+      return playBufferedSfx(AUDIO_TRACKS.playerDeath, {
+        gain: PLAYER_DEATH_GAIN,
+        maxDurationSeconds: PLAYER_DEATH_MAX_DURATION_SECONDS,
+      });
     },
     playEnemyDeath() {
       return playBufferedSfx(AUDIO_TRACKS.enemyDeath, {
