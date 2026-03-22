@@ -1,98 +1,106 @@
-const DEEP_VOICE_HINTS = [
-  'male',
-  'mann',
-  'man',
-  'andreas',
-  'markus',
-  'thomas',
-  'stefan',
-  'michael',
-  'christoph',
-  'hans',
-  'ralf',
-  'daniel',
-  'alex',
-];
+const AUDIO_ASSET_BASE_URL = new URL('../../assets/audio/', import.meta.url);
+const WORLD_INTRO_AUDIO_FILES = Object.freeze({
+  1: 'Welt 1.mp3',
+  2: 'Welt2.mp3',
+  3: 'Welt3.mp3',
+  4: 'Welt4.mp3',
+});
 
-function normalizeVoiceName(value) {
-  return String(value || '').trim().toLowerCase();
+function getWorldNumber(worldOrIntro) {
+  if (Number.isInteger(worldOrIntro)) return worldOrIntro;
+  if (worldOrIntro && Number.isInteger(worldOrIntro.world)) return worldOrIntro.world;
+  return null;
 }
 
-function getSpeechSynthesisApi() {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
-  return window.speechSynthesis;
-}
-
-export function pickPreferredGermanVoice(voices = []) {
-  if (!Array.isArray(voices) || voices.length === 0) return null;
-
-  const scoredVoices = voices.map((voice, index) => {
-    const lang = String(voice?.lang || '').toLowerCase();
-    const name = normalizeVoiceName(voice?.name);
-    let score = 0;
-
-    if (lang.startsWith('de-de')) score += 120;
-    else if (lang.startsWith('de')) score += 100;
-    else if (lang.startsWith('de-')) score += 95;
-    else if (lang.startsWith('en-gb')) score += 10;
-    else if (lang.startsWith('en')) score += 5;
-
-    if (voice?.localService) score += 8;
-    if (voice?.default) score += 4;
-    if (DEEP_VOICE_HINTS.some((hint) => name.includes(hint))) score += 18;
-    if (name.includes('google deutsch') || name.includes('microsoft') || name.includes('deutsch')) score += 6;
-
-    return { voice, index, score };
-  });
-
-  scoredVoices.sort((left, right) => {
-    if (right.score !== left.score) return right.score - left.score;
-    return left.index - right.index;
-  });
-
-  return scoredVoices[0]?.voice || null;
+function getWorldIntroAudioDescriptor(worldOrIntro) {
+  const world = getWorldNumber(worldOrIntro);
+  const file = WORLD_INTRO_AUDIO_FILES[world] || null;
+  if (!file) return null;
+  return {
+    world,
+    file,
+    src: new URL(file, AUDIO_ASSET_BASE_URL).href,
+  };
 }
 
 export function createWorldIntroVoiceover() {
+  let introAudioEl = null;
+  let activeWorld = null;
+  let activeSrc = '';
+
+  function ensureAudioElement() {
+    if (introAudioEl) return introAudioEl;
+    introAudioEl = new Audio();
+    introAudioEl.preload = 'auto';
+    introAudioEl.loop = false;
+    introAudioEl.volume = 1;
+    introAudioEl.playsInline = true;
+    introAudioEl.setAttribute('playsinline', 'true');
+    introAudioEl.addEventListener('ended', () => {
+      activeWorld = null;
+      activeSrc = '';
+    });
+    introAudioEl.addEventListener('error', () => {
+      activeWorld = null;
+      activeSrc = '';
+    });
+    return introAudioEl;
+  }
+
+  function hasWorldIntroVoiceover(worldOrIntro) {
+    return !!getWorldIntroAudioDescriptor(worldOrIntro);
+  }
+
   function stopWorldIntroVoiceover() {
-    const synthesis = getSpeechSynthesisApi();
-    if (!synthesis) return;
-    if (synthesis.speaking || synthesis.pending) synthesis.cancel();
+    if (!introAudioEl) {
+      activeWorld = null;
+      activeSrc = '';
+      return;
+    }
+    introAudioEl.pause();
+    introAudioEl.currentTime = 0;
+    activeWorld = null;
+    activeSrc = '';
   }
 
-  function warmWorldIntroVoiceoverCache() {
-    const synthesis = getSpeechSynthesisApi();
-    if (!synthesis) return [];
-    return synthesis.getVoices();
-  }
+  async function playWorldIntroVoiceover(worldOrIntro) {
+    const descriptor = getWorldIntroAudioDescriptor(worldOrIntro);
+    if (!descriptor) return false;
 
-  function playWorldIntroVoiceover(worldIntro) {
-    const synthesis = getSpeechSynthesisApi();
-    const storyText = typeof worldIntro?.text === 'string' ? worldIntro.text.trim() : '';
-    if (!synthesis || !storyText || typeof SpeechSynthesisUtterance === 'undefined') return false;
+    const audioElement = ensureAudioElement();
+    const isSameIntroStillRunning = activeWorld === descriptor.world
+      && !audioElement.paused
+      && !audioElement.ended
+      && audioElement.currentTime > 0;
+    if (isSameIntroStillRunning) return true;
 
-    if (synthesis.speaking || synthesis.pending) synthesis.cancel();
+    if (activeSrc !== descriptor.src) {
+      audioElement.pause();
+      audioElement.src = descriptor.src;
+      audioElement.load();
+      activeSrc = descriptor.src;
+    } else if (!audioElement.paused) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+    } else {
+      audioElement.currentTime = 0;
+    }
 
-    const utterance = new SpeechSynthesisUtterance(storyText);
-    const selectedVoice = pickPreferredGermanVoice(warmWorldIntroVoiceoverCache());
-
-    utterance.lang = selectedVoice?.lang || 'de-DE';
-    if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.rate = 0.92;
-    utterance.pitch = 0.78;
-    utterance.volume = 1;
+    activeWorld = descriptor.world;
 
     try {
-      synthesis.speak(utterance);
+      await audioElement.play();
       return true;
     } catch (_error) {
+      activeWorld = null;
       return false;
     }
   }
 
   return {
+    getWorldIntroVoiceoverSource: getWorldIntroAudioDescriptor,
+    hasWorldIntroVoiceover,
     playWorldIntroVoiceover,
     stopWorldIntroVoiceover,
-    warmWorldIntroVoiceoverCache,
   };
 }
