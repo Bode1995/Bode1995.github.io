@@ -32,14 +32,14 @@ import { registerServiceWorker } from '../pwa/register-sw.js';
 import { getWorldDefinition } from '../config/worlds.js';
 import { getBossDefinition } from '../config/bosses.js';
 import { getCampaignGroupDefinition } from '../config/campaigns.js';
-import { getMissionStory } from '../config/missionStories.js';
+import { getWorldIntro } from '../config/missionStories.js';
 import {
   getSpecialAbilityDef,
   getSpecialAbilityLevel as getStoredSpecialAbilityLevel,
   getSpecialAbilityUpgradeCost,
 } from '../config/specialAbilities.js';
 import { createSpecialAbilitySystem } from '../systems/specialAbilitySystem.js';
-import { createMissionStoryVoiceover } from '../systems/voiceoverSystem.js';
+import { createWorldIntroVoiceover } from '../systems/voiceoverSystem.js';
 import { createAudio } from '../systems/audio.js';
 
 export function startGameApp() {
@@ -259,7 +259,8 @@ export function startGameApp() {
   });
   synergySystem.applyThresholdUnlocks();
 
-  const missionStoryVoiceover = createMissionStoryVoiceover();
+  const worldIntroVoiceover = createWorldIntroVoiceover();
+  worldIntroVoiceover.warmWorldIntroVoiceoverCache();
   const audio = createAudio();
 
   function ensureBackgroundMusicStarted() {
@@ -722,7 +723,7 @@ export function startGameApp() {
 
   function clearPendingMissionStart() {
     state.ui.pendingMissionStart = null;
-    missionStoryVoiceover.stopMissionStoryVoiceover();
+    worldIntroVoiceover.stopWorldIntroVoiceover();
     ui.missionStoryOverlay.classList.add('hidden');
   }
 
@@ -734,16 +735,16 @@ export function startGameApp() {
   }
 
   function showMissionStoryOverlay(pendingMissionStart) {
-    ui.missionStoryTitle.textContent = pendingMissionStart.story.title;
-    ui.missionStoryText.textContent = pendingMissionStart.story.text;
+    ui.missionStoryTitle.textContent = pendingMissionStart.worldIntro.title;
+    ui.missionStoryText.textContent = pendingMissionStart.worldIntro.text;
     ui.missionStoryOverlay.classList.remove('hidden');
-    missionStoryVoiceover.playMissionStoryVoiceover(pendingMissionStart.story.text);
+    worldIntroVoiceover.playWorldIntroVoiceover(pendingMissionStart.worldIntro);
   }
 
   function createPendingMissionStart(mission) {
-    const story = getMissionStory(mission);
-    if (!story?.title || !story?.text) throw new Error(`Missing mission story content for ${JSON.stringify(mission)}`);
-    return { mission, story };
+    const worldIntro = getWorldIntro(mission);
+    if (!worldIntro?.title || !worldIntro?.text) return null;
+    return { mission, worldIntro };
   }
 
   function prepareMissionStart(worldOrMission = profileApi.getSelectedMission(), level = profile.progression.selectedLevel) {
@@ -769,8 +770,15 @@ export function startGameApp() {
       resetGameplayOverlays();
       ui.menu.classList.add('hidden');
       clearPendingMissionStart();
-      state.ui.pendingMissionStart = createPendingMissionStart(mission);
-      showMissionStoryOverlay(state.ui.pendingMissionStart);
+
+      const pendingMissionStart = createPendingMissionStart(mission);
+      if (pendingMissionStart) {
+        state.ui.pendingMissionStart = pendingMissionStart;
+        showMissionStoryOverlay(pendingMissionStart);
+        return;
+      }
+
+      startMissionRun(mission);
     } catch (err) {
       handleRunCrash('Mission preparation failed', err, `mission=${JSON.stringify(normalizeMissionSelection(worldOrMission, level))}, character=${state.selection.characterId}`);
     }
@@ -779,14 +787,16 @@ export function startGameApp() {
   function beginPendingMissionStart() {
     const pendingMissionStart = state.ui.pendingMissionStart;
     if (!pendingMissionStart) return;
+    startMissionRun(pendingMissionStart.mission);
+  }
 
+  function startMissionRun(mission) {
     try {
       clearRuntimeError();
-      const { mission } = pendingMissionStart;
       profile.stats.totalRuns += 1;
       profileApi.save();
 
-      state.ui.pendingMissionStart = null;
+      clearPendingMissionStart();
       state.running = true;
       state.paused = false;
       state.pauseReason = null;
@@ -848,7 +858,7 @@ export function startGameApp() {
       ui.controls.classList.remove('hidden');
       ui.hud.classList.remove('hidden');
     } catch (err) {
-      handleRunCrash('Run start failed', err, `mission=${JSON.stringify(pendingMissionStart.mission)}, character=${state.selection.characterId}`);
+      handleRunCrash('Run start failed', err, `mission=${JSON.stringify(mission)}, character=${state.selection.characterId}`);
     }
   }
 
@@ -1047,7 +1057,7 @@ export function startGameApp() {
   }
   window.addEventListener('resize', resize);
   window.addEventListener('pagehide', () => {
-    missionStoryVoiceover.stopMissionStoryVoiceover();
+    worldIntroVoiceover.stopWorldIntroVoiceover();
     pauseBackgroundMusic();
   });
 

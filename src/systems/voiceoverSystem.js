@@ -14,6 +14,8 @@ const DEEP_VOICE_HINTS = [
   'alex',
 ];
 
+export const WORLD_INTRO_VOICEOVER_WORLDS = Object.freeze([1, 2, 3, 4]);
+
 function normalizeVoiceName(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -53,22 +55,28 @@ export function pickPreferredGermanVoice(voices = []) {
   return scoredVoices[0]?.voice || null;
 }
 
-export function createMissionStoryVoiceover() {
-  function stopMissionStoryVoiceover() {
+export function createWorldIntroVoiceover() {
+  function stopWorldIntroVoiceover() {
     const synthesis = getSpeechSynthesisApi();
     if (!synthesis) return;
     if (synthesis.speaking || synthesis.pending) synthesis.cancel();
   }
 
-  function playMissionStoryVoiceover(text) {
+  function warmWorldIntroVoiceoverCache() {
     const synthesis = getSpeechSynthesisApi();
-    const storyText = typeof text === 'string' ? text.trim() : '';
+    if (!synthesis) return [];
+    return synthesis.getVoices();
+  }
+
+  function playWorldIntroVoiceover(worldIntro) {
+    const synthesis = getSpeechSynthesisApi();
+    const storyText = typeof worldIntro?.text === 'string' ? worldIntro.text.trim() : '';
     if (!synthesis || !storyText || typeof SpeechSynthesisUtterance === 'undefined') return false;
 
     if (synthesis.speaking || synthesis.pending) synthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(storyText);
-    const selectedVoice = pickPreferredGermanVoice(synthesis.getVoices());
+    const selectedVoice = pickPreferredGermanVoice(warmWorldIntroVoiceoverCache());
 
     utterance.lang = selectedVoice?.lang || 'de-DE';
     if (selectedVoice) utterance.voice = selectedVoice;
@@ -85,7 +93,8 @@ export function createMissionStoryVoiceover() {
   }
 
   return {
-    playMissionStoryVoiceover,
-    stopMissionStoryVoiceover,
+    playWorldIntroVoiceover,
+    stopWorldIntroVoiceover,
+    warmWorldIntroVoiceoverCache,
   };
 }
