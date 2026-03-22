@@ -1,57 +1,37 @@
-import { getBossDefinition } from './bosses.js';
 import { getWorldDefinition } from './worlds.js';
 
-export const MISSION_STORIES = {
-  levels: {
-    1: {
-      1: 'Die Sensoren melden erste Angriffe am Außenposten – halte die Stellung, bevor die Verteidigung fällt.',
-      2: 'Weitere Feinde brechen durch die äußere Linie und drängen direkt auf das Zentrum zu.',
-      3: 'Unter der Erde bewegt sich etwas – seit den Beben greifen die Gegner aus allen Richtungen an.',
-      4: 'Die Versorgung ist fast abgeschnitten, und nur dieser Bereich hält den Angriff noch auf.',
-      5: 'Der Außenposten steht kurz vor dem Fall – überlebe diese Welle und der Rückzugspfad bleibt offen.',
-    },
-    2: {
-      1: 'Vor dir liegt verbrannter Boden, aus dessen Spalten neue Gegner in die Arena drängen.',
-      2: 'Die Hitze nimmt zu und zwingt dich, zwischen Druck von vorn und Gefahr aus dem Boden zu überleben.',
-      3: 'Lavafelder schneiden Wege ab, während die Angreifer dichter und aggressiver werden.',
-      4: 'Der Himmel glüht über dir, und die Arena wird zu eng für Fehler oder Zögern.',
-      5: 'Hinter den letzten Feuerlinien liegt der nächste Abschnitt – aber nur, wenn du diesen Ansturm brichst.',
-    },
-    3: {
-      1: 'Eis überzieht das Kampffeld und macht jede Bewegung schwerfälliger als zuvor.',
-      2: 'Gefrorene Trümmer blockieren die Sicht, und die Gegner nutzen jede Lücke in deiner Bewegung.',
-      3: 'Die Kälte hält alles fest, aber der Angriff rollt weiter und lässt dir kaum Raum zum Atmen.',
-      4: 'Im Frost wirkt alles langsamer – bis die nächste Welle plötzlich direkt vor dir steht.',
-      5: 'Wenn du diese letzte gefrorene Front hältst, bleibt der Weg in das verseuchte Gebiet offen.',
-    },
-    4: {
-      1: 'Grüner Nebel liegt über dem Schlachtfeld und aus ihm tauchen die ersten verseuchten Gegner auf.',
-      2: 'Jeder Bereich, den du freikämpfst, wird sofort vom nächsten giftigen Schub wieder bedroht.',
-      3: 'Die Luft selbst arbeitet gegen dich, während immer mehr Gegner in die Arena nachdrücken.',
-      4: 'Vor dir liegt nur noch Verfall – und eine letzte Verteidigungslinie aus Gift und Masse.',
-      5: 'Hinter diesem Angriff wartet das Herz der ganzen Katastrophe – jetzt gibt es kein Zurück mehr.',
-    },
+export const WORLD_INTROS = {
+  1: {
+    title: 'Die Blütezeit',
+    text: 'Die ersten Notrufe aus der Blütezeit klingen noch, als würden sie von einem friedlichen Außenposten stammen, doch hinter jeder unterbrochenen Übertragung steckt bereits ein koordinierter Angriff. Sensorbojen verschwinden entlang der Versorgungsrouten, Erntedrohnen treiben ausgebrannt über den Feldern, und die Verteidigung meldet Kontakte, die sich schneller anpassen als jede bekannte Frontwelle. Du bist nicht hier, um nur einen Sektor zu halten – du sollst herausfinden, wer diese Offensive lenkt, den Korridor zur Kolonie offen halten und verhindern, dass die Menschheit schon im fruchtbarsten Teil ihrer Welt den Boden verliert.'
   },
-  bosses: {
-    earthTitan: 'Tief unter den zerstörten Zonen erhebt sich der Titan des Kerns – wenn du ihn nicht stoppst, war alles davor nur der Anfang.',
+  2: {
+    title: 'Der Aufbruch des Feuers',
+    text: 'Die Spur aus der Blütezeit führt direkt in die verbrannten Zonen des Feuergürtels, wo aufgerissene Erdspalten wie absichtlich geöffnete Schleusen wirken. Was zuerst wie bloße Zerstörung aussah, entpuppt sich hier als planvolle Eskalation: Unter dem Lavastaub liegen Bohrkerne, verstärkte Brutkammern und Signale, die aus großer Tiefe synchronisiert werden. Jede Stellung, die du im Feuerreich hältst, beweist, dass die Angreifer Ressourcen sammeln und ihren Vormarsch vorbereiten. Wenn du jetzt nicht durchbrichst, wird aus vereinzelten Angriffen ein zusammenhängender Krieg, der die oberen Welten von innen heraus verbrennt.'
+  },
+  3: {
+    title: 'Die große Erstarrung',
+    text: 'Hinter der Hitze wartet keine Entlastung, sondern eine stillere und gefährlichere Front. In der großen Erstarrung liegen ganze Forschungsstationen unter Eis begraben, als hätte jemand ihre Evakuierung exakt einen Moment zu spät ausgelöst. Zwischen gefrorenen Wracks tauchen Datenfragmente auf, die dasselbe Muster zeigen wie im Feuerreich: Die Invasion folgt einem langfristigen Plan, und jeder verlorene Außenposten liefert dem Feind neue Energie für etwas Größeres. Du kämpfst nun nicht mehr nur gegen Wellen, sondern gegen die letzten Minuten eines Countdowns, dessen Ende unter dem Eis bereits vorbereitet wurde.'
+  },
+  4: {
+    title: 'Das giftige Zeitalter',
+    text: 'Im verseuchten Grenzgebiet wird endlich sichtbar, worauf alles hinausläuft. Der Nebel ist kein Nebenprodukt der Schlacht, sondern der Vorhang für eine finale Umformung der Welt: verseuchte Türme speisen das Netzwerk, die Luft selbst trägt feindliche Signale weiter, und hinter jeder Giftwolke verdichten sich die Hinweise auf einen Kern, der tief unter den Ruinen erwacht. Die Blütezeit fiel, das Feuer wurde geschürt und das Eis als Deckmantel genutzt, damit dieser letzte Abschnitt ungestört vorbereitet werden konnte. Wenn du hier standhältst, erreichst du den Ursprung des Konflikts – und zwingst den Gegner, sich vor dem finalen Zusammenstoß offen zu zeigen.'
   },
 };
 
-export function getMissionStory(mission) {
-  if (!mission) return null;
-  if (mission.type === 'boss') {
-    const boss = getBossDefinition(mission.id || mission.bossId);
-    return {
-      title: boss.name,
-      text: MISSION_STORIES.bosses[boss.id] || '',
-    };
-  }
+export function isWorldIntroMission(mission) {
+  if (!mission || mission.type !== 'level') return false;
+  return mission.level === 1 && Object.prototype.hasOwnProperty.call(WORLD_INTROS, mission.world);
+}
 
-  const world = mission.world;
-  const level = mission.level;
-  const worldDef = getWorldDefinition(world);
+export function getWorldIntro(mission) {
+  if (!isWorldIntroMission(mission)) return null;
+
+  const intro = WORLD_INTROS[mission.world];
+  if (!intro?.text) return null;
+
   return {
-    title: `${worldDef.themeName} · Level ${level}`,
-    text: MISSION_STORIES.levels?.[world]?.[level] || '',
+    title: intro.title || getWorldDefinition(mission.world).themeName,
+    text: intro.text,
   };
 }
