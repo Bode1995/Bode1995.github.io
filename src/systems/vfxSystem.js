@@ -654,8 +654,12 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     updateDamageNumbers(dt);
   }
 
+  function hasActiveLightningChains() {
+    return state.entities.chainBeams.some((entry) => entry?.effectTag === 'lightning' && entry.life > 0);
+  }
+
   function hasActiveLightningVisuals() {
-    return state.entities.chainBeams.some((entry) => entry?.effectTag === 'lightning' && entry.life > 0)
+    return hasActiveLightningChains()
       || state.entities.vfxParticles.some((entry) => entry?.effectTag === 'lightning' && entry.life > 0);
   }
 
@@ -695,6 +699,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     createChainBeam,
     spawnExplosionRing,
     disposeChainBeam,
+    hasActiveLightningChains,
     hasActiveLightningVisuals,
     update,
     clear,
