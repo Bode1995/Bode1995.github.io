@@ -1290,11 +1290,7 @@ export function startGameApp() {
           profileApi.save();
         }
 
-        const hasVisibleLightning = vfx.hasActiveLightningVisuals()
-          || state.entities.enemies.some((enemy) => {
-            const data = enemy?.userData;
-            return Boolean(data && !data.dead && data.shockTimer > 0 && data.impactVisualTimer > 0);
-          });
+        const hasVisibleLightning = vfx.hasActiveLightningVisuals();
         syncLightningAudio(hasVisibleLightning);
         updateHUD();
       } catch (err) {
