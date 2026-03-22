@@ -14,6 +14,7 @@ export function createEnemySystem({
   temp,
   profile,
   onDamagePlayer,
+  onEnemyDestroyed = null,
   getEnemyTargetInfo,
 }) {
   const sharedGeometries = {
@@ -481,6 +482,7 @@ export function createEnemySystem({
       : state.entities.enemies.indexOf(enemy);
     if (resolvedIndex >= 0) state.entities.enemies.splice(resolvedIndex, 1);
     syncActiveEnemyCount();
+    if (data.role !== 'boss') onEnemyDestroyed?.(enemy, data);
     if (data.type === 'splitter') {
       for (let i = 0; i < data.splitCount; i++) {
         const angle = Math.random() * Math.PI * 2;
