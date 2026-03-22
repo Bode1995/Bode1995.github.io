@@ -14,8 +14,6 @@ const DEEP_VOICE_HINTS = [
   'alex',
 ];
 
-export const WORLD_INTRO_VOICEOVER_WORLDS = Object.freeze([1, 2, 3, 4]);
-
 function normalizeVoiceName(value) {
   return String(value || '').trim().toLowerCase();
 }

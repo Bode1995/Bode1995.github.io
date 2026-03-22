@@ -49,8 +49,8 @@ export const WORLD_DEFS = {
   1: createWorldDefinition({
     id: 1,
     key: 'frontier',
-    themeName: 'Die Blütezeit',
-    menuLabel: 'Die Blütezeit',
+    themeName: 'Der Einschlag',
+    menuLabel: 'Der Einschlag',
     hudBadge: 'Standard',
     environment: {
       style: 'frontier',
@@ -95,8 +95,8 @@ export const WORLD_DEFS = {
   2: createWorldDefinition({
     id: 2,
     key: 'lava',
-    themeName: 'Der Aufbruch des Feuers',
-    menuLabel: 'Der Aufbruch des Feuers',
+    themeName: 'Die Ausbreitung',
+    menuLabel: 'Die Ausbreitung',
     hudBadge: 'Feuerresistenz',
     environment: {
       style: 'lava',
@@ -157,8 +157,8 @@ export const WORLD_DEFS = {
   3: createWorldDefinition({
     id: 3,
     key: 'ice',
-    themeName: 'Die große Erstarrung',
-    menuLabel: 'Die große Erstarrung',
+    themeName: 'Die Anpassung',
+    menuLabel: 'Die Anpassung',
     hudBadge: 'Eisresistenz',
     environment: {
       style: 'ice',
@@ -219,8 +219,8 @@ export const WORLD_DEFS = {
   4: createWorldDefinition({
     id: 4,
     key: 'poison',
-    themeName: 'Das giftige Zeitalter',
-    menuLabel: 'Das giftige Zeitalter',
+    themeName: 'Der Kern',
+    menuLabel: 'Der Kern',
     hudBadge: 'Giftresistenz',
     environment: {
       style: 'poison',

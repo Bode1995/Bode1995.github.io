@@ -1,37 +1,28 @@
-import { getWorldDefinition } from './worlds.js';
-
-export const WORLD_INTROS = {
-  1: {
-    title: 'Die Blütezeit',
-    text: 'Die ersten Notrufe aus der Blütezeit klingen noch, als würden sie von einem friedlichen Außenposten stammen, doch hinter jeder unterbrochenen Übertragung steckt bereits ein koordinierter Angriff. Sensorbojen verschwinden entlang der Versorgungsrouten, Erntedrohnen treiben ausgebrannt über den Feldern, und die Verteidigung meldet Kontakte, die sich schneller anpassen als jede bekannte Frontwelle. Du bist nicht hier, um nur einen Sektor zu halten – du sollst herausfinden, wer diese Offensive lenkt, den Korridor zur Kolonie offen halten und verhindern, dass die Menschheit schon im fruchtbarsten Teil ihrer Welt den Boden verliert.'
-  },
-  2: {
-    title: 'Der Aufbruch des Feuers',
-    text: 'Die Spur aus der Blütezeit führt direkt in die verbrannten Zonen des Feuergürtels, wo aufgerissene Erdspalten wie absichtlich geöffnete Schleusen wirken. Was zuerst wie bloße Zerstörung aussah, entpuppt sich hier als planvolle Eskalation: Unter dem Lavastaub liegen Bohrkerne, verstärkte Brutkammern und Signale, die aus großer Tiefe synchronisiert werden. Jede Stellung, die du im Feuerreich hältst, beweist, dass die Angreifer Ressourcen sammeln und ihren Vormarsch vorbereiten. Wenn du jetzt nicht durchbrichst, wird aus vereinzelten Angriffen ein zusammenhängender Krieg, der die oberen Welten von innen heraus verbrennt.'
-  },
-  3: {
-    title: 'Die große Erstarrung',
-    text: 'Hinter der Hitze wartet keine Entlastung, sondern eine stillere und gefährlichere Front. In der großen Erstarrung liegen ganze Forschungsstationen unter Eis begraben, als hätte jemand ihre Evakuierung exakt einen Moment zu spät ausgelöst. Zwischen gefrorenen Wracks tauchen Datenfragmente auf, die dasselbe Muster zeigen wie im Feuerreich: Die Invasion folgt einem langfristigen Plan, und jeder verlorene Außenposten liefert dem Feind neue Energie für etwas Größeres. Du kämpfst nun nicht mehr nur gegen Wellen, sondern gegen die letzten Minuten eines Countdowns, dessen Ende unter dem Eis bereits vorbereitet wurde.'
-  },
-  4: {
-    title: 'Das giftige Zeitalter',
-    text: 'Im verseuchten Grenzgebiet wird endlich sichtbar, worauf alles hinausläuft. Der Nebel ist kein Nebenprodukt der Schlacht, sondern der Vorhang für eine finale Umformung der Welt: verseuchte Türme speisen das Netzwerk, die Luft selbst trägt feindliche Signale weiter, und hinter jeder Giftwolke verdichten sich die Hinweise auf einen Kern, der tief unter den Ruinen erwacht. Die Blütezeit fiel, das Feuer wurde geschürt und das Eis als Deckmantel genutzt, damit dieser letzte Abschnitt ungestört vorbereitet werden konnte. Wenn du hier standhältst, erreichst du den Ursprung des Konflikts – und zwingst den Gegner, sich vor dem finalen Zusammenstoß offen zu zeigen.'
-  },
-};
+export const worldIntro = Object.freeze({
+  1: Object.freeze({
+    title: 'Der Einschlag',
+    text: 'Vor wenigen Tagen schlugen mehrere unbekannte Objekte auf der Erde ein. Kurz darauf fielen ganze Regionen aus – Kommunikation, Strom, Verteidigung. Als die ersten Einheiten auftauchten, war klar: Das ist kein Zufall. Etwas ist hier gelandet, hat sich sofort ausgebreitet und nutzt unsere eigene Infrastruktur gegen uns. Du wirst in das erste Einsatzgebiet geschickt – nicht um zu gewinnen, sondern um herauszufinden, womit wir es zu tun haben.',
+  }),
+  2: Object.freeze({
+    title: 'Die Ausbreitung',
+    text: 'Unter den Einschlagszonen entstehen Strukturen, die nicht von dieser Welt sind. Sie wachsen, verbinden sich und breiten sich unter der Oberfläche weiter aus. Die Angriffe folgen keinem Chaos – sie sichern Gebiete, bauen Verbindungen auf und treiben etwas systematisch voran. Du kämpfst dich durch ihre Anlagen und erkennst: Die Erde wird nicht nur angegriffen… sie wird umgebaut.',
+  }),
+  3: Object.freeze({
+    title: 'Die Anpassung',
+    text: 'In verlassenen Stationen stoßen die Einsatzteams auf Daten, die alles verändern. Die Einheiten reagieren auf jeden Widerstand, passen sich an und werden mit jeder Begegnung effizienter. Sie lernen. Was als Angriff begann, ist inzwischen ein Prozess geworden – einer, der sich selbst verbessert. Die Front verschiebt sich, und jeder Einsatz wird gefährlicher als der davor.',
+  }),
+  4: Object.freeze({
+    title: 'Der Kern',
+    text: 'Alle Hinweise führen in ein Gebiet, das vollständig von der fremden Struktur durchzogen ist. Energie, Signale und Einheiten laufen hier zusammen. Was aufgebaut wurde, erreicht seinen Zweck: Im Zentrum entsteht etwas, das die gesamte Ausbreitung steuern soll. Ein Kern. Wenn er aktiv wird, gibt es kein Zurück mehr. Dies ist der Punkt, an dem alles entschieden wird.',
+  }),
+});
 
 export function isWorldIntroMission(mission) {
   if (!mission || mission.type !== 'level') return false;
-  return mission.level === 1 && Object.prototype.hasOwnProperty.call(WORLD_INTROS, mission.world);
+  return mission.level === 1 && Object.prototype.hasOwnProperty.call(worldIntro, mission.world);
 }
 
 export function getWorldIntro(mission) {
   if (!isWorldIntroMission(mission)) return null;
-
-  const intro = WORLD_INTROS[mission.world];
-  if (!intro?.text) return null;
-
-  return {
-    title: intro.title || getWorldDefinition(mission.world).themeName,
-    text: intro.text,
-  };
+  return worldIntro[mission.world] || null;
 }
