@@ -33,6 +33,7 @@ const HIT_MAX_CONCURRENT = 5;
 const EXPLOSION_GAIN = 0.3;
 const EXPLOSION_MAX_DURATION_SECONDS = 0.8;
 const EXPLOSION_MAX_CONCURRENT = 3;
+const EXPLOSION_SUSTAIN_QUEUE_CAP = 9;
 const LIGHTNING_LOOP_GAIN = 0.26;
 const LIGHTNING_LOOP_SLICE_SECONDS = 1.0;
 const LIGHTNING_STOP_FADE_SECONDS = 0.06;
@@ -74,6 +75,7 @@ export function createAudio() {
   let lightningLoopRequested = false;
   let lightningLoopInstance = null;
   let playerDeathTriggeredForCurrentRun = false;
+  let pendingExplosionBursts = 0;
   const audioBufferCache = new Map();
   const activeSfxSources = new Set();
   const bufferedSfxBuckets = {
@@ -135,6 +137,7 @@ export function createAudio() {
     if (bucketKey && bufferedSfxBuckets[bucketKey]) bufferedSfxBuckets[bucketKey].delete(source);
     if (movementLoopInstance?.source === source) movementLoopInstance = null;
     if (lightningLoopInstance?.source === source) lightningLoopInstance = null;
+    if (bucketKey === 'explosion' && pendingExplosionBursts > 0) queueMicrotask(() => { pumpExplosionSustain(); });
   }
 
   function registerSource(source, { bucketKey = null, startedAt = 0 } = {}) {
@@ -386,6 +389,37 @@ export function createAudio() {
     return true;
   }
 
+  function pumpExplosionSustain() {
+    if (!unlocked || pendingExplosionBursts <= 0) return false;
+    const bucket = bufferedSfxBuckets.explosion;
+    if (!bucket) return false;
+
+    const availableSlots = Math.max(0, EXPLOSION_MAX_CONCURRENT - bucket.size);
+    if (availableSlots <= 0) return false;
+
+    const burstsToStart = Math.min(availableSlots, pendingExplosionBursts);
+    let started = 0;
+    for (let index = 0; index < burstsToStart; index += 1) {
+      const startedNow = playBufferedSfx(AUDIO_TRACKS.explosion, {
+        gain: EXPLOSION_GAIN,
+        maxDurationSeconds: EXPLOSION_MAX_DURATION_SECONDS,
+        bucketKey: 'explosion',
+        maxConcurrent: EXPLOSION_MAX_CONCURRENT,
+        reuseMode: 'skip',
+      });
+      if (!startedNow) break;
+      started += 1;
+    }
+
+    pendingExplosionBursts = Math.max(0, pendingExplosionBursts - started);
+    return started > 0;
+  }
+
+  function queueExplosionBurst() {
+    pendingExplosionBursts = Math.min(EXPLOSION_SUSTAIN_QUEUE_CAP, pendingExplosionBursts + 1);
+    return pumpExplosionSustain();
+  }
+
   return {
     async unlock() {
       const ready = ensure();
@@ -467,13 +501,7 @@ export function createAudio() {
       });
     },
     playExplosion() {
-      return playBufferedSfx(AUDIO_TRACKS.explosion, {
-        gain: EXPLOSION_GAIN,
-        maxDurationSeconds: EXPLOSION_MAX_DURATION_SECONDS,
-        bucketKey: 'explosion',
-        maxConcurrent: EXPLOSION_MAX_CONCURRENT,
-        reuseMode: 'rotate',
-      });
+      return queueExplosionBurst();
     },
     stopAllAudio({ suspendContext = false } = {}) {
       musicEnabled = false;
@@ -491,6 +519,7 @@ export function createAudio() {
       });
       activeSfxSources.clear();
       Object.values(bufferedSfxBuckets).forEach((bucket) => bucket.clear());
+      pendingExplosionBursts = 0;
       if (suspendContext && ctx && ctx.state === 'running') {
         void ctx.suspend().catch(() => {});
       }
