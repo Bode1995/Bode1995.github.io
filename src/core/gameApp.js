@@ -40,6 +40,7 @@ import {
 } from '../config/specialAbilities.js';
 import { createSpecialAbilitySystem } from '../systems/specialAbilitySystem.js';
 import { createMissionStoryVoiceover } from '../systems/voiceoverSystem.js';
+import { createAudio } from '../systems/audio.js';
 
 export function startGameApp() {
   const ui = getUI();
@@ -259,6 +260,19 @@ export function startGameApp() {
   synergySystem.applyThresholdUnlocks();
 
   const missionStoryVoiceover = createMissionStoryVoiceover();
+  const audio = createAudio();
+
+  function unlockAudio() {
+    void audio.unlock();
+  }
+
+  function resumeBackgroundMusic() {
+    audio.resumeBackgroundMusic();
+  }
+
+  function pauseBackgroundMusic() {
+    audio.pauseBackgroundMusic();
+  }
 
   let finishRun = () => {};
   const combat = createCombatSystem({
@@ -1029,6 +1043,7 @@ export function startGameApp() {
   window.addEventListener('resize', resize);
   window.addEventListener('pagehide', () => {
     missionStoryVoiceover.stopMissionStoryVoiceover();
+    pauseBackgroundMusic();
   });
 
   const menuController = createMenuController({
@@ -1279,6 +1294,10 @@ export function startGameApp() {
   }
 
   const registerSwOnReady = () => registerServiceWorker().catch((err) => reportRuntimeError('Service worker registration', err));
+  const audioUnlockEvents = ['pointerdown', 'touchstart', 'keydown'];
+  audioUnlockEvents.forEach((eventName) => {
+    window.addEventListener(eventName, unlockAudio, { passive: true });
+  });
   if (document.readyState === 'complete') registerSwOnReady();
   else window.addEventListener('load', registerSwOnReady, { once: true });
   ui.menuRouteButtons.forEach((button) => button.addEventListener('click', () => menuController.setMenuScreen(button.dataset.screen)));
@@ -1313,9 +1332,21 @@ export function startGameApp() {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') autoPauseGame('hidden');
+    if (document.visibilityState === 'hidden') {
+      pauseBackgroundMusic();
+      autoPauseGame('hidden');
+      return;
+    }
+    resumeBackgroundMusic();
   });
-  window.addEventListener('pagehide', () => autoPauseGame('pagehide'));
+  window.addEventListener('pagehide', () => {
+    pauseBackgroundMusic();
+    autoPauseGame('pagehide');
+  });
+  window.addEventListener('pageshow', () => resumeBackgroundMusic());
+  window.addEventListener('focus', () => {
+    if (document.visibilityState === 'visible') resumeBackgroundMusic();
+  });
   window.addEventListener('blur', () => autoPauseGame('blur'));
 
   menuController.renderMenu();
