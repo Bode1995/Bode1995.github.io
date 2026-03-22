@@ -39,6 +39,7 @@ import {
   getSpecialAbilityUpgradeCost,
 } from '../config/specialAbilities.js';
 import { createSpecialAbilitySystem } from '../systems/specialAbilitySystem.js';
+import { createMissionStoryVoiceover } from '../systems/voiceoverSystem.js';
 
 export function startGameApp() {
   const ui = getUI();
@@ -256,6 +257,8 @@ export function startGameApp() {
     sceneResources,
   });
   synergySystem.applyThresholdUnlocks();
+
+  const missionStoryVoiceover = createMissionStoryVoiceover();
 
   let finishRun = () => {};
   const combat = createCombatSystem({
@@ -700,6 +703,7 @@ export function startGameApp() {
 
   function clearPendingMissionStart() {
     state.ui.pendingMissionStart = null;
+    missionStoryVoiceover.stopMissionStoryVoiceover();
     ui.missionStoryOverlay.classList.add('hidden');
   }
 
@@ -714,6 +718,7 @@ export function startGameApp() {
     ui.missionStoryTitle.textContent = pendingMissionStart.story.title;
     ui.missionStoryText.textContent = pendingMissionStart.story.text;
     ui.missionStoryOverlay.classList.remove('hidden');
+    missionStoryVoiceover.playMissionStoryVoiceover(pendingMissionStart.story.text);
   }
 
   function createPendingMissionStart(mission) {
@@ -1022,6 +1027,9 @@ export function startGameApp() {
     camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', resize);
+  window.addEventListener('pagehide', () => {
+    missionStoryVoiceover.stopMissionStoryVoiceover();
+  });
 
   const menuController = createMenuController({
     ui,
