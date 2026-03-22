@@ -246,6 +246,7 @@ export function createMenuController({ ui, profile, state, helpers, actions }) {
     renderMenu();
     ui.menu.classList.remove('hidden');
     ui.gameOver.classList.add('hidden');
+    if (typeof actions.onMenuOpened === 'function') actions.onMenuOpened(screenId);
   }
 
   function renderWorldsScreen() {

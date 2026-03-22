@@ -262,8 +262,13 @@ export function startGameApp() {
   const missionStoryVoiceover = createMissionStoryVoiceover();
   const audio = createAudio();
 
-  function unlockAudio() {
+  function ensureBackgroundMusicStarted() {
     void audio.unlock();
+    audio.resumeBackgroundMusic();
+  }
+
+  function unlockAudio() {
+    ensureBackgroundMusicStarted();
   }
 
   function resumeBackgroundMusic() {
@@ -1078,6 +1083,7 @@ export function startGameApp() {
       getSelectedCharacterName: () => getCharacterDef().name,
       refreshCharacterSelection: () => characterSelection.refresh(),
       getNextMission,
+      onMenuOpened: () => ensureBackgroundMusicStarted(),
     },
   });
 
