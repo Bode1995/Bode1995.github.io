@@ -9,8 +9,9 @@ const AUDIO_FILES = {
   background3: 'Background3.mp3',
   movementLoop: 'Laufen.mp3',
   powerupPickup: 'Power up sammeln.mp3',
+  playerHurt: 'Spieler erleidet schaden.mp3',
   playerDeath: 'Spieler tot.mp3',
-  enemyDeath: 'Gegner tot.mp3',
+  enemyDeath: 'Gegner stirbt.mp3',
   hit: 'Treffer.mp3',
   explosion: 'Explosion.mp3',
   lightningLoop: 'Blitz.mp3',
@@ -23,6 +24,8 @@ const BACKGROUND_MUSIC_VOLUME = 0.18;
 const MOVEMENT_LOOP_GAIN = 0.32;
 const MOVEMENT_STOP_FADE_SECONDS = 0.08;
 const POWERUP_PICKUP_GAIN = 0.315;
+const PLAYER_HURT_GAIN = 0.42;
+const PLAYER_HURT_MAX_DURATION_SECONDS = 1.0;
 const PLAYER_DEATH_GAIN = 0.84;
 const PLAYER_DEATH_MAX_DURATION_SECONDS = 1.0;
 const ENEMY_DEATH_GAIN = 0.52;
@@ -630,6 +633,12 @@ export function createAudio() {
     },
     playPowerupPickup() {
       return playBufferedSfx(AUDIO_TRACKS.powerupPickup, { gain: POWERUP_PICKUP_GAIN });
+    },
+    playPlayerHurt() {
+      return playBufferedSfx(AUDIO_TRACKS.playerHurt, {
+        gain: PLAYER_HURT_GAIN,
+        maxDurationSeconds: PLAYER_HURT_MAX_DURATION_SECONDS,
+      });
     },
     playPlayerDeath() {
       if (playerDeathTriggeredForCurrentRun) return false;
