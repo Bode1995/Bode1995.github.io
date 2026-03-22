@@ -37,11 +37,18 @@ export const MISSION_STORIES = {
   },
 };
 
+export function getMissionStoryKey(mission) {
+  if (!mission) return null;
+  if (mission.type === 'boss') return `boss:${mission.id || mission.bossId}`;
+  return `level:${mission.world}:${mission.level}`;
+}
+
 export function getMissionStory(mission) {
   if (!mission) return null;
   if (mission.type === 'boss') {
     const boss = getBossDefinition(mission.id || mission.bossId);
     return {
+      key: getMissionStoryKey({ type: 'boss', id: boss.id }),
       title: boss.name,
       text: MISSION_STORIES.bosses[boss.id] || '',
     };
@@ -51,7 +58,38 @@ export function getMissionStory(mission) {
   const level = mission.level;
   const worldDef = getWorldDefinition(world);
   return {
+    key: getMissionStoryKey(mission),
     title: `${worldDef.themeName} · Level ${level}`,
     text: MISSION_STORIES.levels?.[world]?.[level] || '',
   };
+}
+
+export function getAllMissionStoryEntries() {
+  const levelEntries = Object.entries(MISSION_STORIES.levels).flatMap(([world, levels]) => {
+    const worldNumber = Number(world);
+    return Object.keys(levels).map((level) => {
+      const levelNumber = Number(level);
+      const mission = { type: 'level', world: worldNumber, level: levelNumber };
+      const story = getMissionStory(mission);
+      return {
+        key: story.key,
+        mission,
+        title: story.title,
+        text: story.text,
+      };
+    });
+  });
+
+  const bossEntries = Object.keys(MISSION_STORIES.bosses).map((bossId) => {
+    const mission = { type: 'boss', id: bossId };
+    const story = getMissionStory(mission);
+    return {
+      key: story.key,
+      mission,
+      title: story.title,
+      text: story.text,
+    };
+  });
+
+  return [...levelEntries, ...bossEntries];
 }

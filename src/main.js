@@ -1,3 +1,3 @@
 import { startGameApp } from './core/gameApp.js';
 
-startGameApp();
+void startGameApp();
