@@ -97,6 +97,19 @@ export function createAudio() {
     return audioElement;
   }
 
+  function resetMediaElement(mediaElement) {
+    if (!mediaElement) return;
+    mediaElement.pause();
+    mediaElement.currentTime = 0;
+  }
+
+  function resetDomMediaElements() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('audio, video').forEach((mediaElement) => {
+      resetMediaElement(mediaElement);
+    });
+  }
+
   async function tryPlayCurrentTrack() {
     if (!unlocked || !musicEnabled || musicPausedForAppState) return false;
     const track = getCurrentTrack();
@@ -143,6 +156,15 @@ export function createAudio() {
       musicPausedForAppState = false;
       void tryPlayCurrentTrack();
       return true;
+    },
+    stopAllAudio({ suspendContext = false } = {}) {
+      musicEnabled = false;
+      musicPausedForAppState = true;
+      resetMediaElement(musicEl);
+      resetDomMediaElements();
+      if (suspendContext && ctx && ctx.state === 'running') {
+        void ctx.suspend().catch(() => {});
+      }
     },
     shoot() {
       if (!unlocked || !ctx) return;

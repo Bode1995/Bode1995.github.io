@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sky-blaster-3d-v12';
+const CACHE_NAME = 'sky-blaster-3d-v13';
 const ASSETS = [
   './',
   './index.html',
@@ -21,6 +21,7 @@ const ASSETS = [
   './src/config/missionStories.js',
   './src/config/specialAbilities.js',
   './src/config/worlds.js',
+  './src/config/worldLayouts.js',
   './src/core/gameApp.js',
   './src/core/profile.js',
   './src/core/state.js',
@@ -49,15 +50,20 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const requests = ASSETS.map((asset) => new Request(asset, { cache: 'reload' }));
+    await cache.addAll(requests);
+  })());
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('message', (event) => {
@@ -69,7 +75,9 @@ function isAppShellRequest(requestUrl, request) {
     || requestUrl.pathname.endsWith('.js')
     || requestUrl.pathname.endsWith('.css')
     || requestUrl.pathname.endsWith('.html')
-    || requestUrl.pathname.endsWith('.webmanifest');
+    || requestUrl.pathname.endsWith('.webmanifest')
+    || requestUrl.pathname.endsWith('.mp3')
+    || requestUrl.pathname.endsWith('.svg');
 }
 
 self.addEventListener('fetch', (event) => {
@@ -79,27 +87,30 @@ self.addEventListener('fetch', (event) => {
 
   if (isAppShellRequest(requestUrl, event.request)) {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(event.request, { ignoreSearch: requestUrl.pathname === '/' || requestUrl.pathname.endsWith('/index.html') });
+        if (cached) return cached;
+
+        try {
+          const response = await fetch(event.request, { cache: 'no-store' });
+          if (response && response.ok) await cache.put(event.request, response.clone());
           return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(event.request);
-          if (cached) return cached;
-          return caches.match('./index.html');
-        })
+        } catch (_error) {
+          if (event.request.mode === 'navigate') return cache.match('./index.html');
+          throw _error;
+        }
+      })
     );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(event.request);
       if (cached) return cached;
+
       return fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response && response.ok) cache.put(event.request, response.clone());
         return response;
       });
     })
