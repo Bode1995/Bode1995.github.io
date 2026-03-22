@@ -41,6 +41,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     entry.baseScale = 1;
     entry.spin = 0;
     entry.kind = 'orb';
+    entry.effectTag = null;
     entry.mesh.visible = false;
     entry.mesh.position.set(0, 0, 0);
     entry.mesh.rotation.set(0, 0, 0);
@@ -73,7 +74,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     vfxParticlePool.push(entry);
   }
 
-  function acquireVfxParticle(position, velocity, color, life, scale, kind) {
+  function acquireVfxParticle(position, velocity, color, life, scale, kind, effectTag = null) {
     const entry = vfxParticlePool.pop() || createVfxParticlePoolEntry();
     const resolvedLife = getImpactVisualLifetime(life);
     entry.mesh.geometry = kind === 'shard' ? VFX.shardGeometry : VFX.particleGeometry;
@@ -90,11 +91,12 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     entry.baseScale = scale;
     entry.spin = (Math.random() - 0.5) * 8;
     entry.kind = kind;
+    entry.effectTag = effectTag;
     scene.add(entry.mesh);
     return entry;
   }
 
-  function spawnVfxParticle(position, velocity, color, life = 0.35, scale = 1, kind = 'orb') {
+  function spawnVfxParticle(position, velocity, color, life = 0.35, scale = 1, kind = 'orb', effectTag = null) {
     const budgets = state.performance.frameBudgets;
     if (budgets.vfxSpawns >= performance.getAdaptiveLimit(SAFETY_LIMITS.maxVfxSpawnPerFrame, 0.58, 0.34)) return;
     budgets.vfxSpawns += 1;
@@ -105,32 +107,32 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       if (oldest) recycleVfxParticle(oldest);
     }
 
-    state.entities.vfxParticles.push(acquireVfxParticle(position, velocity, color, life, scale, kind));
+    state.entities.vfxParticles.push(acquireVfxParticle(position, velocity, color, life, scale, kind, effectTag));
   }
 
-  function maybeSpawnStatusVfx(position, velocity, color, life, scale, kind = 'orb') {
+  function maybeSpawnStatusVfx(position, velocity, color, life, scale, kind = 'orb', effectTag = null) {
     const budgets = state.performance.frameBudgets;
     if (budgets.statusVfx >= performance.getAdaptiveLimit(SAFETY_LIMITS.maxStatusVfxPerFrame, 0.55, 0.28)) return;
     budgets.statusVfx += 1;
-    spawnVfxParticle(position, velocity, color, life, scale, kind);
+    spawnVfxParticle(position, velocity, color, life, scale, kind, effectTag);
   }
 
-  function maybeSpawnImpactVfx(position, velocity, color, life, scale, kind = 'orb') {
-    maybeSpawnStatusVfx(position, velocity, color, getImpactVisualLifetime(life), scale, kind);
+  function maybeSpawnImpactVfx(position, velocity, color, life, scale, kind = 'orb', effectTag = null) {
+    maybeSpawnStatusVfx(position, velocity, color, getImpactVisualLifetime(life), scale, kind, effectTag);
   }
 
-  function spawnBurst(position, color, count, speed, life = 0.3, scale = 1, kind = 'orb') {
+  function spawnBurst(position, color, count, speed, life = 0.3, scale = 1, kind = 'orb', effectTag = null) {
     const burstCount = Math.min(count, performance.getAdaptiveLimit(count, 0.6, 0.34));
     for (let i = 0; i < burstCount; i++) {
       const angle = Math.random() * Math.PI * 2;
       const up = (Math.random() - 0.5) * 0.7;
       temp.vec3B.set(Math.cos(angle), up, Math.sin(angle)).multiplyScalar(speed * (0.35 + Math.random() * 0.85));
-      spawnVfxParticle(position, temp.vec3B, color, life * (0.8 + Math.random() * 0.5), scale * (0.65 + Math.random() * 0.65), kind);
+      spawnVfxParticle(position, temp.vec3B, color, life * (0.8 + Math.random() * 0.5), scale * (0.65 + Math.random() * 0.65), kind, effectTag);
     }
   }
 
-  function spawnImpactBurst(position, color, count, speed, life = MAX_IMPACT_VISUAL_LIFETIME, scale = 1, kind = 'orb') {
-    spawnBurst(position, color, count, speed, getImpactVisualLifetime(life), scale, kind);
+  function spawnImpactBurst(position, color, count, speed, life = MAX_IMPACT_VISUAL_LIFETIME, scale = 1, kind = 'orb', effectTag = null) {
+    spawnBurst(position, color, count, speed, getImpactVisualLifetime(life), scale, kind, effectTag);
   }
 
   function spawnImpactEffects(position, effects = {}) {
@@ -148,8 +150,8 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
       spawnImpactBurst(position, 0xb6ff9f, 3, 1.8, 0.22, 0.58, 'shard');
     }
     if (effects.lightning) {
-      spawnImpactBurst(position, EFFECT_COLORS.lightning, 5, 4.6, 0.26, 0.82, 'shard');
-      spawnImpactBurst(position, 0xffffff, 2, 2.5, 0.14, 0.38);
+      spawnImpactBurst(position, EFFECT_COLORS.lightning, 5, 4.6, 0.26, 0.82, 'shard', 'lightning');
+      spawnImpactBurst(position, 0xffffff, 2, 2.5, 0.14, 0.38, 'orb', 'lightning');
     }
     if (effects.rockets) {
       spawnImpactBurst(position, EFFECT_COLORS.rockets, 10, 5.3, 0.45, 1.08, 'shard');
@@ -356,7 +358,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     scene.add(beam);
 
     const beamLife = getImpactVisualLifetime(0.12);
-    state.entities.chainBeams.push({ mesh: beam, life: beamLife, maxLife: beamLife, baseScale: beam.scale.clone() });
+    state.entities.chainBeams.push({ mesh: beam, life: beamLife, maxLife: beamLife, baseScale: beam.scale.clone(), effectTag: 'lightning' });
     return true;
   }
 
@@ -652,6 +654,11 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     updateDamageNumbers(dt);
   }
 
+  function hasActiveLightningVisuals() {
+    return state.entities.chainBeams.some((entry) => entry?.effectTag === 'lightning' && entry.life > 0)
+      || state.entities.vfxParticles.some((entry) => entry?.effectTag === 'lightning' && entry.life > 0);
+  }
+
   function clear() {
     while (state.entities.vfxParticles.length > 0) recycleVfxParticle(state.entities.vfxParticles.pop());
     state.entities.chainBeams.forEach(disposeChainBeam);
@@ -688,6 +695,7 @@ export function createVfxSystem({ THREE, scene, state, performance, SAFETY_LIMIT
     createChainBeam,
     spawnExplosionRing,
     disposeChainBeam,
+    hasActiveLightningVisuals,
     update,
     clear,
     dispose,

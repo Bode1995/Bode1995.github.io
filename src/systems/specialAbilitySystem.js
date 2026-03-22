@@ -21,6 +21,7 @@ export function createSpecialAbilitySystem({
   getCharacterCombatProfile,
   spawnBonusVolley,
   damageEnemy,
+  audio = null,
 }) {
   const runtime = {
     activeAbilityId: DEFAULT_SPECIAL_ABILITY_ID,
@@ -102,6 +103,7 @@ export function createSpecialAbilitySystem({
     hitPosition.y = 0.6;
     vfx.spawnExplosionRing(hitPosition, radius);
     vfx.spawnImpactBurst(hitPosition, 0xffb26c, 10, 4.2, 0.35, 1.4);
+    audio?.playExplosion?.();
     collision.forEachEnemyNearPosition(hitPosition, radius, (enemy) => {
       const data = getEnemyData(enemy);
       if (!data || data.dead) return;

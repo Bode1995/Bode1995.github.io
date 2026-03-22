@@ -11,6 +11,9 @@ const AUDIO_FILES = {
   powerupPickup: 'Power up sammeln.mp3',
   playerDeath: 'Spieler tot.mp3',
   enemyDeath: 'Gegner tot.mp3',
+  hit: 'Treffer.mp3',
+  explosion: 'Explosion.mp3',
+  lightningLoop: 'Blitz.mp3',
 };
 const AUDIO_TRACKS = Object.fromEntries(
   Object.entries(AUDIO_FILES).map(([key, file]) => [key, { file, src: new URL(file, AUDIO_ASSET_BASE_URL).href }]),
@@ -18,12 +21,21 @@ const AUDIO_TRACKS = Object.fromEntries(
 const MUSIC_TRACKS = [AUDIO_TRACKS.background1, AUDIO_TRACKS.background2, AUDIO_TRACKS.background3];
 const BACKGROUND_MUSIC_VOLUME = 0.18;
 const MOVEMENT_LOOP_GAIN = 0.32;
+const MOVEMENT_STOP_FADE_SECONDS = 0.08;
 const POWERUP_PICKUP_GAIN = 0.315;
 const PLAYER_DEATH_GAIN = 0.42;
 const PLAYER_DEATH_MAX_DURATION_SECONDS = 1.0;
 const ENEMY_DEATH_GAIN = 0.26;
 const ENEMY_DEATH_MAX_DURATION_SECONDS = 1.0;
-const MOVEMENT_STOP_FADE_SECONDS = 0.08;
+const HIT_GAIN = 0.24;
+const HIT_MAX_DURATION_SECONDS = 0.5;
+const HIT_MAX_CONCURRENT = 5;
+const EXPLOSION_GAIN = 0.3;
+const EXPLOSION_MAX_DURATION_SECONDS = 0.8;
+const EXPLOSION_MAX_CONCURRENT = 3;
+const LIGHTNING_LOOP_GAIN = 0.26;
+const LIGHTNING_LOOP_SLICE_SECONDS = 1.0;
+const LIGHTNING_STOP_FADE_SECONDS = 0.06;
 
 function tone(ctx, type, freq, duration, gain = 0.04) {
   const osc = ctx.createOscillator();
@@ -59,9 +71,15 @@ export function createAudio() {
   let advancingTrack = false;
   let movementLoopRequested = false;
   let movementLoopInstance = null;
+  let lightningLoopRequested = false;
+  let lightningLoopInstance = null;
   let playerDeathTriggeredForCurrentRun = false;
   const audioBufferCache = new Map();
   const activeSfxSources = new Set();
+  const bufferedSfxBuckets = {
+    hit: new Set(),
+    explosion: new Set(),
+  };
 
   function ensureAudioContext() {
     if (!AUDIO_CONTEXT_CTOR) return null;
@@ -113,15 +131,37 @@ export function createAudio() {
     if (!source) return;
     source.onended = null;
     activeSfxSources.delete(source);
+    const bucketKey = source.__audioBucketKey;
+    if (bucketKey && bufferedSfxBuckets[bucketKey]) bufferedSfxBuckets[bucketKey].delete(source);
+    if (movementLoopInstance?.source === source) movementLoopInstance = null;
+    if (lightningLoopInstance?.source === source) lightningLoopInstance = null;
   }
 
-  function stopMovementLoop({ immediate = false } = {}) {
-    movementLoopRequested = false;
-    const instance = movementLoopInstance;
-    if (!instance) return;
-    movementLoopInstance = null;
-    const now = ctx?.currentTime ?? 0;
-    const stopAt = immediate ? now : now + MOVEMENT_STOP_FADE_SECONDS;
+  function registerSource(source, { bucketKey = null, startedAt = 0 } = {}) {
+    if (!source) return source;
+    source.__audioBucketKey = bucketKey;
+    source.__audioStartedAt = startedAt;
+    activeSfxSources.add(source);
+    if (bucketKey && bufferedSfxBuckets[bucketKey]) bufferedSfxBuckets[bucketKey].add(source);
+    source.onended = () => cleanupSourceRegistration(source);
+    return source;
+  }
+
+  function stopBufferedBucketSource(source) {
+    if (!source) return;
+    try {
+      source.stop();
+      cleanupSourceRegistration(source);
+    } catch (_error) {
+      cleanupSourceRegistration(source);
+    }
+  }
+
+  function stopLoopInstance(instance, { immediate = false, fadeSeconds = MOVEMENT_STOP_FADE_SECONDS } = {}) {
+    if (!instance?.source) return;
+    const audioContext = ctx;
+    const now = audioContext?.currentTime ?? 0;
+    const stopAt = immediate ? now : now + fadeSeconds;
 
     try {
       instance.source.loop = false;
@@ -136,6 +176,22 @@ export function createAudio() {
     } catch (_error) {
       cleanupSourceRegistration(instance.source);
     }
+  }
+
+  function stopMovementLoop({ immediate = false } = {}) {
+    movementLoopRequested = false;
+    const instance = movementLoopInstance;
+    if (!instance) return;
+    movementLoopInstance = null;
+    stopLoopInstance(instance, { immediate, fadeSeconds: MOVEMENT_STOP_FADE_SECONDS });
+  }
+
+  function stopLightningLoop({ immediate = false } = {}) {
+    lightningLoopRequested = false;
+    const instance = lightningLoopInstance;
+    if (!instance) return;
+    lightningLoopInstance = null;
+    stopLoopInstance(instance, { immediate, fadeSeconds: LIGHTNING_STOP_FADE_SECONDS });
   }
 
   function getCurrentTrack() {
@@ -219,45 +275,77 @@ export function createAudio() {
     }
   }
 
-  async function startMovementLoop() {
-    movementLoopRequested = true;
+  async function startLoopTrack(track, {
+    loopGain = 1,
+    loopSliceSeconds = null,
+    assignInstance,
+    getCurrentInstance,
+    isStillRequested,
+  }) {
     if (!unlocked) return false;
     const audioContext = ensureAudioContext();
     if (!audioContext) return false;
-    if (movementLoopInstance) return true;
+    if (getCurrentInstance()) return true;
     const resumed = await resumeAudioContext();
-    if (!resumed || !movementLoopRequested || movementLoopInstance) return false;
-    const buffer = await loadAudioBuffer(AUDIO_TRACKS.movementLoop);
-    if (!buffer || !movementLoopRequested || movementLoopInstance) return false;
+    if (!resumed || !isStillRequested() || getCurrentInstance()) return false;
+    const buffer = await loadAudioBuffer(track);
+    if (!buffer || !isStillRequested() || getCurrentInstance()) return false;
 
     const gainNode = audioContext.createGain();
     const source = audioContext.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
+    if (loopSliceSeconds != null) {
+      source.loopStart = 0;
+      source.loopEnd = Math.max(0.01, Math.min(buffer.duration, loopSliceSeconds));
+    }
     source.connect(gainNode).connect(audioContext.destination);
     const now = audioContext.currentTime;
     gainNode.gain.setValueAtTime(0.0001, now);
-    gainNode.gain.exponentialRampToValueAtTime(MOVEMENT_LOOP_GAIN, now + 0.03);
+    gainNode.gain.exponentialRampToValueAtTime(loopGain, now + 0.03);
 
     const instance = { source, gainNode };
-    movementLoopInstance = instance;
-    activeSfxSources.add(source);
-    source.onended = () => {
-      cleanupSourceRegistration(source);
-      if (movementLoopInstance?.source === source) movementLoopInstance = null;
-    };
+    assignInstance(instance);
+    registerSource(source, { startedAt: now });
 
     try {
-      source.start(now);
+      source.start(now, 0);
       return true;
     } catch (_error) {
       cleanupSourceRegistration(source);
-      if (movementLoopInstance?.source === source) movementLoopInstance = null;
+      if (getCurrentInstance()?.source === source) assignInstance(null);
       return false;
     }
   }
 
-  function playBufferedSfx(track, { gain = 1, maxDurationSeconds = null } = {}) {
+  async function startMovementLoop() {
+    movementLoopRequested = true;
+    return startLoopTrack(AUDIO_TRACKS.movementLoop, {
+      loopGain: MOVEMENT_LOOP_GAIN,
+      assignInstance: (instance) => { movementLoopInstance = instance; },
+      getCurrentInstance: () => movementLoopInstance,
+      isStillRequested: () => movementLoopRequested,
+    });
+  }
+
+  async function startLightningLoop() {
+    lightningLoopRequested = true;
+    return startLoopTrack(AUDIO_TRACKS.lightningLoop, {
+      loopGain: LIGHTNING_LOOP_GAIN,
+      loopSliceSeconds: LIGHTNING_LOOP_SLICE_SECONDS,
+      assignInstance: (instance) => { lightningLoopInstance = instance; },
+      getCurrentInstance: () => lightningLoopInstance,
+      isStillRequested: () => lightningLoopRequested,
+    });
+  }
+
+  function playBufferedSfx(track, {
+    gain = 1,
+    maxDurationSeconds = null,
+    bucketKey = null,
+    maxConcurrent = null,
+    reuseMode = 'skip',
+  } = {}) {
     if (!unlocked) return false;
     const audioContext = ensureAudioContext();
     if (!audioContext) return false;
@@ -269,16 +357,25 @@ export function createAudio() {
       const playbackDuration = maxDurationSeconds == null
         ? buffer.duration
         : Math.max(0.01, Math.min(buffer.duration, maxDurationSeconds));
+      const bucket = bucketKey ? bufferedSfxBuckets[bucketKey] : null;
+      if (bucket && maxConcurrent != null && bucket.size >= maxConcurrent) {
+        if (reuseMode === 'skip') return;
+        if (reuseMode === 'rotate') {
+          const sourceToReuse = [...bucket].sort((a, b) => (a.__audioStartedAt || 0) - (b.__audioStartedAt || 0))[0] || null;
+          if (sourceToReuse) stopBufferedBucketSource(sourceToReuse);
+          if (bucket.size >= maxConcurrent) return;
+        }
+      }
+
       const source = audioContext.createBufferSource();
       const gainNode = audioContext.createGain();
       source.buffer = buffer;
       source.loop = false;
       gainNode.gain.value = gain;
       source.connect(gainNode).connect(audioContext.destination);
-      activeSfxSources.add(source);
-      source.onended = () => cleanupSourceRegistration(source);
+      const startAt = audioContext.currentTime;
+      registerSource(source, { bucketKey, startedAt: startAt });
       try {
-        const startAt = audioContext.currentTime;
         source.start(startAt, 0, playbackDuration);
         if (playbackDuration < buffer.duration) source.stop(startAt + playbackDuration);
       } catch (_error) {
@@ -329,6 +426,20 @@ export function createAudio() {
       stopMovementLoop();
       return false;
     },
+    startLightningLoop() {
+      return startLightningLoop();
+    },
+    stopLightningLoop({ immediate = false } = {}) {
+      stopLightningLoop({ immediate });
+    },
+    syncLightningLoop(isActive) {
+      if (isActive) {
+        void startLightningLoop();
+        return true;
+      }
+      stopLightningLoop();
+      return false;
+    },
     playPowerupPickup() {
       return playBufferedSfx(AUDIO_TRACKS.powerupPickup, { gain: POWERUP_PICKUP_GAIN });
     },
@@ -346,13 +457,32 @@ export function createAudio() {
         maxDurationSeconds: ENEMY_DEATH_MAX_DURATION_SECONDS,
       });
     },
+    playHit() {
+      return playBufferedSfx(AUDIO_TRACKS.hit, {
+        gain: HIT_GAIN,
+        maxDurationSeconds: HIT_MAX_DURATION_SECONDS,
+        bucketKey: 'hit',
+        maxConcurrent: HIT_MAX_CONCURRENT,
+        reuseMode: 'skip',
+      });
+    },
+    playExplosion() {
+      return playBufferedSfx(AUDIO_TRACKS.explosion, {
+        gain: EXPLOSION_GAIN,
+        maxDurationSeconds: EXPLOSION_MAX_DURATION_SECONDS,
+        bucketKey: 'explosion',
+        maxConcurrent: EXPLOSION_MAX_CONCURRENT,
+        reuseMode: 'rotate',
+      });
+    },
     stopAllAudio({ suspendContext = false } = {}) {
       musicEnabled = false;
       musicPausedForAppState = true;
       stopMovementLoop({ immediate: true });
+      stopLightningLoop({ immediate: true });
       resetMediaElement(musicEl);
       resetDomMediaElements();
-      activeSfxSources.forEach((source) => {
+      [...activeSfxSources].forEach((source) => {
         try {
           source.stop();
         } catch (_error) {
@@ -360,6 +490,7 @@ export function createAudio() {
         }
       });
       activeSfxSources.clear();
+      Object.values(bufferedSfxBuckets).forEach((bucket) => bucket.clear());
       if (suspendContext && ctx && ctx.state === 'running') {
         void ctx.suspend().catch(() => {});
       }
