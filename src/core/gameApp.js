@@ -291,6 +291,12 @@ export function startGameApp() {
     audio.stopMovementLoop({ immediate });
   }
 
+  function syncLightningAudio(isActive) {
+    state.audio = state.audio || {};
+    state.audio.lightningLoopActive = audio.syncLightningLoop(Boolean(isActive));
+    return state.audio.lightningLoopActive;
+  }
+
   let finishRun = () => {};
   const combat = createCombatSystem({
     state,
@@ -309,6 +315,7 @@ export function startGameApp() {
     finishRun: (success) => finishRun(success),
     sceneResources,
     temp,
+    audio,
   });
 
   const projectileSystem = createProjectileSystem({
@@ -326,6 +333,7 @@ export function startGameApp() {
     getProjectileEffects: combat.getProjectileEffects,
     getWeaponSynergyProfile: synergySystem.getWeaponSynergyProfile,
     sceneResources,
+    onDirectHit: () => audio.playHit(),
   });
 
   const specialAbilitySystem = createSpecialAbilitySystem({
@@ -340,6 +348,7 @@ export function startGameApp() {
     getCharacterCombatProfile,
     spawnBonusVolley: projectileSystem.spawnBonusVolley,
     damageEnemy: combat.damageEnemy,
+    audio,
   });
 
   const enemySystem = createEnemySystem({
@@ -1281,6 +1290,12 @@ export function startGameApp() {
           profileApi.save();
         }
 
+        const hasVisibleLightning = vfx.hasActiveLightningVisuals()
+          || state.entities.enemies.some((enemy) => {
+            const data = enemy?.userData;
+            return Boolean(data && !data.dead && data.shockTimer > 0 && data.impactVisualTimer > 0);
+          });
+        syncLightningAudio(hasVisibleLightning);
         updateHUD();
       } catch (err) {
         handleRunCrash('Game loop failed', err, `wave=${state.wave}, enemies=${state.entities.enemies.length}, bullets=${state.entities.bullets.length}`);
@@ -1288,6 +1303,7 @@ export function startGameApp() {
     } else {
       state.audio = state.audio || {};
       state.audio.movementLoopActive = audio.syncMovementLoop(false);
+      syncLightningAudio(false);
       if (playerRig && !state.paused) characterModule.animateCharacterRig(playerRig, 0, elapsed);
     }
 

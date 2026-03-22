@@ -18,6 +18,7 @@ export function createCombatSystem({
   finishRun,
   sceneResources,
   temp,
+  audio = null,
 }) {
   const api = {
     damageEnemy: null,
@@ -242,6 +243,7 @@ export function createCombatSystem({
     const radius = (1.8 + getUpgradeLevel('rocketRadius') * 0.18 + runPowers.stacks.rockets * 0.55) * Math.min(2.1, weightBoost) * aoeBias;
     const splash = Math.max(1, Math.round((0.45 + runPowers.stacks.rockets * 0.7) * Math.min(3, volleyWeight)));
     vfx.spawnExplosionRing(hitPos, radius);
+    audio?.playExplosion?.();
 
     let splashTargets = 0;
     collision.forEachEnemyNearPosition(hitPos, radius, (other) => {

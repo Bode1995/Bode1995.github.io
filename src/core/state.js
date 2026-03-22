@@ -32,6 +32,7 @@ export function createGameState(profile, helpers) {
     },
     audio: {
       movementLoopActive: false,
+      lightningLoopActive: false,
     },
     runCredits: 0,
     damageDealt: 0,

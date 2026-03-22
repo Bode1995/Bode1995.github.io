@@ -15,6 +15,7 @@ export function createProjectileSystem({
   getProjectileEffects,
   getWeaponSynergyProfile,
   sceneResources,
+  onDirectHit = null,
 }) {
   const bulletAssets = {
     standardGeometry: new THREE.SphereGeometry(0.18, 10, 10),
@@ -381,6 +382,7 @@ export function createProjectileSystem({
       if (!hitEnemy) continue;
       state.performance.frameBudgets.hitResolutions += 1;
       callbacks.damageEnemy(hitEnemy, bullet.userData.damage, { impactEffects: bullet.userData.effects || getProjectileEffects() });
+      if (onDirectHit) onDirectHit(hitEnemy, bullet);
       callbacks.applyProjectilePower(hitEnemy, bullet);
       bullet.userData.hitEnemies?.add(hitEnemy);
       if ((bullet.userData.pierceRemaining || 0) > 0) {
