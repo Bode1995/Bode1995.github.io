@@ -260,7 +260,6 @@ export function startGameApp() {
   synergySystem.applyThresholdUnlocks();
 
   const worldIntroVoiceover = createWorldIntroVoiceover();
-  worldIntroVoiceover.warmWorldIntroVoiceoverCache();
   const audio = createAudio();
 
   function ensureBackgroundMusicStarted() {
@@ -721,9 +720,9 @@ export function startGameApp() {
     ui.pauseOverlay.classList.toggle('hidden', !state.paused);
   }
 
-  function clearPendingMissionStart() {
+  function clearPendingMissionStart({ stopIntroAudio = true } = {}) {
     state.ui.pendingMissionStart = null;
-    worldIntroVoiceover.stopWorldIntroVoiceover();
+    if (stopIntroAudio) worldIntroVoiceover.stopWorldIntroVoiceover();
     ui.missionStoryOverlay.classList.add('hidden');
   }
 
@@ -738,7 +737,9 @@ export function startGameApp() {
     ui.missionStoryTitle.textContent = pendingMissionStart.worldIntro.title;
     ui.missionStoryText.textContent = pendingMissionStart.worldIntro.text;
     ui.missionStoryOverlay.classList.remove('hidden');
-    worldIntroVoiceover.playWorldIntroVoiceover(pendingMissionStart.worldIntro);
+    if (worldIntroVoiceover.hasWorldIntroVoiceover(pendingMissionStart.mission.world)) {
+      void worldIntroVoiceover.playWorldIntroVoiceover(pendingMissionStart.mission.world);
+    }
   }
 
   function createPendingMissionStart(mission) {
@@ -769,7 +770,7 @@ export function startGameApp() {
       combat.resetRunPowerUps();
       resetGameplayOverlays();
       ui.menu.classList.add('hidden');
-      clearPendingMissionStart();
+      clearPendingMissionStart({ stopIntroAudio: true });
 
       const pendingMissionStart = createPendingMissionStart(mission);
       if (pendingMissionStart) {
@@ -796,7 +797,7 @@ export function startGameApp() {
       profile.stats.totalRuns += 1;
       profileApi.save();
 
-      clearPendingMissionStart();
+      clearPendingMissionStart({ stopIntroAudio: false });
       state.running = true;
       state.paused = false;
       state.pauseReason = null;
@@ -888,7 +889,7 @@ export function startGameApp() {
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
-    clearPendingMissionStart();
+    clearPendingMissionStart({ stopIntroAudio: true });
     resetTransientInputState();
     clearRunObjects();
     combat.resetRunPowerUps();
@@ -964,7 +965,7 @@ export function startGameApp() {
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
-    clearPendingMissionStart();
+    clearPendingMissionStart({ stopIntroAudio: false });
     const bossAlreadyCompleted = !!profile.progression.completedBossMissions?.[state.currentMission.bossId];
     if (success) {
       if (state.currentMission.type === 'boss') profileApi.completeBossMission(state.currentMission.bossId);
@@ -1037,7 +1038,7 @@ export function startGameApp() {
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
-    clearPendingMissionStart();
+    clearPendingMissionStart({ stopIntroAudio: true });
     resetTransientInputState();
     resetGameplayOverlays();
     ui.menu.classList.remove('hidden');
@@ -1057,7 +1058,7 @@ export function startGameApp() {
   }
   window.addEventListener('resize', resize);
   window.addEventListener('pagehide', () => {
-    worldIntroVoiceover.stopWorldIntroVoiceover();
+    clearPendingMissionStart({ stopIntroAudio: true });
     pauseBackgroundMusic();
   });
 
@@ -1326,10 +1327,14 @@ export function startGameApp() {
     startGame(mission);
   });
   ui.restartBtn.addEventListener('click', () => startGame(state.currentMission));
-  ui.menuBtn.addEventListener('click', () => menuController.openMenu('home'));
+  ui.menuBtn.addEventListener('click', () => {
+    worldIntroVoiceover.stopWorldIntroVoiceover();
+    menuController.openMenu('home');
+  });
   ui.nextLevelBtn.addEventListener('click', () => {
     const nextMission = getNextMission(state.worldIndex, state.levelIndex);
     if (!nextMission) {
+      worldIntroVoiceover.stopWorldIntroVoiceover();
       menuController.openMenu('worlds');
       return;
     }
