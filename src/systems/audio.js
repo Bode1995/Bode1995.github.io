@@ -33,6 +33,8 @@ const HIT_MAX_CONCURRENT = 5;
 const EXPLOSION_GAIN = 0.3;
 const EXPLOSION_MAX_DURATION_SECONDS = 0.8;
 const EXPLOSION_MAX_CONCURRENT = 3;
+const EXPLOSION_SUSTAIN_HOLD_SECONDS = 0.9;
+const EXPLOSION_SUSTAIN_FADE_SECONDS = 0.12;
 const LIGHTNING_LOOP_GAIN = 0.26;
 const LIGHTNING_LOOP_SLICE_SECONDS = 1.0;
 const LIGHTNING_STOP_FADE_SECONDS = 0.06;
@@ -74,8 +76,17 @@ export function createAudio() {
   let lightningLoopRequested = false;
   let lightningLoopInstance = null;
   let playerDeathTriggeredForCurrentRun = false;
+  let explosionSustainUntil = 0;
+  let explosionSustainReleaseTimerId = null;
   const audioBufferCache = new Map();
   const activeSfxSources = new Set();
+  const explosionSlots = Array.from({ length: EXPLOSION_MAX_CONCURRENT }, (_, index) => ({
+    index,
+    token: 0,
+    mode: 'idle',
+    source: null,
+    gainNode: null,
+  }));
   const bufferedSfxBuckets = {
     hit: new Set(),
     explosion: new Set(),
@@ -132,9 +143,18 @@ export function createAudio() {
     source.onended = null;
     activeSfxSources.delete(source);
     const bucketKey = source.__audioBucketKey;
+    const explosionSlotIndex = source.__audioExplosionSlotIndex;
+    if (Number.isInteger(explosionSlotIndex) && explosionSlots[explosionSlotIndex]?.source === source) {
+      const slot = explosionSlots[explosionSlotIndex];
+      slot.token += 1;
+      slot.mode = 'idle';
+      slot.source = null;
+      slot.gainNode = null;
+    }
     if (bucketKey && bufferedSfxBuckets[bucketKey]) bufferedSfxBuckets[bucketKey].delete(source);
     if (movementLoopInstance?.source === source) movementLoopInstance = null;
     if (lightningLoopInstance?.source === source) lightningLoopInstance = null;
+    if (bucketKey === 'explosion' && explosionSustainUntil > (ctx?.currentTime ?? 0)) queueMicrotask(() => { pumpExplosionSustain(); });
   }
 
   function registerSource(source, { bucketKey = null, startedAt = 0 } = {}) {
@@ -192,6 +212,136 @@ export function createAudio() {
     if (!instance) return;
     lightningLoopInstance = null;
     stopLoopInstance(instance, { immediate, fadeSeconds: LIGHTNING_STOP_FADE_SECONDS });
+  }
+
+  function clearExplosionSustainReleaseTimer() {
+    if (explosionSustainReleaseTimerId == null || typeof window === 'undefined') return;
+    window.clearTimeout(explosionSustainReleaseTimerId);
+    explosionSustainReleaseTimerId = null;
+  }
+
+  function stopExplosionSlot(slot, { immediate = false } = {}) {
+    if (!slot?.source) {
+      if (slot) {
+        slot.token += 1;
+        slot.mode = 'idle';
+        slot.source = null;
+        slot.gainNode = null;
+      }
+      return;
+    }
+
+    const { source, gainNode } = slot;
+    slot.token += 1;
+    slot.mode = 'idle';
+    slot.source = null;
+    slot.gainNode = null;
+
+    const now = ctx?.currentTime ?? 0;
+    const stopAt = immediate ? now : now + EXPLOSION_SUSTAIN_FADE_SECONDS;
+
+    try {
+      source.loop = false;
+      if (gainNode) {
+        const currentGain = Math.max(gainNode.gain.value, 0.0001);
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(currentGain, now);
+        if (immediate) gainNode.gain.setValueAtTime(0.0001, now);
+        else gainNode.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+      }
+      source.stop(immediate ? now : stopAt + 0.01);
+    } catch (_error) {
+      cleanupSourceRegistration(source);
+    }
+  }
+
+  function stopExplosionSustain({ immediate = false } = {}) {
+    explosionSustainUntil = 0;
+    clearExplosionSustainReleaseTimer();
+    explosionSlots.forEach((slot) => {
+      if (slot.mode === 'sustain' || slot.mode === 'starting-sustain') stopExplosionSlot(slot, { immediate });
+    });
+  }
+
+  function scheduleExplosionSustainRelease() {
+    if (typeof window === 'undefined') return;
+    clearExplosionSustainReleaseTimer();
+    const audioContext = ensureAudioContext();
+    if (!audioContext || explosionSustainUntil <= audioContext.currentTime) return;
+    const delayMs = Math.max(16, Math.ceil((explosionSustainUntil - audioContext.currentTime) * 1000));
+    explosionSustainReleaseTimerId = window.setTimeout(() => {
+      explosionSustainReleaseTimerId = null;
+      const currentTime = ctx?.currentTime ?? 0;
+      if (explosionSustainUntil > currentTime) {
+        scheduleExplosionSustainRelease();
+        return;
+      }
+      stopExplosionSustain();
+    }, delayMs);
+  }
+
+  function refreshExplosionSustainWindow() {
+    const audioContext = ensureAudioContext();
+    if (!audioContext) return;
+    explosionSustainUntil = audioContext.currentTime + EXPLOSION_SUSTAIN_HOLD_SECONDS;
+    scheduleExplosionSustainRelease();
+  }
+
+  function getIdleExplosionSlot() {
+    return explosionSlots.find((slot) => slot.mode === 'idle') || null;
+  }
+
+  function startExplosionSlot(slot, { loop = false } = {}) {
+    if (!slot || !unlocked) return false;
+    const audioContext = ensureAudioContext();
+    if (!audioContext) return false;
+
+    const token = slot.token + 1;
+    slot.token = token;
+    slot.mode = loop ? 'starting-sustain' : 'starting-burst';
+    slot.source = null;
+    slot.gainNode = null;
+
+    void resumeAudioContext().then(async (resumed) => {
+      if (!resumed || slot.token !== token) {
+        if (slot.token === token) slot.mode = 'idle';
+        return;
+      }
+
+      const buffer = await loadAudioBuffer(AUDIO_TRACKS.explosion);
+      if (!buffer || slot.token !== token) {
+        if (slot.token === token) slot.mode = 'idle';
+        return;
+      }
+
+      const playbackDuration = Math.max(0.01, Math.min(buffer.duration, EXPLOSION_MAX_DURATION_SECONDS));
+      const source = audioContext.createBufferSource();
+      const gainNode = audioContext.createGain();
+      source.buffer = buffer;
+      source.loop = loop;
+      if (loop) {
+        source.loopStart = 0;
+        source.loopEnd = playbackDuration;
+      }
+      gainNode.gain.value = EXPLOSION_GAIN;
+      source.connect(gainNode).connect(audioContext.destination);
+      source.__audioExplosionSlotIndex = slot.index;
+
+      slot.source = source;
+      slot.gainNode = gainNode;
+      slot.mode = loop ? 'sustain' : 'burst';
+
+      const startAt = audioContext.currentTime;
+      registerSource(source, { bucketKey: 'explosion', startedAt: startAt });
+      try {
+        source.start(startAt, loop ? Math.random() * playbackDuration : 0, loop ? undefined : playbackDuration);
+        if (!loop && playbackDuration < buffer.duration) source.stop(startAt + playbackDuration);
+      } catch (_error) {
+        cleanupSourceRegistration(source);
+      }
+    });
+
+    return true;
   }
 
   function getCurrentTrack() {
@@ -386,6 +536,28 @@ export function createAudio() {
     return true;
   }
 
+  function pumpExplosionSustain() {
+    const audioContext = ensureAudioContext();
+    if (!audioContext || !unlocked || explosionSustainUntil <= audioContext.currentTime) return false;
+
+    let started = false;
+    for (const slot of explosionSlots) {
+      if (slot.mode !== 'idle') continue;
+      if (!startExplosionSlot(slot, { loop: true })) break;
+      started = true;
+    }
+    return started;
+  }
+
+  function playExplosionSfx() {
+    if (explosionSustainUntil > (ctx?.currentTime ?? 0)) refreshExplosionSustainWindow();
+    const idleSlot = getIdleExplosionSlot();
+    if (idleSlot) return startExplosionSlot(idleSlot);
+
+    refreshExplosionSustainWindow();
+    return pumpExplosionSustain() || true;
+  }
+
   return {
     async unlock() {
       const ready = ensure();
@@ -467,19 +639,14 @@ export function createAudio() {
       });
     },
     playExplosion() {
-      return playBufferedSfx(AUDIO_TRACKS.explosion, {
-        gain: EXPLOSION_GAIN,
-        maxDurationSeconds: EXPLOSION_MAX_DURATION_SECONDS,
-        bucketKey: 'explosion',
-        maxConcurrent: EXPLOSION_MAX_CONCURRENT,
-        reuseMode: 'rotate',
-      });
+      return playExplosionSfx();
     },
     stopAllAudio({ suspendContext = false } = {}) {
       musicEnabled = false;
       musicPausedForAppState = true;
       stopMovementLoop({ immediate: true });
       stopLightningLoop({ immediate: true });
+      stopExplosionSustain({ immediate: true });
       resetMediaElement(musicEl);
       resetDomMediaElements();
       [...activeSfxSources].forEach((source) => {
@@ -491,6 +658,12 @@ export function createAudio() {
       });
       activeSfxSources.clear();
       Object.values(bufferedSfxBuckets).forEach((bucket) => bucket.clear());
+      explosionSlots.forEach((slot) => {
+        slot.token += 1;
+        slot.mode = 'idle';
+        slot.source = null;
+        slot.gainNode = null;
+      });
       if (suspendContext && ctx && ctx.state === 'running') {
         void ctx.suspend().catch(() => {});
       }
