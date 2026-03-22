@@ -266,7 +266,6 @@ export function startGameApp() {
 
   function ensureBackgroundMusicStarted() {
     void audio.unlock();
-    audio.resumeBackgroundMusic();
   }
 
   function unlockAudio() {
