@@ -981,8 +981,8 @@ export function startGameApp() {
 
   finishRun = function finishRunImpl(success) {
     if (!state.running) return;
-    stopMovementAudio({ immediate: true });
     if (!success) audio.playPlayerDeath();
+    stopMovementAudio();
     state.running = false;
     state.paused = false;
     state.pauseReason = null;
