@@ -80,13 +80,24 @@ export function createCombatSystem({
   }
 
   function damagePlayer(amount) {
+    const incomingDamage = Math.max(0, amount);
+    if (incomingDamage <= 0) return;
+
+    let hpDamage = incomingDamage;
     if (runPowers.shieldHp > 0) {
-      const absorbed = Math.min(runPowers.shieldHp, amount);
+      const absorbed = Math.min(runPowers.shieldHp, hpDamage);
       runPowers.shieldHp -= absorbed;
-      amount -= absorbed;
+      hpDamage -= absorbed;
     }
-    if (amount > 0) state.hp -= amount;
-    if (state.hp <= 0) finishRun(false);
+    if (hpDamage <= 0) return;
+
+    state.hp -= hpDamage;
+    if (state.hp <= 0) {
+      finishRun(false);
+      return;
+    }
+
+    audio?.playPlayerHurt?.();
   }
 
   function canSpawnStatusEffects(enemy) {
