@@ -365,7 +365,7 @@ export const gameplayConfig = {
     moveStartRadius: 0.38,
     fineMoveRadius: 0.56,
     highSpeedRadius: 0.88,
-    maxInputRadius: 88,
+    maxInputRadius: 44,
     speedExponent: 1.8,
     minMoveSpeed: 1.4,
     maxMoveSpeed: 10.8,
